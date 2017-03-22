@@ -77,6 +77,9 @@ public class GridNearAtomicSingleUpdateRequest extends GridNearAtomicAbstractSin
      * @param retval Return value required flag.
      * @param subjId Subject ID.
      * @param taskNameHash Task name hash code.
+     * @param fastMap Fast map update flag.
+     * @param clientReq {@code True} for client nodes requests.
+     * @param needPrimaryRes {@code True} if client expects primary node response.
      * @param skipStore Skip write-through to a persistent storage.
      * @param keepBinary Keep binary flag.
      * @param addDepInfo Deployment info flag.

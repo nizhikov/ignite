@@ -488,6 +488,9 @@ public class GridNearAtomicUpdateFuture extends GridNearAtomicAbstractUpdateFutu
             onDone(opRes0, err0);
     }
 
+    /**
+     * @param remapTopVer New topology version.
+     */
     private void waitAndRemap(AffinityTopologyVersion remapTopVer) {
         assert remapTopVer != null;
 
@@ -592,6 +595,7 @@ public class GridNearAtomicUpdateFuture extends GridNearAtomicAbstractUpdateFutu
     /**
      * @param opRes Operation result.
      * @param err Operation error.
+     * @param remapTopVer Not-null topology version if need remap update.
      */
     private void finishUpdateFuture(GridCacheReturn opRes,
         CachePartialUpdateCheckedException err,
@@ -859,6 +863,9 @@ public class GridNearAtomicUpdateFuture extends GridNearAtomicAbstractUpdateFutu
             checkDhtNodes(futId);
     }
 
+    /**
+     * @param futId Future ID.
+     */
     private void checkDhtNodes(Long futId) {
         GridCacheReturn opRes0 = null;
         CachePartialUpdateCheckedException err0 = null;
@@ -954,6 +961,7 @@ public class GridNearAtomicUpdateFuture extends GridNearAtomicAbstractUpdateFutu
      * @param topVer Topology version.
      * @param futId Future ID.
      * @param remapKeys Keys to remap.
+     * @param mappingKnown {@code True} if update mapping is known.
      * @return Mapping.
      * @throws Exception If failed.
      */
