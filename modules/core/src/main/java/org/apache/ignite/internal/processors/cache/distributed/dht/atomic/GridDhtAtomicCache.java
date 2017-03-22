@@ -92,6 +92,7 @@ import org.apache.ignite.internal.util.typedef.CI2;
 import org.apache.ignite.internal.util.typedef.CO;
 import org.apache.ignite.internal.util.typedef.CX1;
 import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.internal.util.typedef.P1;
 import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -106,7 +107,9 @@ import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_ATOMIC_DEFERRED_ACK_BUFFER_SIZE;
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_ATOMIC_DEFERRED_ACK_TIMEOUT;
+import static org.apache.ignite.cache.CacheAtomicWriteOrderMode.CLOCK;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_ASYNC;
+import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 import static org.apache.ignite.internal.processors.cache.GridCacheOperation.DELETE;
 import static org.apache.ignite.internal.processors.cache.GridCacheOperation.TRANSFORM;
 import static org.apache.ignite.internal.processors.cache.GridCacheOperation.UPDATE;
@@ -1115,27 +1118,54 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
         int taskNameHash = ctx.kernalContext().job().currentTaskNameHash();
 
-        final GridNearAtomicUpdateFuture updateFut = new GridNearAtomicUpdateFuture(
-            ctx,
-            this,
-            ctx.config().getWriteSynchronizationMode(),
-            op,
-            map != null ? map.keySet() : invokeMap != null ? invokeMap.keySet() : conflictPutMap != null ?
-                conflictPutMap.keySet() : conflictRmvMap.keySet(),
-            map != null ? map.values() : invokeMap != null ? invokeMap.values() : null,
-            invokeArgs,
-            (Collection)(conflictPutMap != null ? conflictPutMap.values() : null),
-            conflictRmvMap != null ? conflictRmvMap.values() : null,
-            retval,
-            rawRetval,
-            opCtx != null ? opCtx.expiry() : null,
-            CU.filterArray(null),
-            subjId,
-            taskNameHash,
-            opCtx != null && opCtx.skipStore(),
-            opCtx != null && opCtx.isKeepBinary(),
-            opCtx != null && opCtx.noRetries() ? 1 : MAX_RETRIES,
-            waitTopFut);
+        final GridNearAtomicAbstractUpdateFuture updateFut;
+
+        if (isFastMap(null, op)) {
+            updateFut = new GridNearAtomicFastMapUpdateFuture(
+                ctx,
+                this,
+                ctx.config().getWriteSynchronizationMode(),
+                op,
+                map != null ? map.keySet() : invokeMap != null ? invokeMap.keySet() : conflictPutMap != null ?
+                    conflictPutMap.keySet() : conflictRmvMap.keySet(),
+                map != null ? map.values() : invokeMap != null ? invokeMap.values() : null,
+                invokeArgs,
+                (Collection)(conflictPutMap != null ? conflictPutMap.values() : null),
+                conflictRmvMap != null ? conflictRmvMap.values() : null,
+                retval,
+                rawRetval,
+                opCtx != null ? opCtx.expiry() : null,
+                CU.filterArray(null),
+                subjId,
+                taskNameHash,
+                opCtx != null && opCtx.skipStore(),
+                opCtx != null && opCtx.isKeepBinary(),
+                opCtx != null && opCtx.noRetries() ? 1 : MAX_RETRIES,
+                waitTopFut);
+        }
+        else {
+            updateFut = new GridNearAtomicUpdateFuture(
+                ctx,
+                this,
+                ctx.config().getWriteSynchronizationMode(),
+                op,
+                map != null ? map.keySet() : invokeMap != null ? invokeMap.keySet() : conflictPutMap != null ?
+                    conflictPutMap.keySet() : conflictRmvMap.keySet(),
+                map != null ? map.values() : invokeMap != null ? invokeMap.values() : null,
+                invokeArgs,
+                (Collection)(conflictPutMap != null ? conflictPutMap.values() : null),
+                conflictRmvMap != null ? conflictRmvMap.values() : null,
+                retval,
+                rawRetval,
+                opCtx != null ? opCtx.expiry() : null,
+                CU.filterArray(null),
+                subjId,
+                taskNameHash,
+                opCtx != null && opCtx.skipStore(),
+                opCtx != null && opCtx.isKeepBinary(),
+                opCtx != null && opCtx.noRetries() ? 1 : MAX_RETRIES,
+                waitTopFut);
+        }
 
         if (async) {
             return asyncOp(new CO<IgniteInternalFuture<Object>>() {
@@ -1306,7 +1336,9 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
         CacheEntryPredicate[] filters = CU.filterArray(filter);
 
-        if (conflictPutVal == null && conflictRmvVer == null) {
+        if (conflictPutVal == null &&
+            conflictRmvVer == null &&
+            !isFastMap(filters, op)) {
             return new GridNearAtomicSingleUpdateFuture(
                 ctx,
                 this,
@@ -1328,27 +1360,64 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             );
         }
         else {
-            return new GridNearAtomicUpdateFuture(
-                ctx,
-                this,
-                ctx.config().getWriteSynchronizationMode(),
-                op,
-                Collections.singletonList(key),
-                val0 != null ? Collections.singletonList(val0) : null,
-                invokeArgs,
-                conflictPutVal != null ? Collections.singleton(conflictPutVal) : null,
-                conflictRmvVer != null ? Collections.singleton(conflictRmvVer) : null,
-                retval,
-                false,
-                opCtx != null ? opCtx.expiry() : null,
-                filters,
-                ctx.subjectIdPerCall(null, opCtx),
-                ctx.kernalContext().job().currentTaskNameHash(),
-                opCtx != null && opCtx.skipStore(),
-                opCtx != null && opCtx.isKeepBinary(),
-                opCtx != null && opCtx.noRetries() ? 1 : MAX_RETRIES,
-                waitTopFut);
+            if (isFastMap(filters, op)) {
+                return new GridNearAtomicFastMapUpdateFuture(
+                    ctx,
+                    this,
+                    ctx.config().getWriteSynchronizationMode(),
+                    op,
+                    Collections.singletonList(key),
+                    val0 != null ? Collections.singletonList(val0) : null,
+                    invokeArgs,
+                    conflictPutVal != null ? Collections.singleton(conflictPutVal) : null,
+                    conflictRmvVer != null ? Collections.singleton(conflictRmvVer) : null,
+                    retval,
+                    false,
+                    opCtx != null ? opCtx.expiry() : null,
+                    filters,
+                    ctx.subjectIdPerCall(null, opCtx),
+                    ctx.kernalContext().job().currentTaskNameHash(),
+                    opCtx != null && opCtx.skipStore(),
+                    opCtx != null && opCtx.isKeepBinary(),
+                    opCtx != null && opCtx.noRetries() ? 1 : MAX_RETRIES,
+                    waitTopFut);
+            }
+            else {
+                return new GridNearAtomicUpdateFuture(
+                    ctx,
+                    this,
+                    ctx.config().getWriteSynchronizationMode(),
+                    op,
+                    Collections.singletonList(key),
+                    val0 != null ? Collections.singletonList(val0) : null,
+                    invokeArgs,
+                    conflictPutVal != null ? Collections.singleton(conflictPutVal) : null,
+                    conflictRmvVer != null ? Collections.singleton(conflictRmvVer) : null,
+                    retval,
+                    false,
+                    opCtx != null ? opCtx.expiry() : null,
+                    filters,
+                    ctx.subjectIdPerCall(null, opCtx),
+                    ctx.kernalContext().job().currentTaskNameHash(),
+                    opCtx != null && opCtx.skipStore(),
+                    opCtx != null && opCtx.isKeepBinary(),
+                    opCtx != null && opCtx.noRetries() ? 1 : MAX_RETRIES,
+                    waitTopFut);
+            }
         }
+    }
+
+    /**
+     * Whether this is fast-map operation.
+     *
+     * @param filters Filters.
+     * @param op Operation.
+     * @return {@code True} if fast-map.
+     */
+    public boolean isFastMap(CacheEntryPredicate[] filters, GridCacheOperation op) {
+        return F.isEmpty(filters) && op != TRANSFORM && ctx.config().getWriteSynchronizationMode() == FULL_SYNC &&
+            ctx.config().getAtomicWriteOrderMode() == CLOCK &&
+            !(ctx.writeThrough() && ctx.config().getInterceptor() != null);
     }
 
     /**
@@ -1394,26 +1463,52 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             });
         }
 
-        final GridNearAtomicUpdateFuture updateFut = new GridNearAtomicUpdateFuture(
-            ctx,
-            this,
-            ctx.config().getWriteSynchronizationMode(),
-            DELETE,
-            keys != null ? keys : conflictMap.keySet(),
-            null,
-            null,
-            null,
-            drVers != null ? drVers : (keys != null ? null : conflictMap.values()),
-            retval,
-            rawRetval,
-            opCtx != null ? opCtx.expiry() : null,
-            CU.filterArray(null),
-            subjId,
-            taskNameHash,
-            opCtx != null && opCtx.skipStore(),
-            opCtx != null && opCtx.isKeepBinary(),
-            opCtx != null && opCtx.noRetries() ? 1 : MAX_RETRIES,
-            true);
+        final GridNearAtomicAbstractUpdateFuture updateFut;
+
+        if (isFastMap(null, DELETE)) {
+            updateFut = new GridNearAtomicFastMapUpdateFuture(
+                ctx,
+                this,
+                ctx.config().getWriteSynchronizationMode(),
+                DELETE,
+                keys != null ? keys : conflictMap.keySet(),
+                null,
+                null,
+                null,
+                drVers != null ? drVers : (keys != null ? null : conflictMap.values()),
+                retval,
+                rawRetval,
+                opCtx != null ? opCtx.expiry() : null,
+                CU.filterArray(null),
+                subjId,
+                taskNameHash,
+                opCtx != null && opCtx.skipStore(),
+                opCtx != null && opCtx.isKeepBinary(),
+                opCtx != null && opCtx.noRetries() ? 1 : MAX_RETRIES,
+                true);
+        }
+        else {
+            updateFut = new GridNearAtomicUpdateFuture(
+                ctx,
+                this,
+                ctx.config().getWriteSynchronizationMode(),
+                DELETE,
+                keys != null ? keys : conflictMap.keySet(),
+                null,
+                null,
+                null,
+                drVers != null ? drVers : (keys != null ? null : conflictMap.values()),
+                retval,
+                rawRetval,
+                opCtx != null ? opCtx.expiry() : null,
+                CU.filterArray(null),
+                subjId,
+                taskNameHash,
+                opCtx != null && opCtx.skipStore(),
+                opCtx != null && opCtx.isKeepBinary(),
+                opCtx != null && opCtx.noRetries() ? 1 : MAX_RETRIES,
+                true);
+        }
 
         if (async) {
             return asyncOp(new CO<IgniteInternalFuture<Object>>() {
@@ -1773,29 +1868,36 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                         return;
                     }
 
-                    // Do not check topology version if topology was locked on near node by
+                    // Do not check topology version for CLOCK versioning since
+                    // partition exchange will wait for near update future (if future is on server node).
+                    // Also do not check topology version if topology was locked on near node by
                     // external transaction or explicit lock.
-                    if (req.topologyLocked() || !needRemap(req.topologyVersion(), top.topologyVersion())) {
+                    if ((req.fastMap() && !req.clientRequest()) || req.topologyLocked() ||
+                        !needRemap(req.topologyVersion(), top.topologyVersion())) {
                         locked = lockEntries(req, req.topologyVersion());
 
                         boolean hasNear = ctx.discovery().cacheNearNode(node, name());
 
-                        // Assign next version for update inside entries lock.
-                        GridCacheVersion ver = ctx.versions().next(top.topologyVersion());
+                        GridCacheVersion ver = req.updateVersion();
 
-                        if (hasNear)
-                            res.nearVersion(ver);
+                        if (ver == null) {
+                            // Assign next version for update inside entries lock.
+                            ver = ctx.versions().next(top.topologyVersion());
 
-                        if (msgLog.isDebugEnabled()) {
-                            msgLog.debug("Assigned update version [futId=" + req.futureId() +
-                                ", writeVer=" + ver + ']');
+                            if (hasNear)
+                                res.nearVersion(ver);
+
+                            if (msgLog.isDebugEnabled()) {
+                                msgLog.debug("Assigned update version [futId=" + req.futureId() +
+                                    ", writeVer=" + ver + ']');
+                            }
                         }
 
                         assert ver != null : "Got null version for update request: " + req;
 
                         boolean sndPrevVal = !top.rebalanceFinished(req.topologyVersion());
 
-                        dhtFut = createDhtFuture(ver, req);
+                        dhtFut = req.fastMap() ? null : createDhtFuture(ver, req, res, completionCb);
 
                         expiry = expiryPolicy(req.expiry());
 
@@ -1812,6 +1914,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 hasNear,
                                 req,
                                 res,
+                                completionCb,
                                 locked,
                                 ver,
                                 dhtFut,
@@ -1831,6 +1934,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 hasNear,
                                 req,
                                 res,
+                                completionCb,
                                 locked,
                                 ver,
                                 dhtFut,
@@ -1910,9 +2014,15 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
             completionCb.apply(req, res);
         }
-        else
+        else {
             if (dhtFut != null)
-                dhtFut.map(node, res.returnValue(), res, completionCb);
+                dhtFut.map(node, res.returnValue());
+            else {
+                assert req.fastMap() : req;
+
+                completionCb.apply(req, res);
+            }
+        }
 
         if (req.writeSynchronizationMode() != FULL_ASYNC)
             req.cleanup(!node.isLocal());
@@ -1943,6 +2053,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         final boolean hasNear,
         final GridNearAtomicAbstractUpdateRequest req,
         final GridNearAtomicUpdateResponse res,
+        GridDhtAtomicCache.UpdateReplyClosure completionCb,
         final List<GridDhtCacheEntry> locked,
         final GridCacheVersion ver,
         @Nullable GridDhtAtomicAbstractUpdateFuture dhtFut,
@@ -1989,6 +2100,9 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
         for (int i = 0; i < locked.size(); i++) {
             GridDhtCacheEntry entry = locked.get(i);
+
+            if (entry == null)
+                continue;
 
             try {
                 if (!checkFilter(entry, req, res)) {
@@ -2095,6 +2209,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 dhtFut,
                                 req,
                                 res,
+                                completionCb,
                                 replicate,
                                 updRes,
                                 taskName,
@@ -2143,6 +2258,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 dhtFut,
                                 req,
                                 res,
+                                completionCb,
                                 replicate,
                                 updRes,
                                 taskName,
@@ -2269,6 +2385,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                 dhtFut,
                 req,
                 res,
+                completionCb,
                 replicate,
                 updRes,
                 taskName,
@@ -2358,6 +2475,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         boolean hasNear,
         GridNearAtomicAbstractUpdateRequest req,
         GridNearAtomicUpdateResponse res,
+        GridDhtAtomicCache.UpdateReplyClosure completionCb,
         List<GridDhtCacheEntry> locked,
         GridCacheVersion ver,
         @Nullable GridDhtAtomicAbstractUpdateFuture dhtFut,
@@ -2372,6 +2490,8 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         AffinityTopologyVersion topVer = req.topologyVersion();
 
         boolean checkReaders = hasNear || ctx.discovery().hasNearCache(ctx.cacheId(), topVer);
+
+        boolean readersOnly = false;
 
         boolean intercept = ctx.config().getInterceptor() != null;
 
@@ -2388,11 +2508,17 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             try {
                 GridDhtCacheEntry entry = locked.get(i);
 
+                if (entry == null)
+                    continue;
+
                 GridCacheVersion newConflictVer = req.conflictVersion(i);
                 long newConflictTtl = req.conflictTtl(i);
                 long newConflictExpireTime = req.conflictExpireTime(i);
 
                 assert !(newConflictVer instanceof GridCacheVersionEx) : newConflictVer;
+
+                boolean primary = !req.fastMap() || ctx.affinity().primaryByPartition(ctx.localNode(), entry.partition(),
+                    req.topologyVersion());
 
                 Object writeVal = op == TRANSFORM ? req.entryProcessor(i) : req.writeValue(i);
 
@@ -2411,18 +2537,19 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                     op,
                     writeVal,
                     req.invokeArguments(),
-                    writeThrough() && !req.skipStore(),
+                    (primary || (ctx.store().isLocal() && !ctx.shared().localStorePrimaryOnly()))
+                        && writeThrough() && !req.skipStore(),
                     !req.skipStore(),
                     sndPrevVal || req.returnValue(),
                     req.keepBinary(),
                     expiry,
                     /*event*/true,
                     /*metrics*/true,
-                    /*primary*/true,
-                    /*verCheck*/false,
+                    primary,
+                    ctx.config().getAtomicWriteOrderMode() == CLOCK, // Check version in CLOCK mode on primary node.
                     topVer,
                     req.filter(),
-                    replicate ? DR_PRIMARY : DR_NONE,
+                    replicate ? primary ? DR_PRIMARY : DR_BACKUP : DR_NONE,
                     newConflictTtl,
                     newConflictExpireTime,
                     newConflictVer,
@@ -2433,6 +2560,12 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                     /*prevVal*/null,
                     /*updateCntr*/null,
                     dhtFut);
+
+                if (dhtFut == null && !F.isEmpty(filteredReaders)) {
+                    dhtFut = createDhtFuture(ver, req, res, completionCb);
+
+                    readersOnly = true;
+                }
 
                 if (dhtFut != null) {
                     if (updRes.sendToDht()) { // Send to backups even in case of remove-remove scenarios.
@@ -2445,17 +2578,19 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
                         EntryProcessor<Object, Object, Object> entryProcessor = null;
 
-                        dhtFut.addWriteEntry(
-                            affAssignment,
-                            entry,
-                            updRes.newValue(),
-                            entryProcessor,
-                            updRes.newTtl(),
-                            updRes.conflictExpireTime(),
-                            newConflictVer,
-                            sndPrevVal,
-                            updRes.oldValue(),
-                            updRes.updateCounter());
+                        if (!readersOnly) {
+                            dhtFut.addWriteEntry(
+                                affAssignment,
+                                entry,
+                                updRes.newValue(),
+                                entryProcessor,
+                                updRes.newTtl(),
+                                updRes.conflictExpireTime(),
+                                newConflictVer,
+                                sndPrevVal,
+                                updRes.oldValue(),
+                                updRes.updateCounter());
+                        }
 
                         if (!F.isEmpty(filteredReaders))
                             dhtFut.addNearWriteEntries(
@@ -2474,7 +2609,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                 }
 
                 if (hasNear) {
-                    if (updRes.sendToDht()) {
+                    if (primary && updRes.sendToDht()) {
                         if (!ctx.affinity().partitionBelongs(nearNode, entry.partition(), topVer)) {
                             // If put the same value as in request then do not need to send it back.
                             if (op == TRANSFORM || writeVal != updRes.newValue()) {
@@ -2580,6 +2715,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         @Nullable GridDhtAtomicAbstractUpdateFuture dhtFut,
         final GridNearAtomicAbstractUpdateRequest req,
         final GridNearAtomicUpdateResponse res,
+        GridDhtAtomicCache.UpdateReplyClosure completionCb,
         final boolean replicate,
         final UpdateBatchResult batchRes,
         final String taskName,
@@ -2600,8 +2736,17 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             GridCacheOperation op;
 
             if (putMap != null) {
+                // If fast mapping, filter primary keys for write to store.
+                Map<KeyCacheObject, CacheObject> storeMap = req.fastMap() ?
+                    F.view(putMap, new P1<CacheObject>() {
+                        @Override public boolean apply(CacheObject key) {
+                            return ctx.affinity().primaryByKey(ctx.localNode(), key, req.topologyVersion());
+                        }
+                    }) :
+                    putMap;
+
                 try {
-                    ctx.store().putAll(null, F.viewReadOnly(putMap, new C1<CacheObject, IgniteBiTuple<CacheObject, GridCacheVersion>>() {
+                    ctx.store().putAll(null, F.viewReadOnly(storeMap, new C1<CacheObject, IgniteBiTuple<CacheObject, GridCacheVersion>>() {
                         @Override public IgniteBiTuple<CacheObject, GridCacheVersion> apply(CacheObject v) {
                             return F.t(v, ver);
                         }
@@ -2614,8 +2759,17 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                 op = UPDATE;
             }
             else {
+                // If fast mapping, filter primary keys for write to store.
+                Collection<KeyCacheObject> storeKeys = req.fastMap() ?
+                    F.view(rmvKeys, new P1<Object>() {
+                        @Override public boolean apply(Object key) {
+                            return ctx.affinity().primaryByKey(ctx.localNode(), key, req.topologyVersion());
+                        }
+                    }) :
+                    rmvKeys;
+
                 try {
-                    ctx.store().removeAll(null, rmvKeys);
+                    ctx.store().removeAll(null, storeKeys);
                 }
                 catch (CacheStorePartialUpdateException e) {
                     storeErr = e;
@@ -2650,6 +2804,10 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
                     assert writeVal != null || op == DELETE : "null write value found.";
 
+                    boolean primary = !req.fastMap() || ctx.affinity().primaryByPartition(ctx.localNode(),
+                        entry.partition(),
+                        req.topologyVersion());
+
                     Collection<UUID> readers = null;
                     Collection<UUID> filteredReaders = null;
 
@@ -2672,11 +2830,11 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                         expiry,
                         /*event*/true,
                         /*metrics*/true,
-                        /*primary*/true,
-                        /*verCheck*/false,
+                        primary,
+                        ctx.config().getAtomicWriteOrderMode() == CLOCK, // Check version in CLOCK mode on primary node.
                         topVer,
                         null,
-                        replicate ? DR_PRIMARY : DR_NONE,
+                        replicate ? primary ? DR_PRIMARY : DR_BACKUP : DR_NONE,
                         CU.TTL_NOT_CHANGED,
                         CU.EXPIRE_TIME_CALCULATE,
                         null,
@@ -2710,23 +2868,31 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
                     batchRes.addDeleted(entry, updRes, entries);
 
+                    if (dhtFut == null && !F.isEmpty(filteredReaders)) {
+                        dhtFut = createDhtFuture(ver, req, res, completionCb);
+
+                        batchRes.readersOnly(true);
+                    }
+
                     if (dhtFut != null) {
                         EntryProcessor<Object, Object, Object> entryProcessor =
                             entryProcessorMap == null ? null : entryProcessorMap.get(entry.key());
 
-                        dhtFut.addWriteEntry(
-                            affAssignment,
-                            entry,
-                            writeVal,
-                            entryProcessor,
-                            updRes.newTtl(),
-                            CU.EXPIRE_TIME_CALCULATE,
-                            null,
-                            sndPrevVal,
-                            updRes.oldValue(),
-                            updRes.updateCounter());
+                        if (!batchRes.readersOnly()) {
+                            dhtFut.addWriteEntry(
+                                affAssignment,
+                                entry,
+                                writeVal,
+                                entryProcessor,
+                                updRes.newTtl(),
+                                CU.EXPIRE_TIME_CALCULATE,
+                                null,
+                                sndPrevVal,
+                                updRes.oldValue(),
+                                updRes.updateCounter());
+                        }
 
-                        if (!F.isEmpty(filteredReaders))
+                        if (!F.isEmpty(filteredReaders)) {
                             dhtFut.addNearWriteEntries(
                                 filteredReaders,
                                 entry,
@@ -2734,29 +2900,34 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 entryProcessor,
                                 updRes.newTtl(),
                                 CU.EXPIRE_TIME_CALCULATE);
+                        }
                     }
 
                     if (hasNear) {
-                        if (!ctx.affinity().partitionBelongs(nearNode, entry.partition(), topVer)) {
-                            int idx = firstEntryIdx + i;
+                        if (primary) {
+                            if (!ctx.affinity().partitionBelongs(nearNode, entry.partition(), topVer)) {
+                                int idx = firstEntryIdx + i;
 
-                            if (req.operation() == TRANSFORM) {
-                                res.addNearValue(idx,
-                                    writeVal,
-                                    updRes.newTtl(),
-                                    CU.EXPIRE_TIME_CALCULATE);
+                                if (req.operation() == TRANSFORM) {
+                                    res.addNearValue(idx,
+                                        writeVal,
+                                        updRes.newTtl(),
+                                        CU.EXPIRE_TIME_CALCULATE);
+                                }
+                                else
+                                    res.addNearTtl(idx, updRes.newTtl(), CU.EXPIRE_TIME_CALCULATE);
+
+                                if (writeVal != null || entry.hasValue()) {
+                                    IgniteInternalFuture<Boolean> f = entry.addReader(nearNode.id(), req.messageId(), topVer);
+
+                                    assert f == null : f;
+                                }
                             }
+                            else if (readers.contains(nearNode.id())) // Reader became primary or backup.
+                                entry.removeReader(nearNode.id(), req.messageId());
                             else
-                                res.addNearTtl(idx, updRes.newTtl(), CU.EXPIRE_TIME_CALCULATE);
-
-                            if (writeVal != null || entry.hasValue()) {
-                                IgniteInternalFuture<Boolean> f = entry.addReader(nearNode.id(), req.messageId(), topVer);
-
-                                assert f == null : f;
-                            }
+                                res.addSkippedIndex(firstEntryIdx + i);
                         }
-                        else if (readers.contains(nearNode.id())) // Reader became primary or backup.
-                            entry.removeReader(nearNode.id(), req.messageId());
                         else
                             res.addSkippedIndex(firstEntryIdx + i);
                     }
@@ -2800,14 +2971,23 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             KeyCacheObject key = req.key(0);
 
             while (true) {
-                GridDhtCacheEntry entry = entryExx(key, topVer);
+                try {
+                    GridDhtCacheEntry entry = entryExx(key, topVer);
 
-                GridUnsafe.monitorEnter(entry);
+                    GridUnsafe.monitorEnter(entry);
 
-                if (entry.obsolete())
-                    GridUnsafe.monitorExit(entry);
-                else
-                    return Collections.singletonList(entry);
+                    if (entry.obsolete())
+                        GridUnsafe.monitorExit(entry);
+                    else
+                        return Collections.singletonList(entry);
+                }
+                catch (GridDhtInvalidPartitionException e) {
+                    // Ignore invalid partition exception in CLOCK ordering mode.
+                    if (ctx.config().getAtomicWriteOrderMode() == CLOCK)
+                        return Collections.singletonList(null);
+                    else
+                        throw e;
+                }
             }
         }
         else {
@@ -2815,9 +2995,18 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
             while (true) {
                 for (int i = 0; i < req.size(); i++) {
-                    GridDhtCacheEntry entry = entryExx(req.key(i), topVer);
+                    try {
+                        GridDhtCacheEntry entry = entryExx(req.key(i), topVer);
 
-                    locked.add(entry);
+                        locked.add(entry);
+                    }
+                    catch (GridDhtInvalidPartitionException e) {
+                        // Ignore invalid partition exception in CLOCK ordering mode.
+                        if (ctx.config().getAtomicWriteOrderMode() == CLOCK)
+                            locked.add(null);
+                        else
+                            throw e;
+                    }
                 }
 
                 boolean retry = false;
@@ -2970,28 +3159,54 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             drPutVals = null;
         }
 
-        GridNearAtomicUpdateFuture updateFut = new GridNearAtomicUpdateFuture(
-            ctx,
-            this,
-            ctx.config().getWriteSynchronizationMode(),
-            req.operation(),
-            req.keys(),
-            vals,
-            req.invokeArguments(),
-            drPutVals,
-            drRmvVals,
-            req.returnValue(),
-            false,
-            req.expiry(),
-            req.filter(),
-            req.subjectId(),
-            req.taskNameHash(),
-            req.skipStore(),
-            req.keepBinary(),
-            MAX_RETRIES,
-            true);
+        if (isFastMap(req.filter(), req.operation())) {
+            GridNearAtomicFastMapUpdateFuture updateFut = new GridNearAtomicFastMapUpdateFuture(
+                ctx,
+                this,
+                ctx.config().getWriteSynchronizationMode(),
+                req.operation(),
+                req.keys(),
+                vals,
+                req.invokeArguments(),
+                drPutVals,
+                drRmvVals,
+                req.returnValue(),
+                false,
+                req.expiry(),
+                req.filter(),
+                req.subjectId(),
+                req.taskNameHash(),
+                req.skipStore(),
+                req.keepBinary(),
+                MAX_RETRIES,
+                true);
 
-        updateFut.map();
+            updateFut.map();
+        }
+        else {
+            GridNearAtomicUpdateFuture updateFut = new GridNearAtomicUpdateFuture(
+                ctx,
+                this,
+                ctx.config().getWriteSynchronizationMode(),
+                req.operation(),
+                req.keys(),
+                vals,
+                req.invokeArguments(),
+                drPutVals,
+                drRmvVals,
+                req.returnValue(),
+                false,
+                req.expiry(),
+                req.filter(),
+                req.subjectId(),
+                req.taskNameHash(),
+                req.skipStore(),
+                req.keepBinary(),
+                MAX_RETRIES,
+                true);
+
+            updateFut.map();
+        }
     }
 
     /**
@@ -3003,12 +3218,14 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
      */
     private GridDhtAtomicAbstractUpdateFuture createDhtFuture(
         GridCacheVersion writeVer,
-        GridNearAtomicAbstractUpdateRequest updateReq
+        GridNearAtomicAbstractUpdateRequest updateReq,
+        GridNearAtomicUpdateResponse updateRes,
+        GridDhtAtomicCache.UpdateReplyClosure completionCb
     ) {
         if (updateReq.size() == 1)
-            return new GridDhtAtomicSingleUpdateFuture(ctx, writeVer, updateReq);
+            return new GridDhtAtomicSingleUpdateFuture(ctx, writeVer, updateReq, updateRes, completionCb);
         else
-            return new GridDhtAtomicUpdateFuture(ctx, writeVer, updateReq);
+            return new GridDhtAtomicUpdateFuture(ctx, writeVer, updateReq, updateRes, completionCb);
     }
 
     /**
@@ -3520,6 +3737,9 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         private GridDhtAtomicAbstractUpdateFuture dhtFut;
 
         /** */
+        private boolean readersOnly;
+
+        /** */
         private GridCacheReturn invokeRes;
 
         /**
@@ -3571,6 +3791,20 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
          */
         private void dhtFuture(@Nullable GridDhtAtomicAbstractUpdateFuture dhtFut) {
             this.dhtFut = dhtFut;
+        }
+
+        /**
+         * @return {@code True} if only readers (not backups) should be updated.
+         */
+        private boolean readersOnly() {
+            return readersOnly;
+        }
+
+        /**
+         * @param readersOnly {@code True} if only readers (not backups) should be updated.
+         */
+        private void readersOnly(boolean readersOnly) {
+            this.readersOnly = readersOnly;
         }
     }
 

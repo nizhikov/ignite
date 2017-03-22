@@ -51,6 +51,7 @@ import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 
+import static org.apache.ignite.cache.CacheAtomicWriteOrderMode.PRIMARY;
 import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
 import static org.apache.ignite.cache.CacheRebalanceMode.ASYNC;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_ASYNC;
@@ -834,6 +835,7 @@ public class IgniteCacheAtomicProtocolTest extends GridCommonAbstractTest {
         CacheWriteSynchronizationMode writeSync) {
         CacheConfiguration<Integer, Integer> ccfg = new CacheConfiguration<>();
 
+        ccfg.setAtomicWriteOrderMode(PRIMARY);
         ccfg.setName(TEST_CACHE);
         ccfg.setAtomicityMode(ATOMIC);
         ccfg.setWriteSynchronizationMode(writeSync);

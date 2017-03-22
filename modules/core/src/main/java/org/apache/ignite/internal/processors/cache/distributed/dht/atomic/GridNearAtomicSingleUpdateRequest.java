@@ -92,6 +92,8 @@ public class GridNearAtomicSingleUpdateRequest extends GridNearAtomicAbstractSin
         boolean retval,
         @Nullable UUID subjId,
         int taskNameHash,
+        boolean fastMap,
+        boolean clientReq,
         boolean needPrimaryRes,
         boolean skipStore,
         boolean keepBinary,
@@ -107,6 +109,8 @@ public class GridNearAtomicSingleUpdateRequest extends GridNearAtomicAbstractSin
             retval,
             subjId,
             taskNameHash,
+            fastMap,
+            clientReq,
             needPrimaryRes,
             skipStore,
             keepBinary,
@@ -120,18 +124,13 @@ public class GridNearAtomicSingleUpdateRequest extends GridNearAtomicAbstractSin
         return key.partition();
     }
 
-    /**
-     * @param key Key to add.
-     * @param val Optional update value.
-     * @param conflictTtl Conflict TTL (optional).
-     * @param conflictExpireTime Conflict expire time (optional).
-     * @param conflictVer Conflict version (optional).
-     */
+    /** {@inheritDoc} */
     @Override public void addUpdateEntry(KeyCacheObject key,
         @Nullable Object val,
         long conflictTtl,
         long conflictExpireTime,
-        @Nullable GridCacheVersion conflictVer) {
+        @Nullable GridCacheVersion conflictVer,
+        boolean primary) {
         assert op != TRANSFORM;
         assert val != null || op == DELETE;
         assert conflictTtl < 0 : conflictTtl;
@@ -257,13 +256,13 @@ public class GridNearAtomicSingleUpdateRequest extends GridNearAtomicAbstractSin
         }
 
         switch (writer.state()) {
-            case 10:
+            case 11:
                 if (!writer.writeMessage("key", key))
                     return false;
 
                 writer.incrementState();
 
-            case 11:
+            case 12:
                 if (!writer.writeMessage("val", val))
                     return false;
 
@@ -285,7 +284,7 @@ public class GridNearAtomicSingleUpdateRequest extends GridNearAtomicAbstractSin
             return false;
 
         switch (reader.state()) {
-            case 10:
+            case 11:
                 key = reader.readMessage("key");
 
                 if (!reader.isLastRead())
@@ -293,7 +292,7 @@ public class GridNearAtomicSingleUpdateRequest extends GridNearAtomicAbstractSin
 
                 reader.incrementState();
 
-            case 11:
+            case 12:
                 val = reader.readMessage("val");
 
                 if (!reader.isLastRead())
@@ -321,7 +320,7 @@ public class GridNearAtomicSingleUpdateRequest extends GridNearAtomicAbstractSin
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 12;
+        return 13;
     }
 
     /** {@inheritDoc} */

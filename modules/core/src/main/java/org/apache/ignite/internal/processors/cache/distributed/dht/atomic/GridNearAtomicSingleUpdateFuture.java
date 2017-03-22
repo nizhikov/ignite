@@ -119,6 +119,7 @@ public class GridNearAtomicSingleUpdateFuture extends GridNearAtomicAbstractUpda
             waitTopFut);
 
         assert subjId != null;
+        assert !cache.isFastMap(filter, op);
 
         this.key = key;
         this.val = val;
@@ -344,6 +345,8 @@ public class GridNearAtomicSingleUpdateFuture extends GridNearAtomicAbstractUpda
                 ClusterTopologyCheckedException topErr = X.cause(err, ClusterTopologyCheckedException.class);
 
                 if (!(topErr instanceof ClusterTopologyServerNotFoundException)) {
+                    updVer = null;
+
                     CachePartialUpdateCheckedException cause =
                         X.cause(err, CachePartialUpdateCheckedException.class);
 
@@ -474,11 +477,11 @@ public class GridNearAtomicSingleUpdateFuture extends GridNearAtomicAbstractUpda
             return;
         }
 
-        map(topVer);
+        map(topVer, null);
     }
 
     /** {@inheritDoc} */
-    @Override protected void map(AffinityTopologyVersion topVer) {
+    @Override protected void map(AffinityTopologyVersion topVer, Long ignore) {
         long futId = cctx.mvcc().atomicFutureId();
 
         Exception err = null;
@@ -550,9 +553,8 @@ public class GridNearAtomicSingleUpdateFuture extends GridNearAtomicAbstractUpda
                 err0 = err;
                 remapTopVer0 = onAllReceived();
             }
-            else if (res == DhtLeftResult.ALL_RCVD_CHECK_PRIMARY){
+            else if (res == DhtLeftResult.ALL_RCVD_CHECK_PRIMARY)
                 checkReq = new GridNearAtomicCheckUpdateRequest(reqState.req);
-            }
             else
                 return true;
         }
@@ -632,6 +634,8 @@ public class GridNearAtomicSingleUpdateFuture extends GridNearAtomicAbstractUpda
                     invokeArgs,
                     subjId,
                     taskNameHash,
+                    /*fastMap*/false,
+                    cctx.kernalContext().clientNode(),
                     needPrimaryRes,
                     skipStore,
                     keepBinary,
@@ -650,6 +654,8 @@ public class GridNearAtomicSingleUpdateFuture extends GridNearAtomicAbstractUpda
                         retval,
                         subjId,
                         taskNameHash,
+                        /*fastMap*/false,
+                        cctx.kernalContext().clientNode(),
                         needPrimaryRes,
                         skipStore,
                         keepBinary,
@@ -668,6 +674,8 @@ public class GridNearAtomicSingleUpdateFuture extends GridNearAtomicAbstractUpda
                         filter,
                         subjId,
                         taskNameHash,
+                        /*fastMap*/false,
+                        cctx.kernalContext().clientNode(),
                         needPrimaryRes,
                         skipStore,
                         keepBinary,
@@ -690,6 +698,8 @@ public class GridNearAtomicSingleUpdateFuture extends GridNearAtomicAbstractUpda
                 filter,
                 subjId,
                 taskNameHash,
+                /*fastMap*/false,
+                cctx.kernalContext().clientNode(),
                 needPrimaryRes,
                 skipStore,
                 keepBinary,
@@ -697,11 +707,14 @@ public class GridNearAtomicSingleUpdateFuture extends GridNearAtomicAbstractUpda
                 1);
         }
 
+        initUpdateVersion(req, topVer);
+
         req.addUpdateEntry(cacheKey,
             val,
             CU.TTL_NOT_CHANGED,
             CU.EXPIRE_TIME_CALCULATE,
-            null);
+            null,
+            true);
 
         return new PrimaryRequestState(req, nodes, true);
     }

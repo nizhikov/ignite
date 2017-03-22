@@ -42,6 +42,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheMvccManager;
 import org.apache.ignite.internal.processors.cache.GridCacheOperation;
 import org.apache.ignite.internal.processors.cache.GridCacheReturn;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
+import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.F;
@@ -51,6 +52,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteUuid;
 import org.jetbrains.annotations.Nullable;
 
+import static org.apache.ignite.cache.CacheAtomicWriteOrderMode.CLOCK;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_ASYNC;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.PRIMARY_SYNC;
@@ -140,6 +142,9 @@ public abstract class GridNearAtomicAbstractUpdateFuture extends GridFutureAdapt
     @GridToStringInclude
     protected Long futId;
 
+    /** */
+    protected GridCacheVersion updVer;
+
     /** Operation result. */
     protected GridCacheReturn opRes;
 
@@ -208,8 +213,28 @@ public abstract class GridNearAtomicAbstractUpdateFuture extends GridFutureAdapt
     }
 
     /** {@inheritDoc} */
-    @Override public final IgniteInternalFuture<Void> completeFuture(AffinityTopologyVersion topVer) {
+    @Override public IgniteInternalFuture<Void> completeFuture(AffinityTopologyVersion topVer) {
         return null;
+    }
+
+    /**
+     * @param req Request.
+     * @param topVer Topology version.
+     */
+    final void initUpdateVersion(GridNearAtomicAbstractUpdateRequest req, AffinityTopologyVersion topVer) {
+        // Assign version on near node in CLOCK ordering mode even if fastMap is false.
+        if (cctx.config().getAtomicWriteOrderMode() == CLOCK) {
+            GridCacheVersion updVer = this.updVer;
+
+            if (updVer == null) {
+                this.updVer = updVer = cctx.versions().next(topVer);
+
+                if (log.isDebugEnabled())
+                    log.debug("Assigned fast-map version for update on near node: " + updVer);
+            }
+
+            req.updateVersion(updVer);
+        }
     }
 
     /**
@@ -241,14 +266,29 @@ public abstract class GridNearAtomicAbstractUpdateFuture extends GridFutureAdapt
             // Cannot remap.
             remapCnt = 1;
 
-            map(topVer);
+            if (fastMap()) {
+                Long futId = addAtomicFuture(topVer);
+
+                if (futId != null)
+                    map(topVer, futId);
+            }
+            else
+                map(topVer, futId);
         }
     }
 
     /**
-     * @param topVer Topology version.
+     * @return {@code True} for fast map update mode.
      */
-    protected abstract void map(AffinityTopologyVersion topVer);
+    protected boolean fastMap() {
+        return false;
+    }
+
+    /**
+     * @param topVer Topology version.
+     * @param futId Future ID.
+     */
+    protected abstract void map(AffinityTopologyVersion topVer, Long futId);
 
     /**
      * Maps future on ready topology.
@@ -274,7 +314,7 @@ public abstract class GridNearAtomicAbstractUpdateFuture extends GridFutureAdapt
      * @return {@code True} future is stored by {@link GridCacheMvccManager#addAtomicFuture}.
      */
     final boolean storeFuture() {
-        return syncMode != FULL_ASYNC;
+        return syncMode != FULL_ASYNC || cctx.config().getAtomicWriteOrderMode() == CLOCK;
     }
 
     /**
@@ -413,6 +453,30 @@ public abstract class GridNearAtomicAbstractUpdateFuture extends GridFutureAdapt
         res.addFailedKeys(req.updateRequest().keys(), e);
 
         onPrimaryResponse(req.updateRequest().nodeId(), res, true);
+    }
+
+    /**
+     * Adds future prevents topology change before operation complete.
+     * Should be invoked before topology lock released.
+     *
+     * @param topVer Topology version.
+     * @return Future version in case future added.
+     */
+    protected final Long addAtomicFuture(AffinityTopologyVersion topVer) {
+        Long futId = cctx.mvcc().atomicFutureId();
+
+        synchronized (mux) {
+            assert this.futId == null : this;
+            assert this.topVer == AffinityTopologyVersion.ZERO : this;
+
+            this.topVer = topVer;
+            this.futId = futId;
+        }
+
+        if (storeFuture() && !cctx.mvcc().addAtomicFuture(futId, this))
+            return null;
+
+        return futId;
     }
 
     /**

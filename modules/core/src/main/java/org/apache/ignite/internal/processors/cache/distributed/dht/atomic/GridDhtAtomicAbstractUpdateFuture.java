@@ -85,6 +85,14 @@ public abstract class GridDhtAtomicAbstractUpdateFuture extends GridFutureAdapte
     /** Update request. */
     final GridNearAtomicAbstractUpdateRequest updateReq;
 
+    /** Update response. */
+    @GridToStringExclude
+    private final GridNearAtomicUpdateResponse updateRes;
+
+    /** Completion callback. */
+    @GridToStringExclude
+    private final GridDhtAtomicCache.UpdateReplyClosure completionCb;
+
     /** Mappings. */
     @GridToStringExclude
     protected Map<UUID, GridDhtAtomicAbstractUpdateRequest> mappings;
@@ -99,16 +107,22 @@ public abstract class GridDhtAtomicAbstractUpdateFuture extends GridFutureAdapte
      * @param cctx Cache context.
      * @param writeVer Write version.
      * @param updateReq Update request.
+     * @param updateRes Response.
+     * @param completionCb Callback to invoke to send response to near node.
      */
     protected GridDhtAtomicAbstractUpdateFuture(
         GridCacheContext cctx,
         GridCacheVersion writeVer,
-        GridNearAtomicAbstractUpdateRequest updateReq
-    ) {
+        GridNearAtomicAbstractUpdateRequest updateReq,
+        GridNearAtomicUpdateResponse updateRes,
+        GridDhtAtomicCache.UpdateReplyClosure completionCb)
+    {
         this.cctx = cctx;
 
-        this.updateReq = updateReq;
         this.writeVer = writeVer;
+        this.updateReq = updateReq;
+        this.updateRes = updateRes;
+        this.completionCb = completionCb;
 
         futId = cctx.mvcc().atomicFutureId();
 
@@ -354,13 +368,8 @@ public abstract class GridDhtAtomicAbstractUpdateFuture extends GridFutureAdapte
      *
      * @param nearNode Near node.
      * @param ret Cache operation return value.
-     * @param updateRes Response.
-     * @param completionCb Callback to invoke to send response to near node.
      */
-    final void map(ClusterNode nearNode,
-        GridCacheReturn ret,
-        GridNearAtomicUpdateResponse updateRes,
-        GridDhtAtomicCache.UpdateReplyClosure completionCb) {
+    final void map(ClusterNode nearNode, GridCacheReturn ret) {
         if (F.isEmpty(mappings)) {
             updateRes.dhtNodes(Collections.<UUID>emptyList());
 
@@ -371,23 +380,27 @@ public abstract class GridDhtAtomicAbstractUpdateFuture extends GridFutureAdapte
             return;
         }
 
-        boolean needReplyToNear = updateReq.writeSynchronizationMode() == PRIMARY_SYNC ||
-            !ret.emptyResult() ||
-            updateRes.nearVersion() != null ||
-            cctx.localNodeId().equals(nearNode.id());
+        if (!updateReq.fastMap()) {
+            boolean needReplyToNear = updateReq.writeSynchronizationMode() == PRIMARY_SYNC ||
+                !ret.emptyResult() ||
+                updateRes.nearVersion() != null ||
+                cctx.localNodeId().equals(nearNode.id());
 
-        boolean needMapping = updateReq.fullSync() && (updateReq.needPrimaryResponse() || !sendAllToDht());
+            boolean needMapping = updateReq.fullSync() && (updateReq.needPrimaryResponse() || !sendAllToDht());
 
-        if (needMapping) {
-            initMapping(updateRes);
+            if (needMapping) {
+                initMapping(updateRes);
 
-            needReplyToNear = true;
+                needReplyToNear = true;
+            }
+
+            sendDhtRequests(nearNode, ret);
+
+            if (needReplyToNear)
+                completionCb.apply(updateReq, updateRes);
         }
-
-        sendDhtRequests(nearNode, ret);
-
-        if (needReplyToNear)
-            completionCb.apply(updateReq, updateRes);
+        else
+            sendDhtRequests(nearNode, ret);
     }
 
     /**
@@ -416,14 +429,14 @@ public abstract class GridDhtAtomicAbstractUpdateFuture extends GridFutureAdapte
             try {
                 assert !cctx.localNodeId().equals(req.nodeId()) : req;
 
-                if (updateReq.fullSync()) {
+                if (!updateReq.fastMap() && updateReq.fullSync()) {
                     req.nearReplyInfo(nearNode.id(), updateReq.futureId());
 
                     if (ret.emptyResult())
                         req.hasResult(true);
                 }
 
-                if (cntQryClsrs != null)
+                if (cntQryClsrs != null || updateReq.fastMap())
                     req.replyWithoutDelay(true);
 
                 cctx.io().send(req.nodeId(), req, cctx.ioPolicy());
@@ -518,6 +531,9 @@ public abstract class GridDhtAtomicAbstractUpdateFuture extends GridFutureAdapte
                 for (CI1<Boolean> clsr : cntQryClsrs)
                     clsr.apply(suc);
             }
+
+            if (updateReq.fastMap())
+                completionCb.apply(updateReq, updateRes);
 
             return true;
         }

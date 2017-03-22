@@ -48,7 +48,7 @@ public abstract class GridNearAtomicAbstractUpdateRequest extends GridCacheMessa
     /** Message index. */
     public static final int CACHE_MSG_IDX = nextIndexId();
 
-    /** . */
+    /** */
     private static final int NEED_PRIMARY_RES_FLAG_MASK = 0x01;
 
     /** Topology locked flag. Set if atomic update is performed inside TX or explicit lock. */
@@ -62,6 +62,15 @@ public abstract class GridNearAtomicAbstractUpdateRequest extends GridCacheMessa
 
     /** Return value flag. */
     private static final int RET_VAL_FLAG_MASK = 0x10;
+
+    /** Fast map update flag. */
+    private static final int FAST_MAP_FLAG_MASK = 0x20;
+
+    /** Client node request flag. */
+    private static final int CLIENT_REQ_FLAG_MASK = 0x40;
+
+    /** Client node request flag. */
+    private static final int HAS_PRIMARY_FLAG_MASK = 0x80;
 
     /** Target node ID. */
     @GridDirectTransient
@@ -92,6 +101,9 @@ public abstract class GridNearAtomicAbstractUpdateRequest extends GridCacheMessa
     /** */
     @GridDirectTransient
     private GridNearAtomicUpdateResponse res;
+
+    /** Update version. Set to non-null if fastMap is {@code true}. */
+    private GridCacheVersion updateVer;
 
     /**
      *
@@ -129,6 +141,8 @@ public abstract class GridNearAtomicAbstractUpdateRequest extends GridCacheMessa
         boolean retval,
         @Nullable UUID subjId,
         int taskNameHash,
+        boolean fastMap,
+        boolean clientReq,
         boolean needPrimaryRes,
         boolean skipStore,
         boolean keepBinary,
@@ -144,16 +158,62 @@ public abstract class GridNearAtomicAbstractUpdateRequest extends GridCacheMessa
         this.taskNameHash = taskNameHash;
         this.addDepInfo = addDepInfo;
 
+        if (fastMap)
+            setFlag(true, FAST_MAP_FLAG_MASK);
+        if (clientReq)
+            setFlag(true, CLIENT_REQ_FLAG_MASK);
         if (needPrimaryRes)
-            needPrimaryResponse(true);
+            setFlag(true, NEED_PRIMARY_RES_FLAG_MASK);
         if (topLocked)
-            topologyLocked(true);
+            setFlag(true, TOP_LOCKED_FLAG_MASK);
         if (retval)
-            returnValue(true);
+            setFlag(true, RET_VAL_FLAG_MASK);
         if (skipStore)
-            skipStore(true);
+            setFlag(true, SKIP_STORE_FLAG_MASK);
         if (keepBinary)
-            keepBinary(true);
+            setFlag(true, KEEP_BINARY_FLAG_MASK);
+    }
+
+    /**
+     * @return Flag indicating whether this request contains primary keys.
+     */
+    boolean hasPrimary() {
+        return isFlag(HAS_PRIMARY_FLAG_MASK);
+    }
+
+    /**
+     * @param val Flag indicating whether this request contains primary keys.
+     */
+    void hasPrimary(boolean val) {
+        setFlag(val, HAS_PRIMARY_FLAG_MASK);
+    }
+
+    /**
+     * @return Flag indicating whether this is fast-map update.
+     */
+    boolean fastMap() {
+        return isFlag(FAST_MAP_FLAG_MASK);
+    }
+
+    /**
+     * @return {@code True} if request sent from client node.
+     */
+    boolean clientRequest() {
+        return isFlag(CLIENT_REQ_FLAG_MASK);
+    }
+
+    /**
+     * @return Update version for fast-map request.
+     */
+    @Nullable public final GridCacheVersion updateVersion() {
+        return updateVer;
+    }
+
+    /**
+     * @param updateVer Update version for fast-map request.
+     */
+    final void updateVersion(GridCacheVersion updateVer) {
+        this.updateVer = updateVer;
     }
 
     /** {@inheritDoc} */
@@ -291,24 +351,10 @@ public abstract class GridNearAtomicAbstractUpdateRequest extends GridCacheMessa
     }
 
     /**
-     * @param val {@code True} if topology is locked on near node.
-     */
-    private void topologyLocked(boolean val) {
-        setFlag(val, TOP_LOCKED_FLAG_MASK);
-    }
-
-    /**
      * @return Return value flag.
      */
     public final boolean returnValue() {
         return isFlag(RET_VAL_FLAG_MASK);
-    }
-
-    /**
-     * @param val Return value flag.
-     */
-    public final void returnValue(boolean val) {
-        setFlag(val, RET_VAL_FLAG_MASK);
     }
 
     /**
@@ -319,24 +365,10 @@ public abstract class GridNearAtomicAbstractUpdateRequest extends GridCacheMessa
     }
 
     /**
-     * @param val Skip store flag.
-     */
-    public void skipStore(boolean val) {
-        setFlag(val, SKIP_STORE_FLAG_MASK);
-    }
-
-    /**
      * @return Keep binary flag.
      */
     public final boolean keepBinary() {
         return isFlag(KEEP_BINARY_FLAG_MASK);
-    }
-
-    /**
-     * @param val Keep binary flag.
-     */
-    public void keepBinary(boolean val) {
-        setFlag(val, KEEP_BINARY_FLAG_MASK);
     }
 
     /**
@@ -380,12 +412,14 @@ public abstract class GridNearAtomicAbstractUpdateRequest extends GridCacheMessa
      * @param conflictTtl Conflict TTL (optional).
      * @param conflictExpireTime Conflict expire time (optional).
      * @param conflictVer Conflict version (optional).
+     * @param primary If given key is primary on this mapping.
      */
     abstract void addUpdateEntry(KeyCacheObject key,
         @Nullable Object val,
         long conflictTtl,
         long conflictExpireTime,
-        @Nullable GridCacheVersion conflictVer);
+        @Nullable GridCacheVersion conflictVer,
+        boolean primary);
 
     /**
      * @return Keys for this update request.
@@ -458,7 +492,7 @@ public abstract class GridNearAtomicAbstractUpdateRequest extends GridCacheMessa
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 10;
+        return 11;
     }
 
     /** {@inheritDoc} */
@@ -514,6 +548,12 @@ public abstract class GridNearAtomicAbstractUpdateRequest extends GridCacheMessa
 
             case 9:
                 if (!writer.writeMessage("topVer", topVer))
+                    return false;
+
+                writer.incrementState();
+
+            case 10:
+                if (!writer.writeMessage("updateVer", updateVer))
                     return false;
 
                 writer.incrementState();
@@ -592,6 +632,14 @@ public abstract class GridNearAtomicAbstractUpdateRequest extends GridCacheMessa
 
             case 9:
                 topVer = reader.readMessage("topVer");
+
+                if (!reader.isLastRead())
+                    return false;
+
+                reader.incrementState();
+
+            case 10:
+                updateVer = reader.readMessage("updateVer");
 
                 if (!reader.isLastRead())
                     return false;
