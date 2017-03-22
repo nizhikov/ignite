@@ -38,11 +38,11 @@ public class IncorrectCacheTypeMetadataTest extends GridCommonAbstractTest {
 
         CacheTypeMetadata cacheTypeMetadata = new CacheTypeMetadata();
 
-        Map<String, Class<?>> queryFieldsMap = new HashMap<>();
+        Map<String, Class<?>> qryFieldsMap = new HashMap<>();
 
-        queryFieldsMap.put("exceptionOid", Object.class);
+        qryFieldsMap.put("exceptionOid", Object.class);
 
-        cacheTypeMetadata.setQueryFields(queryFieldsMap);
+        cacheTypeMetadata.setQueryFields(qryFieldsMap);
         cacheTypeMetadata.setValueType(Object.class);
 
         dfltCacheCfg.setTypeMetadata(Collections.singleton(cacheTypeMetadata));
@@ -67,6 +67,9 @@ public class IncorrectCacheTypeMetadataTest extends GridCommonAbstractTest {
                     Object.class, Object.class, "exceptionOid", Object.class))) {
                 fail("property initialization exception must be thrown, but got " + exception.getMessage());
             }
+        }
+        finally {
+            stopAllGrids();
         }
     }
 }
