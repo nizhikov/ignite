@@ -804,6 +804,10 @@ public abstract class GridAbstractTest extends TestCase {
         if (cfg == null)
             cfg = optimize(getConfiguration(gridName));
 
+        return igniteProcessProxy(cfg);
+    }
+
+    protected IgniteProcessProxy igniteProcessProxy(IgniteConfiguration cfg) throws Exception {
         return new IgniteProcessProxy(cfg, log, grid(0));
     }
 
