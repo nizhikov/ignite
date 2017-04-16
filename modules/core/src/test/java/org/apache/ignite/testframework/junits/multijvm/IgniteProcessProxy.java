@@ -81,6 +81,7 @@ import org.apache.ignite.plugin.IgnitePlugin;
 import org.apache.ignite.plugin.PluginNotFoundException;
 import org.apache.ignite.resources.IgniteInstanceResource;
 import org.apache.ignite.testframework.junits.IgniteTestResources;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -122,19 +123,7 @@ public class IgniteProcessProxy implements IgniteEx {
 
         String cfgFileName = IgniteNodeRunner.storeToFile(cfg.setNodeId(id));
 
-        Collection<String> filteredJvmArgs = new ArrayList<>();
-
-        Marshaller marsh = cfg.getMarshaller();
-
-        if (marsh != null)
-            filteredJvmArgs.add("-D" + IgniteTestResources.MARSH_CLASS_NAME + "=" + marsh.getClass().getName());
-
-        for (String arg : U.jvmArgs()) {
-            if (arg.startsWith("-Xmx") || arg.startsWith("-Xms") ||
-                arg.startsWith("-cp") || arg.startsWith("-classpath") ||
-                (marsh != null && arg.startsWith("-D" + IgniteTestResources.MARSH_CLASS_NAME)))
-                filteredJvmArgs.add(arg);
-        }
+        Collection<String> filteredJvmArgs = filteredJvmArgs(cfg);
 
         final CountDownLatch rmtNodeStartedLatch = new CountDownLatch(1);
 
@@ -166,6 +155,23 @@ public class IgniteProcessProxy implements IgniteEx {
             throw new IllegalStateException("There was found instance assotiated with " + cfg.getGridName() +
                 ", instance= " + prevVal + ". New started node was stopped.");
         }
+    }
+
+    @NotNull protected Collection<String> filteredJvmArgs(IgniteConfiguration cfg) {
+        Collection<String> filteredJvmArgs = new ArrayList<>();
+
+        Marshaller marsh = cfg.getMarshaller();
+
+        if (marsh != null)
+            filteredJvmArgs.add("-D" + IgniteTestResources.MARSH_CLASS_NAME + "=" + marsh.getClass().getName());
+
+        for (String arg : U.jvmArgs()) {
+            if (arg.startsWith("-Xmx") || arg.startsWith("-Xms") ||
+                arg.startsWith("-cp") || arg.startsWith("-classpath") ||
+                (marsh != null && arg.startsWith("-D" + IgniteTestResources.MARSH_CLASS_NAME)))
+                filteredJvmArgs.add(arg);
+        }
+        return filteredJvmArgs;
     }
 
     /**
