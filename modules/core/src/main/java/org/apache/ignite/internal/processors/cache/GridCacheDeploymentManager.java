@@ -810,6 +810,7 @@ public class GridCacheDeploymentManager<K, V> extends GridCacheSharedManagerAdap
         /** {@inheritDoc} */
         @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
         @Override protected Class<?> findClass(String name) throws ClassNotFoundException {
+            System.out.println("CacheClassLoader.findClass - the problem is here!!!");
             // Try local deployment first.
             if (!isLocallyExcluded(name)) {
                 GridDeployment d = cctx.gridDeploy().getLocalDeployment(name);

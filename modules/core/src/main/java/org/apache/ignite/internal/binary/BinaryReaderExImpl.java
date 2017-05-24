@@ -95,7 +95,7 @@ public class BinaryReaderExImpl implements BinaryReader, BinaryRawReaderEx, Bina
     /** Input stream. */
     private final BinaryInputStream in;
 
-    /** Class loaded. */
+    /** Class loader. */
     private final ClassLoader ldr;
 
     /** Reader context which is constantly passed between objects. */

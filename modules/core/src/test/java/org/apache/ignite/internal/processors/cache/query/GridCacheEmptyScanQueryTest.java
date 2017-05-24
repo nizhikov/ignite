@@ -36,7 +36,6 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
         return cfg;
     }
 
-
     public void testEmptyScanQueryWithOptimizedMarshaller() throws Exception {
         GridTestProperties.setProperty(GridTestProperties.MARSH_CLASS_NAME,
             "org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller");
@@ -48,7 +47,6 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
             "org.apache.ignite.internal.binary.BinaryMarshaller");
         runEmptyScanQuery();
     }
-
 
     public void runEmptyScanQuery() throws Exception {
         Ignite local = startGrid(0);
@@ -66,6 +64,7 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
 
             assertEquals("Size of result of empty ScanQuery should be 2", 2,
                 cache.query(new ScanQuery<Integer, Employee>()).getAll().size());
+            System.out.println("OK!!!!");
         }
         finally {
             stopAllGrids();

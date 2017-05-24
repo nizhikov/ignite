@@ -8482,6 +8482,9 @@ public abstract class IgniteUtils {
         }
         else
             ldr = gridClassLoader;
+        if (clsName.equals("org.apache.ignite.test.ignite2190.Employee")) {
+            System.out.println("ldr = " + ldr + ", clsName = " + clsName);
+        }
 
         ConcurrentMap<String, Class> ldrMap = classCache.get(ldr);
 
@@ -8501,6 +8504,9 @@ public abstract class IgniteUtils {
                 cls = old;
         }
 
+        if (clsName.equals("org.apache.ignite.test.ignite2190.Employee")) {
+            System.out.println("[SUCCESS] ldr = " + ldr + ", clsName = " + clsName);
+        }
         return cls;
     }
 
