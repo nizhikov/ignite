@@ -63,6 +63,7 @@ import org.apache.ignite.internal.managers.GridManagerAdapter;
 import org.apache.ignite.internal.managers.deployment.GridDeployment;
 import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
 import org.apache.ignite.internal.managers.eventstorage.GridLocalEventListener;
+import org.apache.ignite.internal.processors.cache.GridCacheMessage;
 import org.apache.ignite.internal.processors.platform.message.PlatformMessageFilter;
 import org.apache.ignite.internal.processors.pool.PoolProcessor;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutObject;
@@ -1092,6 +1093,11 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 try {
                     threadProcessingMessage(true, msgC);
 
+                    if (msg.message() instanceof GridCacheMessage) {
+                        System.out.println("processRegularMessage - p2pcontext - " + msg.getClass().getName());
+                        System.out.println("processRegularMessage - p2pcontext - " + msg);
+                        System.out.println("processRegularMessage - p2pcontext - " + ((GridCacheMessage)msg.message()).deployInfo());
+                    }
                     processRegularMessage0(msg, nodeId);
                 }
                 finally {
