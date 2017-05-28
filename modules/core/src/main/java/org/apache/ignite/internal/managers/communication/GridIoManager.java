@@ -1092,12 +1092,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
             @Override public void run() {
                 try {
                     threadProcessingMessage(true, msgC);
-
-                    if (msg.message() instanceof GridCacheMessage) {
-                        System.out.println("processRegularMessage - p2pcontext - " + msg.getClass().getName());
-                        System.out.println("processRegularMessage - p2pcontext - " + msg);
-                        System.out.println("processRegularMessage - p2pcontext - " + ((GridCacheMessage)msg.message()).deployInfo());
-                    }
                     processRegularMessage0(msg, nodeId);
                 }
                 finally {

@@ -10,7 +10,10 @@ import org.apache.ignite.Ignition;
 import org.apache.ignite.cache.query.ScanQuery;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.lang.IgniteBiPredicate;
 import org.apache.ignite.test.ignite2190.Employee;
+import org.apache.ignite.test.ignite2190.EmployeePredicate;
+import org.apache.ignite.test.ignite2190.ObjectPredicate;
 import org.apache.ignite.testframework.config.GridTestProperties;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.testframework.junits.multijvm.IgniteProcessProxy;
@@ -37,18 +40,38 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
     }
 
     public void testEmptyScanQueryWithOptimizedMarshaller() throws Exception {
-        GridTestProperties.setProperty(GridTestProperties.MARSH_CLASS_NAME,
+        runEmptyScanQuery(new ScanQuery<>(), 2,
             "org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller");
-        runEmptyScanQuery();
     }
 
     public void testEmptyScanQueryWithBinaryMarshaller() throws Exception {
-        GridTestProperties.setProperty(GridTestProperties.MARSH_CLASS_NAME,
+        runEmptyScanQuery(new ScanQuery<>(), 2,
             "org.apache.ignite.internal.binary.BinaryMarshaller");
-        runEmptyScanQuery();
     }
 
-    public void runEmptyScanQuery() throws Exception {
+    public void testEmptyScanQuery2WithOptimizedMarshaller() throws Exception {
+        runEmptyScanQuery(new ScanQuery<Integer, Employee>(new ObjectPredicate()), 2,
+            "org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller");
+    }
+
+    public void testEmptyScanQuery2WithBinaryMarshaller() throws Exception {
+        runEmptyScanQuery(new ScanQuery<Integer, Employee>(new ObjectPredicate()), 2,
+            "org.apache.ignite.internal.binary.BinaryMarshaller");
+    }
+
+    public void testEmptyScanQuery3WithOptimizedMarshaller() throws Exception {
+        runEmptyScanQuery(new ScanQuery<>(new EmployeePredicate()), 2,
+            "org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller");
+    }
+
+    public void testEmptyScanQuery3WithBinaryMarshaller() throws Exception {
+        runEmptyScanQuery(new ScanQuery<>(new EmployeePredicate()), 2,
+            "org.apache.ignite.internal.binary.BinaryMarshaller");
+    }
+
+    public void runEmptyScanQuery(ScanQuery<Integer, Employee> query, int expectedSize,
+        String marshaller) throws Exception {
+        GridTestProperties.setProperty(GridTestProperties.MARSH_CLASS_NAME, marshaller);
         Ignite local = startGrid(0);
         Ignite remote = startGrid(1);
         stopGrid(0);
@@ -62,8 +85,8 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
             cache.put(1, new Employee(1, "name 1"));
             cache.put(2, new Employee(2, "name 2"));
 
-            assertEquals("Size of result of empty ScanQuery should be 2", 2,
-                cache.query(new ScanQuery<Integer, Employee>()).getAll().size());
+            assertEquals("Size of result of always true ScanQuery should be 2", expectedSize,
+                cache.query(query).getAll().size());
             System.out.println("OK!!!!");
         }
         finally {
