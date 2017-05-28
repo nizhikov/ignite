@@ -41,6 +41,7 @@ import org.apache.ignite.internal.binary.BinaryMarshaller;
 import org.apache.ignite.internal.binary.BinaryObjectImpl;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.CacheObjectContext;
+import org.apache.ignite.internal.processors.cache.CacheObjectValueContext;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
 import org.apache.ignite.internal.processors.query.GridQueryFieldsResult;
 import org.apache.ignite.internal.processors.query.GridQueryIndexDescriptor;
@@ -692,6 +693,16 @@ public abstract class GridIndexingSpiAbstractSelfTest extends GridCommonAbstract
         @Override public String valueFieldName() {
             return null;
         }
+
+        /** {@inheritDoc} */
+        @Nullable @Override public String keyFieldAlias() {
+            return null;
+        }
+
+        /** {@inheritDoc} */
+        @Nullable @Override public String valueFieldAlias() {
+            return null;
+        }
     }
 
     /**
@@ -716,7 +727,7 @@ public abstract class GridIndexingSpiAbstractSelfTest extends GridCommonAbstract
         }
 
         /** {@inheritDoc} */
-        @Nullable @Override public <T> T value(CacheObjectContext ctx, boolean cpy) {
+        @Nullable @Override public <T> T value(CacheObjectValueContext ctx, boolean cpy) {
             return (T)val;
         }
 
