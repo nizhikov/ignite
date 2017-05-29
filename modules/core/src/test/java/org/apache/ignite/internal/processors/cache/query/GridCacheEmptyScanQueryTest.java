@@ -27,7 +27,6 @@ import org.apache.ignite.Ignition;
 import org.apache.ignite.cache.query.ScanQuery;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
-import org.apache.ignite.lang.IgniteBiPredicate;
 import org.apache.ignite.test.ignite2190.Employee;
 import org.apache.ignite.test.ignite2190.EmployeePredicate;
 import org.apache.ignite.test.ignite2190.ObjectPredicate;
@@ -41,6 +40,12 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
     /** jar name contains Employee, ObjectPredicate, EmployeePredicate classes. */
     private static final String IGNITE_2190_1_0_JAR = "ignite-2190-1.0.jar";
 
+    /** flag to exclude ignite-2190-1.0.jar from remote classpath or exclude test package in grid config */
+    public static final String IGNITE_2190_EXCL_FROM_CP = "ignite2190.exclude.from.cp";
+
+    public static final Boolean EXCL_FROM_CP = true;
+    public static final Boolean EXCL_FROM_CFG = false;
+
     /** {@inheritdoc} */
     @Override protected boolean isMultiJvm() {
         return true;
@@ -49,6 +54,9 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String gridName) throws Exception {
         IgniteConfiguration cfg = super.getConfiguration(gridName);
+        if (EXCL_FROM_CFG == Boolean.valueOf(System.getProperty(IGNITE_2190_EXCL_FROM_CP, "true")))
+            cfg.setPeerClassLoadingLocalClassPathExclude("org.apache.ignite.test.*");
+
         cfg.setClientMode(false);
         cfg.setPeerClassLoadingEnabled(true);
         return cfg;
@@ -56,63 +64,93 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
 
     /**
      * Runs empty ScanQuery with OptimizedMarshaller.
+     * ignite-2190-1.0.jar excluded from remote grid classpath
      * @throws Exception If failed.
      */
     public void testEmptyScanQueryWithOptimizedMarshaller() throws Exception {
         runEmptyScanQuery(new ScanQuery<Integer, Employee>(), 2,
-            "org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller");
+            "org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller", EXCL_FROM_CP);
     }
 
     /**
      * Runs empty ScanQuery with BinaryMarshaller.
+     * ignite-2190-1.0.jar excluded from remote grid classpath
      * @throws Exception If failed.
      */
     public void testEmptyScanQueryWithBinaryMarshaller() throws Exception {
         runEmptyScanQuery(new ScanQuery<Integer, Employee>(), 2,
-            "org.apache.ignite.internal.binary.BinaryMarshaller");
+            "org.apache.ignite.internal.binary.BinaryMarshaller", EXCL_FROM_CP);
     }
 
     /**
      * Runs ScanQuery with (Object, Object) predicate and OptimizedMarshaller.
+     * ignite-2190-1.0.jar excluded from remote grid classpath
      * @throws Exception If failed.
      */
     public void testEmptyScanQuery2WithOptimizedMarshaller() throws Exception {
         runEmptyScanQuery(new ScanQuery<Integer, Employee>(new ObjectPredicate()), 2,
-            "org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller");
+            "org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller", EXCL_FROM_CP);
     }
 
     /**
      * Runs ScanQuery with (Object, Object) predicate and BinaryMarshaller.
+     * ignite-2190-1.0.jar excluded from remote grid classpath
      * @throws Exception If failed.
      */
     public void testEmptyScanQuery2WithBinaryMarshaller() throws Exception {
         runEmptyScanQuery(new ScanQuery<Integer, Employee>(new ObjectPredicate()), 2,
-            "org.apache.ignite.internal.binary.BinaryMarshaller");
+            "org.apache.ignite.internal.binary.BinaryMarshaller", EXCL_FROM_CP);
     }
 
     /**
      * Runs ScanQuery with (Integer, Employee) predicate and OptimizedMarshaller.
+     * ignite-2190-1.0.jar excluded from remote grid classpath
      * @throws Exception If failed.
      */
     public void testEmptyScanQuery3WithOptimizedMarshaller() throws Exception {
         runEmptyScanQuery(new ScanQuery<>(new EmployeePredicate()), 2,
-            "org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller");
+            "org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller", EXCL_FROM_CP);
     }
 
     /**
      * Runs ScanQuery with (Integer, Employee) predicate and BinaryMarshaller.
+     * ignite-2190-1.0.jar excluded from remote grid classpath
      * @throws Exception If failed.
      */
     public void testEmptyScanQuery3WithBinaryMarshaller() throws Exception {
         runEmptyScanQuery(new ScanQuery<>(new EmployeePredicate()), 2,
-            "org.apache.ignite.internal.binary.BinaryMarshaller");
+            "org.apache.ignite.internal.binary.BinaryMarshaller", EXCL_FROM_CP);
+    }
+
+    /**
+     * Runs ScanQuery with (Integer, Employee) predicate and OptimizedMarshaller
+     * ignite-2190-1.0.jar available on remote grid
+     * cfg.PeerClassLoadingLocalClassPathExclude = org.apache.ignite.test.*
+     * @throws Exception If failed.
+     */
+    public void testEmptyScanQuery4WithOptimizedMarshaller() throws Exception {
+        runEmptyScanQuery(new ScanQuery<>(new EmployeePredicate()), 2,
+                          "org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller", EXCL_FROM_CFG);
+    }
+
+
+    /**
+     * Runs ScanQuery with (Integer, Employee) predicate and BinaryMarshaller.
+     * ignite-2190-1.0.jar available on remote grid
+     * cfg.PeerClassLoadingLocalClassPathExclude = org.apache.ignite.test.*
+     * @throws Exception If failed.
+     */
+    public void testEmptyScanQuery4WithBinaryMarshaller() throws Exception {
+        runEmptyScanQuery(new ScanQuery<>(new EmployeePredicate()), 2,
+                          "org.apache.ignite.internal.binary.BinaryMarshaller", EXCL_FROM_CFG);
     }
 
     /**
      * Runs specified ScanQuery using <code>marsh</code>, check it return <code>expSz</code> record.
      * @throws Exception If failed.
      */
-    public void runEmptyScanQuery(ScanQuery<Integer, Employee> qry, int expSz, String marsh) throws Exception {
+    public void runEmptyScanQuery(ScanQuery<Integer, Employee> qry, int expSz, String marsh, boolean exclFromCp) throws Exception {
+        System.setProperty(IGNITE_2190_EXCL_FROM_CP, Boolean.toString(exclFromCp));
         GridTestProperties.setProperty(GridTestProperties.MARSH_CLASS_NAME, marsh);
         Ignite local = startGrid(0);
         Ignite remote = startGrid(1);
@@ -181,6 +219,9 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
 
             /** Excluding ignite-2190-1.0.jar so Employee class become invisible for a remote node. */
             String excludeIgnite2190JarFromClasspath(String classpath) {
+                if (!Boolean.valueOf(System.getProperty(IGNITE_2190_EXCL_FROM_CP, "true")))
+                    return classpath;
+
                 final String pathSeparator = System.getProperty("path.separator");
                 final String[] classpathArr = classpath.split(pathSeparator);
                 classpath = "";
