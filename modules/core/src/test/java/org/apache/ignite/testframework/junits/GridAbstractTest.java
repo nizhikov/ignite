@@ -936,6 +936,13 @@ public abstract class GridAbstractTest extends TestCase {
         return igniteProcessProxy(cfg, locNode, resetDiscovery);
     }
 
+    /**
+     * @param cfg Ignite configuration.
+     * @param locNode Local node.
+     * @param resetDiscovery Reset DiscoverySpi.
+     * @return Ignite Process Proxy.
+     * @throws Exception If failed.
+     */
     protected IgniteProcessProxy igniteProcessProxy(IgniteConfiguration cfg, Ignite locNode, boolean resetDiscovery)
         throws Exception {
         return new IgniteProcessProxy(cfg, log, locNode, resetDiscovery);

@@ -175,6 +175,10 @@ public class IgniteProcessProxy implements IgniteEx {
         }
     }
 
+    /**
+     * @param cfg Ignite configuration
+     * @return collection of JVM options to start Ignite Process
+     */
     protected Collection<String> filteredJvmArgs(IgniteConfiguration cfg) {
         Collection<String> filteredJvmArgs = new ArrayList<>();
 
