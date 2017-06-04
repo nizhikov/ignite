@@ -59,6 +59,7 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
 
         cfg.setClientMode(false);
         cfg.setPeerClassLoadingEnabled(true);
+
         return cfg;
     }
 
@@ -165,7 +166,6 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
             cache.put(1, new Employee(1, "name 1"));
             cache.put(2, new Employee(2, "name 2"));
 
-            System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             assertEquals("Size of result of always true ScanQuery should be 2", expSz,
                 cache.query(qry).getAll().size());
         }
@@ -178,6 +178,7 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
     private IgniteConfiguration getLocalConfiguration() throws Exception {
         final IgniteConfiguration cfg = getConfiguration();
         cfg.setClientMode(true);
+
         return cfg;
     }
 
@@ -225,12 +226,14 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
 
                 final String pathSeparator = System.getProperty("path.separator");
                 final String[] classpathArr = classpath.split(pathSeparator);
+
                 classpath = "";
+
                 for (String aClasspathArr : classpathArr) {
-                    if (!aClasspathArr.contains(IGNITE_2190_1_0_JAR)) {
+                    if (!aClasspathArr.contains(IGNITE_2190_1_0_JAR))
                         classpath += (classpath.length() > 0 ? pathSeparator : "") + aClasspathArr;
-                    }
                 }
+
                 return classpath;
             }
         };
