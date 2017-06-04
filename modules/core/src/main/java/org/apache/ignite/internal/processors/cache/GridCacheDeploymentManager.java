@@ -371,6 +371,8 @@ public class GridCacheDeploymentManager<K, V> extends GridCacheSharedManagerAdap
         Map<UUID, IgniteUuid> participants, boolean locDepOwner) {
         assert depEnabled;
 
+        System.out.println("GridCacheDeploymentManager.p2pContext");
+
         if (mode == PRIVATE || mode == ISOLATED) {
             ClusterNode node = cctx.discovery().node(sndId);
 
@@ -419,6 +421,7 @@ public class GridCacheDeploymentManager<K, V> extends GridCacheSharedManagerAdap
 
             if (depInfo == null) {
                 depInfo = new CachedDeploymentInfo<>(sndId, ldrId, userVer, mode, participants);
+                System.out.println("depInfo = " + depInfo);
 
                 CachedDeploymentInfo<K, V> old = deps.putIfAbsent(ldrId, depInfo);
 
@@ -820,6 +823,12 @@ public class GridCacheDeploymentManager<K, V> extends GridCacheSharedManagerAdap
                     if (cls != null)
                         return cls;
                 }
+            }
+
+            //Для BinaryMarshaller'а здесь мы еще не знаем о том, что у нас есть другие участники кластера!
+            if (name.contains("Employee")) {
+                System.out.println("name = " + name);
+                System.out.println("d.values = " + deps.values());
             }
 
             for (CachedDeploymentInfo<K, V> t : deps.values()) {

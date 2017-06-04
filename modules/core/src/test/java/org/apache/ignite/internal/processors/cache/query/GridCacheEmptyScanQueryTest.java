@@ -165,6 +165,7 @@ public class GridCacheEmptyScanQueryTest extends GridCommonAbstractTest {
             cache.put(1, new Employee(1, "name 1"));
             cache.put(2, new Employee(2, "name 2"));
 
+            System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             assertEquals("Size of result of always true ScanQuery should be 2", expSz,
                 cache.query(qry).getAll().size());
         }

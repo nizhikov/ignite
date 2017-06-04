@@ -112,12 +112,7 @@ public class GridNioCodecFilter extends GridNioFilterAdapter {
             ByteBuffer input = (ByteBuffer)msg;
 
             while (input.hasRemaining()) {
-                System.out.println("parser = " + parser.getClass());
                 Object res = parser.decode(ses, input);
-                System.out.println("res.getClass() = " + res.getClass());
-                if (res instanceof GridIoMessage) {
-                    System.out.println("res = " + ((GridIoMessage)res).message().getClass());
-                }
 
                 if (res != null)
                     proceedMessageReceived(ses, res);
