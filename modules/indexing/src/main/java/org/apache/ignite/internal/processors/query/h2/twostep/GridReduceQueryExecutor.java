@@ -22,6 +22,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.Arrays;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -404,7 +404,7 @@ public class GridReduceQueryExecutor {
 
             List<ClusterNode> partNodes = assignment.get(partId);
 
-            if (partNodes.size() > 0) {
+            if (!partNodes.isEmpty()) {
                 ClusterNode prim = partNodes.get(0);
 
                 if (!needPartsFilter) {
@@ -501,7 +501,7 @@ public class GridReduceQueryExecutor {
     /**
      * @param schemaName Schema name.
      * @param qry Query.
-     * @param keepPortable Keep portable.
+     * @param keepBinary Keep binary.
      * @param enforceJoinOrder Enforce join order of tables.
      * @param timeoutMillis Timeout in milliseconds.
      * @param cancel Query cancel.
@@ -512,7 +512,7 @@ public class GridReduceQueryExecutor {
     public Iterator<List<?>> query(
         String schemaName,
         GridCacheTwoStepQuery qry,
-        boolean keepPortable,
+        boolean keepBinary,
         boolean enforceJoinOrder,
         int timeoutMillis,
         GridQueryCancel cancel,
@@ -711,20 +711,20 @@ public class GridReduceQueryExecutor {
                 if (isReplicatedOnly)
                     flags |= GridH2QueryRequest.FLAG_REPLICATED;
 
-                if (send(nodes,
-                        new GridH2QueryRequest()
-                                .requestId(qryReqId)
-                                .topologyVersion(topVer)
-                                .pageSize(r.pageSize())
-                                .caches(qry.cacheIds())
-                                .tables(distributedJoins ? qry.tables() : null)
-                                .partitions(convert(partsMap))
-                                .queries(mapQrys)
-                                .parameters(params)
-                                .flags(flags)
-                                .timeout(timeoutMillis),
-                        parts == null ? null : new ExplicitPartitionsSpecializer(qryMap),
-                        false)) {
+                GridH2QueryRequest req = new GridH2QueryRequest()
+                    .requestId(qryReqId)
+                    .topologyVersion(topVer)
+                    .pageSize(r.pageSize())
+                    .caches(qry.cacheIds())
+                    .tables(distributedJoins ? qry.tables() : null)
+                    .partitions(convert(partsMap))
+                    .queries(mapQrys)
+                    .parameters(params)
+                    .flags(flags)
+                    .timeout(timeoutMillis)
+                    .schemaName(schemaName);
+
+                if (send(nodes, req, parts == null ? null : new ExplicitPartitionsSpecializer(qryMap), false)) {
                     awaitAllReplies(r, nodes, cancel);
 
                     Object state = r.state();
@@ -791,12 +791,11 @@ public class GridReduceQueryExecutor {
 
                         try {
                             if (qry.explain())
-                                return explainPlan(r.connection(), schemaName, qry, params);
+                                return explainPlan(r.connection(), qry, params);
 
                             GridCacheSqlQuery rdc = qry.reduceQuery();
 
-                            ResultSet res = h2.executeSqlQueryWithTimer(schemaName,
-                                r.connection(),
+                            ResultSet res = h2.executeSqlQueryWithTimer(r.connection(),
                                 rdc.query(),
                                 F.asList(rdc.parameters(params)),
                                 false, // The statement will cache some extra thread local objects.
@@ -818,7 +817,7 @@ public class GridReduceQueryExecutor {
                     continue;
                 }
 
-                return new GridQueryCacheObjectsIterator(resIter, h2.valueContext(), keepPortable);
+                return new GridQueryCacheObjectsIterator(resIter, h2.objectContext(), keepBinary);
             }
             catch (IgniteCheckedException | RuntimeException e) {
                 U.closeQuiet(r.connection());
@@ -1210,19 +1209,18 @@ public class GridReduceQueryExecutor {
 
     /**
      * @param c Connection.
-     * @param schema Schema.
      * @param qry Query.
      * @param params Query parameters.
      * @return Cursor for plans.
      * @throws IgniteCheckedException if failed.
      */
-    private Iterator<List<?>> explainPlan(JdbcConnection c, String schema, GridCacheTwoStepQuery qry, Object[] params)
+    private Iterator<List<?>> explainPlan(JdbcConnection c, GridCacheTwoStepQuery qry, Object[] params)
         throws IgniteCheckedException {
         List<List<?>> lists = new ArrayList<>();
 
         for (int i = 0, mapQrys = qry.mapQueries().size(); i < mapQrys; i++) {
-            ResultSet rs = h2.executeSqlQueryWithTimer(schema, c,
-                "SELECT PLAN FROM " + mergeTableIdentifier(i), null, false, 0, null);
+            ResultSet rs =
+                h2.executeSqlQueryWithTimer(c, "SELECT PLAN FROM " + mergeTableIdentifier(i), null, false, 0, null);
 
             lists.add(F.asList(getPlan(rs)));
         }
@@ -1237,8 +1235,7 @@ public class GridReduceQueryExecutor {
 
         GridCacheSqlQuery rdc = qry.reduceQuery();
 
-        ResultSet rs = h2.executeSqlQueryWithTimer(schema,
-            c,
+        ResultSet rs = h2.executeSqlQueryWithTimer(c,
             "EXPLAIN " + rdc.query(),
             F.asList(rdc.parameters(params)),
             false,
