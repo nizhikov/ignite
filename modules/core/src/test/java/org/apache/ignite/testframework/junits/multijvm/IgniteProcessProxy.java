@@ -197,6 +197,7 @@ public class IgniteProcessProxy implements IgniteEx {
                 (marsh != null && arg.startsWith("-D" + IgniteTestResources.MARSH_CLASS_NAME)))
                 filteredJvmArgs.add(arg);
         }
+
         return filteredJvmArgs;
     }
 
