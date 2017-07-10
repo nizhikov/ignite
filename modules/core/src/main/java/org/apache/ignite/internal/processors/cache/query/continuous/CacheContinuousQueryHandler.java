@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import javax.cache.Cache;
 import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.CacheEntryEventFilter;
 import javax.cache.event.CacheEntryUpdatedListener;
@@ -69,6 +70,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteAsyncCallback;
 import org.apache.ignite.lang.IgniteBiTuple;
+import org.apache.ignite.lang.IgniteClosure;
 import org.apache.ignite.thread.IgniteStripedThreadPoolExecutor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -79,7 +81,7 @@ import static org.apache.ignite.events.EventType.EVT_CACHE_QUERY_OBJECT_READ;
 /**
  * Continuous query handler.
  */
-public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler {
+public class CacheContinuousQueryHandler<K, V, T> implements GridContinuousHandler {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -102,6 +104,8 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
     /** Remote filter. */
     private CacheEntryEventSerializableFilter<K, V> rmtFilter;
+
+    private IgniteClosure<Cache.Entry<K, V>, T> rmtTrans;
 
     /** Deployable object for filter. */
     private CacheContinuousQueryDeployableObject rmtFilterDep;
@@ -198,6 +202,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         Object topic,
         CacheEntryUpdatedListener<K, V> locLsnr,
         CacheEntryEventSerializableFilter<K, V> rmtFilter,
+        IgniteClosure<Cache.Entry<K, V>, T> rmtTrans,
         boolean oldValRequired,
         boolean sync,
         boolean ignoreExpired,
@@ -209,6 +214,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         this.topic = topic;
         this.locLsnr = locLsnr;
         this.rmtFilter = rmtFilter;
+        this.rmtTrans = rmtTrans;
         this.oldValRequired = oldValRequired;
         this.sync = sync;
         this.ignoreExpired = ignoreExpired;

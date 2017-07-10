@@ -51,6 +51,7 @@ import org.apache.ignite.cache.CacheManager;
 import org.apache.ignite.cache.CacheMetrics;
 import org.apache.ignite.cache.CachePeekMode;
 import org.apache.ignite.cache.query.ContinuousQuery;
+import org.apache.ignite.cache.query.ContinuousQueryWithTransformer;
 import org.apache.ignite.cache.query.FieldsQueryCursor;
 import org.apache.ignite.cache.query.Query;
 import org.apache.ignite.cache.query.QueryCursor;
@@ -716,6 +717,8 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
 
         if (qry.getRemoteFilter() != null && qry.getRemoteFilterFactory() != null)
             throw new IgniteException("Should be used either RemoterFilter or RemoteFilterFactory.");
+
+        IgniteClosure rmtTrans = qry instanceof ContinuousQueryWithTransformer ? ((ContinuousQueryWithTransformer)qry).get
 
         try {
             final UUID routineId = ctx.continuousQueries().executeQuery(
