@@ -81,7 +81,7 @@ import static org.apache.ignite.events.EventType.EVT_CACHE_QUERY_OBJECT_READ;
 /**
  * Continuous query handler.
  */
-public class CacheContinuousQueryHandler<K, V, T> implements GridContinuousHandler {
+public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -104,8 +104,6 @@ public class CacheContinuousQueryHandler<K, V, T> implements GridContinuousHandl
 
     /** Remote filter. */
     private CacheEntryEventSerializableFilter<K, V> rmtFilter;
-
-    private IgniteClosure<Cache.Entry<K, V>, T> rmtTrans;
 
     /** Deployable object for filter. */
     private CacheContinuousQueryDeployableObject rmtFilterDep;
@@ -202,7 +200,6 @@ public class CacheContinuousQueryHandler<K, V, T> implements GridContinuousHandl
         Object topic,
         CacheEntryUpdatedListener<K, V> locLsnr,
         CacheEntryEventSerializableFilter<K, V> rmtFilter,
-        IgniteClosure<Cache.Entry<K, V>, T> rmtTrans,
         boolean oldValRequired,
         boolean sync,
         boolean ignoreExpired,
@@ -214,7 +211,6 @@ public class CacheContinuousQueryHandler<K, V, T> implements GridContinuousHandl
         this.topic = topic;
         this.locLsnr = locLsnr;
         this.rmtFilter = rmtFilter;
-        this.rmtTrans = rmtTrans;
         this.oldValRequired = oldValRequired;
         this.sync = sync;
         this.ignoreExpired = ignoreExpired;
