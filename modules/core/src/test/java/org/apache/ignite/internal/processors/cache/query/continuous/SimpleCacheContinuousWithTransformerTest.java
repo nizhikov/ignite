@@ -162,7 +162,7 @@ public class SimpleCacheContinuousWithTransformerTest extends GridCommonAbstract
 
             ContinuousQueryWithTransformer<Integer, Employee, String> qry = new ContinuousQueryWithTransformer<>();
 
-            qry.setInitialQuery(new ScanQuery<>());
+            qry.setInitialQuery(new ScanQuery<Integer, Employee>());
             qry.setLocalListener(lsnr);
             qry.setRemoteFilterFactory((Factory<? extends CacheEntryEventFilter<Integer, Employee>>)rmtFilterFactory);
             qry.setRemoteTransformerFactory(FactoryBuilder.factoryOf(new RemoteTransformer()));
@@ -252,7 +252,7 @@ public class SimpleCacheContinuousWithTransformerTest extends GridCommonAbstract
         }
 
         private void binaryEvent(CacheEntryEvent<Integer, BinaryObject> evt) {
-            checkName(evt.getValue().field("name"));
+            checkName((String)evt.getValue().field("name"));
         }
 
         protected void typedEvent(CacheEntryEvent<Integer, Employee> evt) {

@@ -603,6 +603,7 @@ public abstract class GridCacheQueryManager<K, V> extends GridCacheManagerAdapte
                             qry.scanFilter(),
                             null,
                             null,
+                            null,
                             subjId,
                             taskName));
                     }
@@ -621,6 +622,7 @@ public abstract class GridCacheQueryManager<K, V> extends GridCacheManagerAdapte
                             cctx.name(),
                             qry.queryClassName(),
                             qry.clause(),
+                            null,
                             null,
                             null,
                             null,
@@ -697,6 +699,7 @@ public abstract class GridCacheQueryManager<K, V> extends GridCacheManagerAdapte
                     qry.clause(),
                     null,
                     null,
+                    null,
                     args,
                     subjId,
                     taskName));
@@ -725,6 +728,7 @@ public abstract class GridCacheQueryManager<K, V> extends GridCacheManagerAdapte
                     EVT_CACHE_QUERY_EXECUTED,
                     CacheQueryType.SPI.name(),
                     cctx.name(),
+                    null,
                     null,
                     null,
                     null,
@@ -1443,6 +1447,7 @@ public abstract class GridCacheQueryManager<K, V> extends GridCacheManagerAdapte
                     null,
                     null,
                     filter,
+                    null,
                     null,
                     null,
                     subjId,

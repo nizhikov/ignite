@@ -51,6 +51,7 @@ import org.apache.ignite.cache.CacheManager;
 import org.apache.ignite.cache.CacheMetrics;
 import org.apache.ignite.cache.CachePeekMode;
 import org.apache.ignite.cache.query.ContinuousQuery;
+import org.apache.ignite.cache.query.ContinuousQueryWithTransformer;
 import org.apache.ignite.cache.query.FieldsQueryCursor;
 import org.apache.ignite.cache.query.Query;
 import org.apache.ignite.cache.query.QueryCursor;
@@ -711,17 +712,33 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
             throw new IgniteException("Initial predicate for continuous query can't be an instance of another " +
                 "continuous query. Use SCAN or SQL query for initial iteration.");
 
-        if (qry.getLocalListener() == null)
-            throw new IgniteException("Mandatory local listener is not set for the query: " + qry);
+        if (qry.getLocalListener() == null) {
+            if (!(qry instanceof ContinuousQueryWithTransformer))
+                throw new IgniteException("Mandatory local listener is not set for the query: " + qry);
+
+            if (((ContinuousQueryWithTransformer)qry).getLocalTransformedEventListener() == null)
+                throw new IgniteException("Mandatory local listener and local transformed event listener is not set " +
+                    "for the query: " + qry);
+        }
 
         if (qry.getRemoteFilter() != null && qry.getRemoteFilterFactory() != null)
             throw new IgniteException("Should be used either RemoterFilter or RemoteFilterFactory.");
 
+        if (qry instanceof ContinuousQueryWithTransformer) {
+            ContinuousQueryWithTransformer qry0 = (ContinuousQueryWithTransformer)qry;
+            if (qry0.getLocalTransformedEventListener() != null && qry0.getRemoteTransformerFactory() == null)
+                throw new IgniteException("Should be used RemoteTransformerFactory");
+        }
+
         try {
             final UUID routineId = ctx.continuousQueries().executeQuery(
                 qry.getLocalListener(),
+                (qry instanceof ContinuousQueryWithTransformer) ?
+                    ((ContinuousQueryWithTransformer)qry).getLocalTransformedEventListener() : null,
                 qry.getRemoteFilter(),
                 qry.getRemoteFilterFactory(),
+                (qry instanceof ContinuousQueryWithTransformer) ?
+                    ((ContinuousQueryWithTransformer)qry).getRemoteTransformerFactory() : null,
                 qry.getPageSize(),
                 qry.getTimeInterval(),
                 qry.isAutoUnsubscribe(),

@@ -31,6 +31,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import javax.cache.Cache;
+import javax.cache.configuration.Factory;
 import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.CacheEntryEventFilter;
 import javax.cache.event.CacheEntryUpdatedListener;
@@ -40,6 +41,8 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
+import org.apache.ignite.cache.query.ContinuousQueryWithTransformer;
+import org.apache.ignite.cache.query.ContinuousQueryWithTransformer.TransformedEventListener;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.events.CacheQueryExecutedEvent;
 import org.apache.ignite.events.CacheQueryReadEvent;
@@ -102,11 +105,23 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
     /** Local listener. */
     private transient CacheEntryUpdatedListener<K, V> locLsnr;
 
+    /** Local listener for transformed events. */
+    private transient TransformedEventListener locTransLsnr;
+
     /** Remote filter. */
     private CacheEntryEventSerializableFilter<K, V> rmtFilter;
 
     /** Deployable object for filter. */
     private CacheContinuousQueryDeployableObject rmtFilterDep;
+
+    /** Remote transformer. */
+    private Factory<? extends IgniteClosure> rmtTransFactory;
+
+    /** Deployable object for transformer. */
+    private CacheContinuousQueryDeployableObject rmtTransFactoryDep;
+
+    /** */
+    private transient IgniteClosure rmtTrans;
 
     /** Internal flag. */
     private boolean internal;
@@ -198,8 +213,10 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
     public CacheContinuousQueryHandler(
         String cacheName,
         Object topic,
-        CacheEntryUpdatedListener<K, V> locLsnr,
-        CacheEntryEventSerializableFilter<K, V> rmtFilter,
+        @Nullable CacheEntryUpdatedListener<K, V> locLsnr,
+        @Nullable TransformedEventListener locTransLsnr,
+        @Nullable CacheEntryEventSerializableFilter<K, V> rmtFilter,
+        @Nullable Factory<? extends IgniteClosure> rmtTransFactory,
         boolean oldValRequired,
         boolean sync,
         boolean ignoreExpired,
@@ -210,7 +227,9 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         this.cacheName = cacheName;
         this.topic = topic;
         this.locLsnr = locLsnr;
+        this.locTransLsnr = locTransLsnr;
         this.rmtFilter = rmtFilter;
+        this.rmtTransFactory = rmtTransFactory;
         this.oldValRequired = oldValRequired;
         this.sync = sync;
         this.ignoreExpired = ignoreExpired;
@@ -364,6 +383,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                         null,
                         filter instanceof CacheEntryEventSerializableFilter ?
                             (CacheEntryEventSerializableFilter)filter : null,
+                        getTransformer(),
                         null,
                         nodeId,
                         taskName()
@@ -583,6 +603,13 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
      */
     public CacheEntryEventFilter getEventFilter() {
         return rmtFilter;
+    }
+
+    @Nullable public IgniteClosure getTransformer() {
+        if (rmtTrans == null && rmtTransFactory != null)
+            rmtTrans = rmtTransFactory.create();
+
+        return rmtTrans;
     }
 
     /**
@@ -1035,6 +1062,9 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
         if (rmtFilter != null && !U.isGrid(rmtFilter.getClass()))
             rmtFilterDep = new CacheContinuousQueryDeployableObject(rmtFilter, ctx);
+
+        if (rmtTransFactory != null && !U.isGrid(rmtTransFactory.getClass()))
+            rmtTransFactoryDep = new CacheContinuousQueryDeployableObject(rmtTransFactory, ctx);
     }
 
     /** {@inheritDoc} */
@@ -1045,6 +1075,9 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
         if (rmtFilterDep != null)
             rmtFilter = rmtFilterDep.unmarshal(nodeId, ctx);
+
+        if (rmtTransFactoryDep != null)
+            rmtTransFactory = rmtTransFactoryDep.unmarshal(nodeId, ctx);
     }
 
     /** {@inheritDoc} */
@@ -1128,14 +1161,24 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         U.writeString(out, cacheName);
         out.writeObject(topic);
 
-        boolean b = rmtFilterDep != null;
+        boolean b0 = rmtFilterDep != null;
 
-        out.writeBoolean(b);
+        out.writeBoolean(b0);
 
-        if (b)
+        if (b0)
             out.writeObject(rmtFilterDep);
         else
             out.writeObject(rmtFilter);
+
+        boolean b1 = rmtTransFactoryDep != null;
+
+        out.writeBoolean(b1);
+
+        if (b1)
+            out.writeObject(rmtTransFactoryDep);
+        else
+            out.writeObject(rmtTransFactory);
+
 
         out.writeBoolean(internal);
         out.writeBoolean(notifyExisting);
@@ -1152,12 +1195,19 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         cacheName = U.readString(in);
         topic = in.readObject();
 
-        boolean b = in.readBoolean();
+        boolean b0 = in.readBoolean();
 
-        if (b)
+        if (b0)
             rmtFilterDep = (CacheContinuousQueryDeployableObject)in.readObject();
         else
             rmtFilter = (CacheEntryEventSerializableFilter<K, V>)in.readObject();
+
+        boolean b1 = in.readBoolean();
+
+        if (b1)
+            rmtTransFactoryDep = (CacheContinuousQueryDeployableObject)in.readObject();
+        else
+            rmtTransFactory = (Factory<? extends IgniteClosure>)in.readObject();
 
         internal = in.readBoolean();
         notifyExisting = in.readBoolean();

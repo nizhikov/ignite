@@ -30,6 +30,10 @@ public final class ContinuousQueryWithTransformer<K, V, T> extends ContinuousQue
         return this;
     }
 
+    public TransformedEventListener<T> getLocalTransformedEventListener() {
+        return locTransEvtLsnr;
+    }
+
     public interface TransformedEventListener<T> {
         /**
          * Called after one or more entries have been updated.
