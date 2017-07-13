@@ -36,10 +36,6 @@ public class SimpleCacheContinuousWithTransformerTest extends GridCommonAbstract
 
     private static final String JOHN_CONNOR = "John Connor";
 
-    private static final boolean ADD_REG_LOC_LSNR = true;
-
-    private static final boolean SKIP_REG_LOC_LSNR = false;
-
     private static final boolean ADD_EVT_FILTER = true;
 
     private static final boolean SKIP_EVT_FILTER = false;
@@ -68,68 +64,60 @@ public class SimpleCacheContinuousWithTransformerTest extends GridCommonAbstract
      * @throws Exception If failed.
      */
     public void testContinuousWithTransformer() throws Exception {
-        runContinuousQueryWithTransformer(SKIP_REG_LOC_LSNR, SKIP_EVT_FILTER, DFLT_ENTRY_CNT, DFLT_ENTRY_CNT,
-            SKIP_KEEP_BINARY);
+        runContinuousQueryWithTransformer(SKIP_EVT_FILTER, DFLT_ENTRY_CNT, SKIP_KEEP_BINARY);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testContinuousWithTransformerAndRegularListener() throws Exception {
-        runContinuousQueryWithTransformer(ADD_REG_LOC_LSNR, SKIP_EVT_FILTER, DFLT_ENTRY_CNT, DFLT_ENTRY_CNT,
-            SKIP_KEEP_BINARY);
+        runContinuousQueryWithTransformer(SKIP_EVT_FILTER, DFLT_ENTRY_CNT, SKIP_KEEP_BINARY);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testContinuousWithTransformerWithFilter() throws Exception {
-        runContinuousQueryWithTransformer(SKIP_REG_LOC_LSNR, ADD_EVT_FILTER, DFLT_ENTRY_CNT / 2,
-            DFLT_ENTRY_CNT / 2, SKIP_KEEP_BINARY);
+        runContinuousQueryWithTransformer(ADD_EVT_FILTER, DFLT_ENTRY_CNT / 2, SKIP_KEEP_BINARY);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testContinuousWithTransformerAndRegularListenerWithFilter() throws Exception {
-        runContinuousQueryWithTransformer(ADD_REG_LOC_LSNR, ADD_EVT_FILTER, DFLT_ENTRY_CNT / 2,
-            DFLT_ENTRY_CNT / 2, KEEP_BINARY);
+        runContinuousQueryWithTransformer(ADD_EVT_FILTER, DFLT_ENTRY_CNT / 2, KEEP_BINARY);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testContinuousWithTransformerKeepBinary() throws Exception {
-        runContinuousQueryWithTransformer(SKIP_REG_LOC_LSNR, SKIP_EVT_FILTER, DFLT_ENTRY_CNT, DFLT_ENTRY_CNT,
-            KEEP_BINARY);
+        runContinuousQueryWithTransformer(SKIP_EVT_FILTER, DFLT_ENTRY_CNT, KEEP_BINARY);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testContinuousWithTransformerAndRegularListenerKeepBinary() throws Exception {
-        runContinuousQueryWithTransformer(ADD_REG_LOC_LSNR, SKIP_EVT_FILTER, DFLT_ENTRY_CNT, DFLT_ENTRY_CNT,
-            KEEP_BINARY);
+        runContinuousQueryWithTransformer(SKIP_EVT_FILTER, DFLT_ENTRY_CNT, KEEP_BINARY);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testContinuousWithTransformerWithFilterKeepBinary() throws Exception {
-        runContinuousQueryWithTransformer(SKIP_REG_LOC_LSNR, ADD_EVT_FILTER, DFLT_ENTRY_CNT / 2,
-            DFLT_ENTRY_CNT / 2, KEEP_BINARY);
+        runContinuousQueryWithTransformer(ADD_EVT_FILTER, DFLT_ENTRY_CNT / 2, KEEP_BINARY);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testContinuousWithTransformerAndRegularListenerWithFilterKeepBinary() throws Exception {
-        runContinuousQueryWithTransformer(ADD_REG_LOC_LSNR, ADD_EVT_FILTER, DFLT_ENTRY_CNT / 2,
-            DFLT_ENTRY_CNT / 2, KEEP_BINARY);
+        runContinuousQueryWithTransformer(ADD_EVT_FILTER, DFLT_ENTRY_CNT / 2, KEEP_BINARY);
     }
 
-    private void runContinuousQueryWithTransformer(boolean addRegLocLsnr, boolean addEvtFilter, int expTransCnt,
-        int expRegCnt, boolean keepBinary) throws Exception {
+    private void runContinuousQueryWithTransformer(boolean addEvtFilter, int expTransCnt, boolean keepBinary)
+        throws Exception {
         try {
             startGrids(DFLT_SERVER_NODE_CNT);
 
@@ -145,15 +133,7 @@ public class SimpleCacheContinuousWithTransformerTest extends GridCommonAbstract
             CountDownLatch transUpdCnt = new CountDownLatch(expTransCnt);
             AtomicInteger transCnt = new AtomicInteger(0);
 
-            CountDownLatch regUpdCount = new CountDownLatch(expRegCnt);
-            AtomicInteger regCnt = new AtomicInteger(0);
-
             TransformedEventListener<String> transLsnr = new LocalTransformedEventListener(transCnt, transUpdCnt);
-
-            CacheEntryUpdatedListener lsnr = null;
-            if (addRegLocLsnr) {
-                lsnr = new LocalCacheEntryUpdatedListener(regCnt, regUpdCount, keepBinary);
-            }
 
             Factory<? extends CacheEntryEventFilter> rmtFilterFactory = null;
             if (addEvtFilter) {
@@ -163,7 +143,6 @@ public class SimpleCacheContinuousWithTransformerTest extends GridCommonAbstract
             ContinuousQueryWithTransformer<Integer, Employee, String> qry = new ContinuousQueryWithTransformer<>();
 
             qry.setInitialQuery(new ScanQuery<Integer, Employee>());
-            qry.setLocalListener(lsnr);
             qry.setRemoteFilterFactory((Factory<? extends CacheEntryEventFilter<Integer, Employee>>)rmtFilterFactory);
             qry.setRemoteTransformerFactory(FactoryBuilder.factoryOf(new RemoteTransformer()));
             qry.setLocalTransformedEventListener(transLsnr);
@@ -174,13 +153,6 @@ public class SimpleCacheContinuousWithTransformerTest extends GridCommonAbstract
                 }
 
                 populateData(cache, SARAH_CONNOR);
-
-                if (addRegLocLsnr) {
-                    assertTrue("Receive all expected events in regular listener",
-                        regUpdCount.await(DFLT_LATCH_TIMEOUT, TimeUnit.MILLISECONDS));
-                    assertEquals("Count of updated records in regular listener equal to expected",
-                        expRegCnt, regCnt.get());
-                }
 
                 assertTrue("Receive all expected events",
                     transUpdCnt.await(DFLT_LATCH_TIMEOUT, TimeUnit.MILLISECONDS));
@@ -227,42 +199,6 @@ public class SimpleCacheContinuousWithTransformerTest extends GridCommonAbstract
                     cnt.incrementAndGet();
                 cntLatch.countDown();
             }
-        }
-    }
-
-    private static class LocalCacheEntryUpdatedListener implements CacheEntryUpdatedListener<Object, Object> {
-        private final AtomicInteger cnt;
-        private final CountDownLatch countLatch;
-        private final boolean keepBinary;
-
-        LocalCacheEntryUpdatedListener(AtomicInteger regCnt, CountDownLatch regUpdCount, boolean keepBinary) {
-            this.cnt = regCnt;
-            this.countLatch = regUpdCount;
-            this.keepBinary = keepBinary;
-        }
-
-        @Override public void onUpdated(
-            Iterable<CacheEntryEvent<?, ?>> events) throws CacheEntryListenerException {
-            for (CacheEntryEvent<?, ?> evt : events) {
-                if (keepBinary)
-                    binaryEvent((CacheEntryEvent<Integer, BinaryObject>)evt);
-                else
-                    typedEvent((CacheEntryEvent<Integer, Employee>)evt);
-            }
-        }
-
-        private void binaryEvent(CacheEntryEvent<Integer, BinaryObject> evt) {
-            checkName((String)evt.getValue().field("name"));
-        }
-
-        protected void typedEvent(CacheEntryEvent<Integer, Employee> evt) {
-            checkName(evt.getValue().name);
-        }
-
-        private void checkName(String name) {
-            if (name.contains(SARAH_CONNOR))
-                cnt.incrementAndGet();
-            countLatch.countDown();
         }
     }
 

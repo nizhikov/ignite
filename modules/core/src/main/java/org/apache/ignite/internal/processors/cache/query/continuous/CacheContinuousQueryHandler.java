@@ -30,7 +30,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import javax.cache.Cache;
 import javax.cache.configuration.Factory;
 import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.CacheEntryEventFilter;
@@ -41,7 +40,6 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
-import org.apache.ignite.cache.query.ContinuousQueryWithTransformer;
 import org.apache.ignite.cache.query.ContinuousQueryWithTransformer.TransformedEventListener;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.events.CacheQueryExecutedEvent;
@@ -333,6 +331,10 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
             }
         }
 
+        if (locTransLsnr != null) {
+            ctx.resource().injectGeneric(locTransLsnr);
+        }
+
         final CacheEntryEventFilter filter = getEventFilter();
 
         if (filter != null) {
@@ -349,6 +351,12 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                 if (!asyncCb)
                     asyncCb = U.hasAnnotation(filter, IgniteAsyncCallback.class);
             }
+        }
+
+        final IgniteClosure trans = getTransformer();
+
+        if (trans != null) {
+            ctx.resource().injectGeneric(trans);
         }
 
         entryBufs = new ConcurrentHashMap<>();
@@ -855,15 +863,31 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                 if (!locCache) {
                     Collection<CacheEntryEvent<? extends K, ? extends V>> evts = handleEvent(ctx, entry);
 
-                    if (!evts.isEmpty())
-                        locLsnr.onUpdated(evts);
+                    if (!evts.isEmpty()) {
+                        if (locLsnr != null)
+                            locLsnr.onUpdated(evts);
+
+                        if (locTransLsnr != null)
+                            locTransLsnr.onUpdated(F.transform(evts,
+                                new IgniteClosure<CacheEntryEvent<? extends K, ? extends V>, Object>() {
+                                    @Override public Object apply(CacheEntryEvent<? extends K, ? extends V> evt) {
+                                        return getTransformer().apply(evt);
+                                    }
+                                }
+                            ));
+                    }
 
                     if (!internal && !skipPrimaryCheck)
                         sendBackupAcknowledge(ackBuf.onAcknowledged(entry), routineId, ctx);
                 }
                 else {
-                    if (!entry.isFiltered())
-                        locLsnr.onUpdated(F.<CacheEntryEvent<? extends K, ? extends V>>asList(evt));
+                    if (!entry.isFiltered()) {
+                        if (locLsnr != null)
+                            locLsnr.onUpdated(F.<CacheEntryEvent<? extends K, ? extends V>>asList(evt));
+
+                        if (locTransLsnr != null)
+                            locTransLsnr.onUpdated(F.asList(getTransformer().apply(evt)));
+                    }
                 }
             }
             else {

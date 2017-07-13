@@ -7,7 +7,7 @@ import org.apache.ignite.lang.IgniteClosure;
 
 /**
  */
-public final class ContinuousQueryWithTransformer<K, V, T> extends ContinuousQuery<K, V> {
+public final class ContinuousQueryWithTransformer<K, V, T> extends BaseContinuousQuery<K, V> {
     /** Remote transformer factory. */
     private Factory<? extends IgniteClosure<Cache.Entry<K, V>, T>> rmtTransFactory;
 
