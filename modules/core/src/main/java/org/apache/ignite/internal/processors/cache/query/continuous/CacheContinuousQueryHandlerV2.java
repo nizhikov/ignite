@@ -26,11 +26,14 @@ import javax.cache.configuration.Factory;
 import javax.cache.event.CacheEntryEventFilter;
 import javax.cache.event.CacheEntryUpdatedListener;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.cache.query.ContinuousQueryWithTransformer;
+import org.apache.ignite.cache.query.ContinuousQueryWithTransformer.TransformedEventListener;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryManager.JCacheQueryRemoteFilter;
 import org.apache.ignite.internal.processors.continuous.GridContinuousHandler;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.lang.IgniteClosure;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -74,8 +77,10 @@ public class CacheContinuousQueryHandlerV2<K, V> extends CacheContinuousQueryHan
     public CacheContinuousQueryHandlerV2(
         String cacheName,
         Object topic,
-        CacheEntryUpdatedListener<K, V> locLsnr,
-        Factory<? extends CacheEntryEventFilter<K, V>> rmtFilterFactory,
+        @Nullable CacheEntryUpdatedListener<K, V> locLsnr,
+        @Nullable TransformedEventListener locTransLsnr,
+        @Nullable Factory<? extends CacheEntryEventFilter<K, V>> rmtFilterFactory,
+        @Nullable Factory<? extends IgniteClosure> rmtTransFactory,
         boolean oldValRequired,
         boolean sync,
         boolean ignoreExpired,
@@ -84,7 +89,9 @@ public class CacheContinuousQueryHandlerV2<K, V> extends CacheContinuousQueryHan
         super(cacheName,
             topic,
             locLsnr,
+            locTransLsnr,
             null,
+            rmtTransFactory,
             oldValRequired,
             sync,
             ignoreExpired,

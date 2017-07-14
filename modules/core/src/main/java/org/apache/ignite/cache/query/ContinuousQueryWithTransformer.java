@@ -7,7 +7,7 @@ import org.apache.ignite.lang.IgniteClosure;
 
 /**
  */
-public final class ContinuousQueryWithTransformer<K, V, T> extends ContinuousQuery<K, V> {
+public final class ContinuousQueryWithTransformer<K, V, T> extends BaseContinuousQuery<K, V> {
     /** Remote transformer factory. */
     private Factory<? extends IgniteClosure<Cache.Entry<K, V>, T>> rmtTransFactory;
 
@@ -28,6 +28,10 @@ public final class ContinuousQueryWithTransformer<K, V, T> extends ContinuousQue
         TransformedEventListener<T> locTransEvtLsnr) {
         this.locTransEvtLsnr = locTransEvtLsnr;
         return this;
+    }
+
+    public TransformedEventListener<T> getLocalTransformedEventListener() {
+        return locTransEvtLsnr;
     }
 
     public interface TransformedEventListener<T> {

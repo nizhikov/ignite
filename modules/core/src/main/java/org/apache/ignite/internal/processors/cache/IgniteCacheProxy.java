@@ -50,7 +50,9 @@ import org.apache.ignite.cache.CacheEntryProcessor;
 import org.apache.ignite.cache.CacheManager;
 import org.apache.ignite.cache.CacheMetrics;
 import org.apache.ignite.cache.CachePeekMode;
+import org.apache.ignite.cache.query.BaseContinuousQuery;
 import org.apache.ignite.cache.query.ContinuousQuery;
+import org.apache.ignite.cache.query.ContinuousQueryWithTransformer;
 import org.apache.ignite.cache.query.FieldsQueryCursor;
 import org.apache.ignite.cache.query.Query;
 import org.apache.ignite.cache.query.QueryCursor;
@@ -73,8 +75,8 @@ import org.apache.ignite.internal.processors.cache.query.GridCacheQueryType;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.util.GridCloseableIteratorAdapter;
 import org.apache.ignite.internal.util.GridEmptyIterator;
-import org.apache.ignite.internal.util.future.IgniteFinishedFutureImpl;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
+import org.apache.ignite.internal.util.future.IgniteFinishedFutureImpl;
 import org.apache.ignite.internal.util.future.IgniteFutureImpl;
 import org.apache.ignite.internal.util.lang.GridCloseableIterator;
 import org.apache.ignite.internal.util.lang.GridClosureException;
@@ -706,22 +708,39 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
      * @return Initial iteration cursor.
      */
     @SuppressWarnings("unchecked")
-    private QueryCursor<Cache.Entry<K, V>> queryContinuous(ContinuousQuery qry, boolean loc, boolean keepBinary) {
-        if (qry.getInitialQuery() instanceof ContinuousQuery)
+    private QueryCursor<Cache.Entry<K, V>> queryContinuous(BaseContinuousQuery qry, boolean loc, boolean keepBinary) {
+        assert (qry instanceof ContinuousQuery) || (qry instanceof ContinuousQueryWithTransformer) :
+            "Only ContinuousQuery or ContinuousQueryWithTransformer allowed";
+
+        if (qry.getInitialQuery() instanceof BaseContinuousQuery)
             throw new IgniteException("Initial predicate for continuous query can't be an instance of another " +
                 "continuous query. Use SCAN or SQL query for initial iteration.");
 
-        if (qry.getLocalListener() == null)
-            throw new IgniteException("Mandatory local listener is not set for the query: " + qry);
+        if (qry instanceof ContinuousQuery && ((ContinuousQuery)qry).getLocalListener() == null)
+                throw new IgniteException("Mandatory local listener is not set for the query: " + qry);
+
+        if (qry instanceof ContinuousQueryWithTransformer) {
+            ContinuousQueryWithTransformer qry0 = (ContinuousQueryWithTransformer)qry;
+            if (qry0.getLocalTransformedEventListener() == null)
+                throw new IgniteException("Mandatory local transformed event listener is not set for the query: " + qry);
+
+            if (qry0.getRemoteTransformerFactory() == null) {
+                throw new IgniteException("Should be used RemoteTransformerFactory");
+        }
 
         if (qry.getRemoteFilter() != null && qry.getRemoteFilterFactory() != null)
             throw new IgniteException("Should be used either RemoterFilter or RemoteFilterFactory.");
+        }
 
         try {
             final UUID routineId = ctx.continuousQueries().executeQuery(
-                qry.getLocalListener(),
+                (qry instanceof ContinuousQuery) ? ((ContinuousQuery)qry).getLocalListener() : null,
+                (qry instanceof ContinuousQueryWithTransformer) ?
+                    ((ContinuousQueryWithTransformer)qry).getLocalTransformedEventListener() : null,
                 qry.getRemoteFilter(),
                 qry.getRemoteFilterFactory(),
+                (qry instanceof ContinuousQueryWithTransformer) ?
+                    ((ContinuousQueryWithTransformer)qry).getRemoteTransformerFactory() : null,
                 qry.getPageSize(),
                 qry.getTimeInterval(),
                 qry.isAutoUnsubscribe(),
@@ -785,8 +804,8 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
 
             boolean keepBinary = opCtxCall != null && opCtxCall.isKeepBinary();
 
-            if (qry instanceof ContinuousQuery)
-                return (QueryCursor<R>)queryContinuous((ContinuousQuery<K, V>)qry, qry.isLocal(), keepBinary);
+            if (qry instanceof ContinuousQuery || qry instanceof ContinuousQueryWithTransformer)
+                return (QueryCursor<R>)queryContinuous((BaseContinuousQuery<K, V>)qry, qry.isLocal(), keepBinary);
 
             if (qry instanceof SqlQuery)
                 return (QueryCursor<R>)ctx.kernalContext().query().querySql(ctx, (SqlQuery)qry, keepBinary);
@@ -887,7 +906,8 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
      */
     private void validate(Query qry) {
         if (!QueryUtils.isEnabled(ctx.config()) && !(qry instanceof ScanQuery) &&
-            !(qry instanceof ContinuousQuery) && !(qry instanceof SpiQuery))
+            !(qry instanceof ContinuousQuery) && !(qry instanceof SpiQuery) && !(qry instanceof SqlQuery) &&
+            !(qry instanceof SqlFieldsQuery))
             throw new CacheException("Indexing is disabled for cache: " + ctx.cache().name() +
                 ". Use setIndexedTypes or setTypeMetadata methods on CacheConfiguration to enable.");
 
