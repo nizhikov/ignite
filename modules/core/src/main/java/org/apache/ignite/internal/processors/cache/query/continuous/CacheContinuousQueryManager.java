@@ -458,6 +458,10 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         final boolean keepBinary,
         final boolean includeExpired) throws IgniteCheckedException
     {
+        assert locLsnr != null || locTransLsnr != null : "One of locLsnr, locTransLsnr has not to be null";
+        assert locTransLsnr == null || rmtTransFactory != null :
+            "If locTransLsnr not null then rmtTransFactory has not to be null";
+
         IgniteOutClosure<CacheContinuousQueryHandler> clsr;
 
         if (rmtFilterFactory != null)

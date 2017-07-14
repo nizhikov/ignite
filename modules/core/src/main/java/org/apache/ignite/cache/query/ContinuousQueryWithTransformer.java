@@ -8,6 +8,9 @@ import org.apache.ignite.lang.IgniteClosure;
 /**
  */
 public final class ContinuousQueryWithTransformer<K, V, T> extends BaseContinuousQuery<K, V> {
+    /** */
+    private static final long serialVersionUID = 0L;
+
     /** Remote transformer factory. */
     private Factory<? extends IgniteClosure<Cache.Entry<K, V>, T>> rmtTransFactory;
 

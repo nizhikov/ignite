@@ -7,7 +7,7 @@ import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
 
 /**
  */
-public class BaseContinuousQuery<K, V> extends Query<Cache.Entry<K, V>> {
+class BaseContinuousQuery<K, V> extends Query<Cache.Entry<K, V>> {
     /** */
     private static final long serialVersionUID = 0L;
 

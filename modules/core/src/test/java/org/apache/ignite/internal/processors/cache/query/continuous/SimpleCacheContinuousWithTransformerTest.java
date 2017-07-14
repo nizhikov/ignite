@@ -144,7 +144,7 @@ public class SimpleCacheContinuousWithTransformerTest extends GridCommonAbstract
 
             qry.setInitialQuery(new ScanQuery<Integer, Employee>());
             qry.setRemoteFilterFactory((Factory<? extends CacheEntryEventFilter<Integer, Employee>>)rmtFilterFactory);
-            qry.setRemoteTransformerFactory(FactoryBuilder.factoryOf(new RemoteTransformer()));
+            qry.setRemoteTransformerFactory(FactoryBuilder.factoryOf(new RemoteTransformer(keepBinary)));
             qry.setLocalTransformedEventListener(transLsnr);
 
             try (QueryCursor<Cache.Entry<Integer, Employee>> cur = cache.query(qry)) {
@@ -172,8 +172,17 @@ public class SimpleCacheContinuousWithTransformerTest extends GridCommonAbstract
     }
 
     private static class RemoteTransformer implements IgniteClosure<Cache.Entry<Integer, Employee>, String> {
-        @Override public String apply(Cache.Entry<Integer, Employee> entry) {
-            return entry.getValue().name;
+        private boolean keepBinary;
+
+        public RemoteTransformer(boolean keepBinary) {
+            this.keepBinary = keepBinary;
+        }
+
+        @Override public String apply(Cache.Entry entry) {
+            if (keepBinary)
+                return ((BinaryObject)entry.getValue()).field("name");
+
+            return ((Employee)entry.getValue()).name;
         }
     }
 

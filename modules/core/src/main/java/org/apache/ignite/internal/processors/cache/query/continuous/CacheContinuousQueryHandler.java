@@ -220,7 +220,8 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         boolean ignoreExpired,
         boolean ignoreClsNotFound) {
         assert topic != null;
-        assert locLsnr != null;
+        assert locLsnr != null || locTransLsnr != null;
+        assert locTransLsnr == null || rmtTransFactory != null;
 
         this.cacheName = cacheName;
         this.topic = topic;
@@ -333,6 +334,8 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
         if (locTransLsnr != null) {
             ctx.resource().injectGeneric(locTransLsnr);
+
+            asyncCb = U.hasAnnotation(locLsnr, IgniteAsyncCallback.class);
         }
 
         final CacheEntryEventFilter filter = getEventFilter();
@@ -535,14 +538,20 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                         if (asyncCb) {
                             ctx.asyncCallbackPool().execute(new Runnable() {
                                 @Override public void run() {
-                                    locLsnr.onUpdated(evts);
+                                    if (locLsnr != null)
+                                        locLsnr.onUpdated(evts);
+                                    if (locTransLsnr != null)
+                                        locTransLsnr.onUpdated(transEvts(evts));
                                 }
                             }, part);
                         }
                         else
                             skipCtx.addProcessClosure(new Runnable() {
                                 @Override public void run() {
-                                    locLsnr.onUpdated(evts);
+                                    if (locLsnr != null)
+                                        locLsnr.onUpdated(evts);
+                                    if (locTransLsnr != null)
+                                        locTransLsnr.onUpdated(transEvts(evts));
                                 }
                             });
                     }
@@ -784,8 +793,12 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
             }
         }
 
-        if (!entries0.isEmpty())
-            locLsnr.onUpdated(entries0);
+        if (!entries0.isEmpty()) {
+            if (locLsnr != null)
+                locLsnr.onUpdated(entries0);
+            if (locTransLsnr != null)
+                locTransLsnr.onUpdated(transEvts(entries0));
+        }
     }
 
     /**
@@ -868,13 +881,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                             locLsnr.onUpdated(evts);
 
                         if (locTransLsnr != null)
-                            locTransLsnr.onUpdated(F.transform(evts,
-                                new IgniteClosure<CacheEntryEvent<? extends K, ? extends V>, Object>() {
-                                    @Override public Object apply(CacheEntryEvent<? extends K, ? extends V> evt) {
-                                        return getTransformer().apply(evt);
-                                    }
-                                }
-                            ));
+                            locTransLsnr.onUpdated(transEvts(evts));
                     }
 
                     if (!internal && !skipPrimaryCheck)
@@ -886,7 +893,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                             locLsnr.onUpdated(F.<CacheEntryEvent<? extends K, ? extends V>>asList(evt));
 
                         if (locTransLsnr != null)
-                            locTransLsnr.onUpdated(F.asList(getTransformer().apply(evt)));
+                            locTransLsnr.onUpdated(transEvts(F.<CacheEntryEvent<? extends K, ? extends V>>asList(evt)));
                     }
                 }
             }
@@ -1329,4 +1336,13 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         }
     }
 
+    private Collection<Object> transEvts(Collection<CacheEntryEvent<? extends K, ? extends V>> evts) {
+        return F.transform(evts,
+            new IgniteClosure<CacheEntryEvent<? extends K, ? extends V>, Object>() {
+                @Override public Object apply(CacheEntryEvent<? extends K, ? extends V> evt) {
+                    return getTransformer().apply(evt);
+                }
+            }
+        );
+    }
 }

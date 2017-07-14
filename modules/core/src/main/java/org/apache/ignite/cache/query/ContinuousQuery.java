@@ -106,6 +106,9 @@ import org.apache.ignite.lang.IgniteAsyncCallback;
  * @see IgniteConfiguration#getAsyncCallbackPoolSize()
  */
 public final class ContinuousQuery<K, V> extends BaseContinuousQuery<K, V> {
+    /** */
+    private static final long serialVersionUID = 1L;
+
     /** Local listener. */
     private CacheEntryUpdatedListener<K, V> locLsnr;
 
