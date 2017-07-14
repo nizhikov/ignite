@@ -794,6 +794,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         }
 
         if (!entries0.isEmpty()) {
+            System.out.println("localNodeID = " + nodeId);
             if (locLsnr != null)
                 locLsnr.onUpdated(entries0);
             if (locTransLsnr != null)
@@ -892,8 +893,9 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                         if (locLsnr != null)
                             locLsnr.onUpdated(F.<CacheEntryEvent<? extends K, ? extends V>>asList(evt));
 
-                        if (locTransLsnr != null)
+                        if (locTransLsnr != null) {
                             locTransLsnr.onUpdated(transEvts(F.<CacheEntryEvent<? extends K, ? extends V>>asList(evt)));
+                        }
                     }
                 }
             }

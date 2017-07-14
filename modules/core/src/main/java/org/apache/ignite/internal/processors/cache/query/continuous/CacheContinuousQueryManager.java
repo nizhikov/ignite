@@ -1282,6 +1282,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
             this.cctx = cctx;
             this.hnd = hnd;
             this.keepBinary = keepBinary;
+            //TODO: FIXME Should we use transformer *inside* cacheIterator? Is iterator reads data from remote node?
             this.it = cctx.offheap().cacheIterator(cctx.cacheId(), true, true,
                 AffinityTopologyVersion.NONE);
 

@@ -112,6 +112,9 @@ public final class ContinuousQuery<K, V> extends BaseContinuousQuery<K, V> {
     /** Local listener. */
     private CacheEntryUpdatedListener<K, V> locLsnr;
 
+    /** Remote filter. */
+    private CacheEntryEventSerializableFilter<K, V> rmtFilter;
+
     /**
      * Sets local callback. This callback is called only in local node when new updates are received.
      * <p>
@@ -147,10 +150,36 @@ public final class ContinuousQuery<K, V> extends BaseContinuousQuery<K, V> {
         return locLsnr;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * Sets optional key-value filter. This filter is called before entry is sent to the master node.
+     * <p>
+     * <b>WARNING:</b> all operations that involve any kind of JVM-local or distributed locking
+     * (e.g., synchronization or transactional cache operations), should be executed asynchronously
+     * without blocking the thread that called the filter. Otherwise, you can get deadlocks.
+     * <p>
+     * If remote filter are annotated with {@link IgniteAsyncCallback} then it is executed in async callback
+     * pool (see {@link IgniteConfiguration#getAsyncCallbackPoolSize()}) that allow to perform a cache operations.
+     *
+     * @param rmtFilter Key-value filter.
+     * @return {@code this} for chaining.
+     * @see IgniteAsyncCallback
+     * @see IgniteConfiguration#getAsyncCallbackPoolSize()
+     * @deprecated Use {@link #setRemoteFilterFactory(Factory)} instead.
+     */
     @Deprecated
-    @Override public ContinuousQuery<K, V> setRemoteFilter(CacheEntryEventSerializableFilter<K, V> rmtFilter) {
-        return (ContinuousQuery<K, V>)super.setRemoteFilter(rmtFilter);
+    public ContinuousQuery<K, V> setRemoteFilter(CacheEntryEventSerializableFilter<K, V> rmtFilter) {
+        this.rmtFilter = rmtFilter;
+
+        return this;
+    }
+
+    /**
+     * Gets remote filter.
+     *
+     * @return Remote filter.
+     */
+    public CacheEntryEventSerializableFilter<K, V> getRemoteFilter() {
+        return rmtFilter;
     }
 
     /** {@inheritDoc} */

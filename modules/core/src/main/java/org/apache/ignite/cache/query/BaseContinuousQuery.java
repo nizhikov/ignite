@@ -29,9 +29,6 @@ class BaseContinuousQuery<K, V> extends Query<Cache.Entry<K, V>> {
     /** Initial query. */
     private Query<Cache.Entry<K, V>> initQry;
 
-    /** Remote filter. */
-    private CacheEntryEventSerializableFilter<K, V> rmtFilter;
-
     /** Remote filter factory. */
     private Factory<? extends CacheEntryEventFilter<K, V>> rmtFilterFactory;
 
@@ -74,38 +71,6 @@ class BaseContinuousQuery<K, V> extends Query<Cache.Entry<K, V>> {
      */
     public Query<Cache.Entry<K, V>> getInitialQuery() {
         return initQry;
-    }
-
-    /**
-     * Sets optional key-value filter. This filter is called before entry is sent to the master node.
-     * <p>
-     * <b>WARNING:</b> all operations that involve any kind of JVM-local or distributed locking
-     * (e.g., synchronization or transactional cache operations), should be executed asynchronously
-     * without blocking the thread that called the filter. Otherwise, you can get deadlocks.
-     * <p>
-     * If remote filter are annotated with {@link IgniteAsyncCallback} then it is executed in async callback
-     * pool (see {@link IgniteConfiguration#getAsyncCallbackPoolSize()}) that allow to perform a cache operations.
-     *
-     * @param rmtFilter Key-value filter.
-     * @return {@code this} for chaining.
-     * @see IgniteAsyncCallback
-     * @see IgniteConfiguration#getAsyncCallbackPoolSize()
-     * @deprecated Use {@link #setRemoteFilterFactory(Factory)} instead.
-     */
-    @Deprecated
-    public BaseContinuousQuery<K, V> setRemoteFilter(CacheEntryEventSerializableFilter<K, V> rmtFilter) {
-        this.rmtFilter = rmtFilter;
-
-        return this;
-    }
-
-    /**
-     * Gets remote filter.
-     *
-     * @return Remote filter.
-     */
-    public CacheEntryEventSerializableFilter<K, V> getRemoteFilter() {
-        return rmtFilter;
     }
 
     /**

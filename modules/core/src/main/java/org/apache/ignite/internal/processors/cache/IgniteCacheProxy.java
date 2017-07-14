@@ -709,18 +709,14 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
         if (qry.getLocalTransformedEventListener() == null)
             throw new IgniteException("Mandatory local transformed event listener is not set for the query: " + qry);
 
-        if (qry.getRemoteTransformerFactory() == null) {
+        if (qry.getRemoteTransformerFactory() == null)
             throw new IgniteException("Mandatory RemoteTransformerFactory is not set for the query: " + qry);
-        }
-
-        if (qry.getRemoteFilter() != null && qry.getRemoteFilterFactory() != null)
-            throw new IgniteException("Should be used either RemoterFilter or RemoteFilterFactory.");
 
         try {
             final UUID routineId = ctx.continuousQueries().executeQuery(
                 null,
                 qry.getLocalTransformedEventListener(),
-                qry.getRemoteFilter(),
+                null,
                 qry.getRemoteFilterFactory(),
                 qry.getRemoteTransformerFactory(),
                 qry.getPageSize(),
@@ -730,16 +726,16 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
                 keepBinary,
                 qry.isIncludeExpired());
 
-            final QueryCursor<Cache.Entry<K, V>> cur =
+            final QueryCursor<Entry<K, V>> cur =
                 qry.getInitialQuery() != null ? query(qry.getInitialQuery()) : null;
 
-            return new QueryCursor<Cache.Entry<K, V>>() {
-                @Override public Iterator<Cache.Entry<K, V>> iterator() {
-                    return cur != null ? cur.iterator() : new GridEmptyIterator<Cache.Entry<K, V>>();
+            return new QueryCursor<Entry<K, V>>() {
+                @Override public Iterator<Entry<K, V>> iterator() {
+                    return cur != null ? cur.iterator() : new GridEmptyIterator<Entry<K, V>>();
                 }
 
-                @Override public List<Cache.Entry<K, V>> getAll() {
-                    return cur != null ? cur.getAll() : Collections.<Cache.Entry<K, V>>emptyList();
+                @Override public List<Entry<K, V>> getAll() {
+                    return cur != null ? cur.getAll() : Collections.<Entry<K, V>>emptyList();
                 }
 
                 @Override public void close() {
@@ -778,7 +774,7 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
         if (qry.getLocalListener() == null)
                 throw new IgniteException("Mandatory local listener is not set for the query: " + qry);
 
-        if (qry.getRemoteFilter() != null && qry.getRemoteFilterFactory() != null)
+        if (qry.getRemoteFilter() == null && qry.getRemoteFilterFactory() == null)
             throw new IgniteException("Should be used either RemoterFilter or RemoteFilterFactory.");
 
         try {
@@ -795,16 +791,16 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
                 keepBinary,
                 qry.isIncludeExpired());
 
-            final QueryCursor<Cache.Entry<K, V>> cur =
+            final QueryCursor<Entry<K, V>> cur =
                 qry.getInitialQuery() != null ? query(qry.getInitialQuery()) : null;
 
-            return new QueryCursor<Cache.Entry<K, V>>() {
-                @Override public Iterator<Cache.Entry<K, V>> iterator() {
-                    return cur != null ? cur.iterator() : new GridEmptyIterator<Cache.Entry<K, V>>();
+            return new QueryCursor<Entry<K, V>>() {
+                @Override public Iterator<Entry<K, V>> iterator() {
+                    return cur != null ? cur.iterator() : new GridEmptyIterator<Entry<K, V>>();
                 }
 
-                @Override public List<Cache.Entry<K, V>> getAll() {
-                    return cur != null ? cur.getAll() : Collections.<Cache.Entry<K, V>>emptyList();
+                @Override public List<Entry<K, V>> getAll() {
+                    return cur != null ? cur.getAll() : Collections.<Entry<K, V>>emptyList();
                 }
 
                 @Override public void close() {
@@ -956,8 +952,8 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
      */
     private void validate(Query qry) {
         if (!QueryUtils.isEnabled(ctx.config()) && !(qry instanceof ScanQuery) &&
-            !(qry instanceof ContinuousQuery) && !(qry instanceof ContinuousQueryWithTransformer) && !(qry instanceof SpiQuery) && !(qry instanceof SqlQuery) &&
-            !(qry instanceof SqlFieldsQuery))
+            !(qry instanceof ContinuousQuery) && !(qry instanceof ContinuousQueryWithTransformer) &&
+            !(qry instanceof SpiQuery) && !(qry instanceof SqlQuery) && !(qry instanceof SqlFieldsQuery))
             throw new CacheException("Indexing is disabled for cache: " + ctx.cache().name() +
                 ". Use setIndexedTypes or setTypeMetadata methods on CacheConfiguration to enable.");
 
