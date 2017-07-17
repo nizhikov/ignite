@@ -541,6 +541,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                                 @Override public void run() {
                                     if (locLsnr != null)
                                         locLsnr.onUpdated(evts);
+
                                     if (locTransLsnr != null)
                                         locTransLsnr.onUpdated(unpackTransEvts(evts, cctx));
                                 }
@@ -551,6 +552,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                                 @Override public void run() {
                                     if (locLsnr != null)
                                         locLsnr.onUpdated(evts);
+
                                     if (locTransLsnr != null)
                                         locTransLsnr.onUpdated(unpackTransEvts(evts, cctx));
                                 }
@@ -797,6 +799,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         if (!entries0.isEmpty()) {
             if (locLsnr != null)
                 locLsnr.onUpdated(entries0);
+
             if (locTransLsnr != null)
                 locTransLsnr.onUpdated(unpackTransEvts(entries0, cctx));
         }
@@ -1196,11 +1199,11 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         U.writeString(out, cacheName);
         out.writeObject(topic);
 
-        boolean b0 = rmtFilterDep != null;
+        boolean b = rmtFilterDep != null;
 
-        out.writeBoolean(b0);
+        out.writeBoolean(b);
 
-        if (b0)
+        if (b)
             out.writeObject(rmtFilterDep);
         else
             out.writeObject(rmtFilter);
@@ -1230,9 +1233,9 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         cacheName = U.readString(in);
         topic = in.readObject();
 
-        boolean b0 = in.readBoolean();
+        boolean b = in.readBoolean();
 
-        if (b0)
+        if (b)
             rmtFilterDep = (CacheContinuousQueryDeployableObject)in.readObject();
         else
             rmtFilter = (CacheEntryEventSerializableFilter<K, V>)in.readObject();
