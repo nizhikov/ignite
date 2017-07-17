@@ -772,9 +772,9 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
                 "continuous query. Use SCAN or SQL query for initial iteration.");
 
         if (qry.getLocalListener() == null)
-                throw new IgniteException("Mandatory local listener is not set for the query: " + qry);
+            throw new IgniteException("Mandatory local listener is not set for the query: " + qry);
 
-        if (qry.getRemoteFilter() == null && qry.getRemoteFilterFactory() == null)
+        if (qry.getRemoteFilter() != null && qry.getRemoteFilterFactory() != null)
             throw new IgniteException("Should be used either RemoterFilter or RemoteFilterFactory.");
 
         try {
@@ -791,15 +791,15 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
                 keepBinary,
                 qry.isIncludeExpired());
 
-            final QueryCursor<Entry<K, V>> cur =
+            final QueryCursor<Cache.Entry<K, V>> cur =
                 qry.getInitialQuery() != null ? query(qry.getInitialQuery()) : null;
 
-            return new QueryCursor<Entry<K, V>>() {
+            return new QueryCursor<Cache.Entry<K, V>>() {
                 @Override public Iterator<Entry<K, V>> iterator() {
                     return cur != null ? cur.iterator() : new GridEmptyIterator<Entry<K, V>>();
                 }
 
-                @Override public List<Entry<K, V>> getAll() {
+                @Override public List<Cache.Entry<K, V>> getAll() {
                     return cur != null ? cur.getAll() : Collections.<Entry<K, V>>emptyList();
                 }
 
