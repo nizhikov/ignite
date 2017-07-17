@@ -68,6 +68,7 @@ import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteAsyncCallback;
+import org.apache.ignite.lang.IgniteBiClosure;
 import org.apache.ignite.lang.IgniteClosure;
 import org.apache.ignite.lang.IgniteOutClosure;
 import org.apache.ignite.lang.IgnitePredicate;
@@ -192,6 +193,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
                 cctx.cacheId(),
                 UPDATED,
                 key,
+                null,
                 null,
                 null,
                 lsnr.keepBinary(),
@@ -359,6 +361,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
                 key,
                 newVal,
                 lsnr.oldValueRequired() ? oldVal : null,
+                null,
                 lsnr.keepBinary(),
                 partId,
                 updateCntr,
@@ -421,6 +424,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
                     key,
                     null,
                     lsnr.oldValueRequired() ? oldVal : null,
+                    null,
                     lsnr.keepBinary(),
                     e.partition(),
                     -1,
@@ -450,7 +454,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         @Nullable final TransformedEventListener locTransLsnr,
         @Nullable final CacheEntryEventSerializableFilter rmtFilter,
         @Nullable final Factory<? extends CacheEntryEventFilter> rmtFilterFactory,
-        @Nullable final Factory<? extends IgniteClosure> rmtTransFactory,
+        @Nullable final Factory<? extends IgniteBiClosure> rmtTransFactory,
         int bufSize,
         long timeInterval,
         boolean autoUnsubscribe,
@@ -714,7 +718,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
             if (locTransLsnr != null) {
                 final Iterator it = new ExistingEntryEventIterator(cctx, hnd, keepBinary) {
                     @Override Object trans(CacheEntryEvent next) {
-                        return hnd.getTransformer().apply(next);
+                        return hnd.getTransformer().apply(next.getKey(), next.getValue());
                     }
                 };
 
@@ -1324,6 +1328,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
                     CREATED,
                     e.key(),
                     e.value(),
+                    null,
                     null,
                     keepBinary,
                     0,

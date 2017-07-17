@@ -50,6 +50,8 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.internal.managers.deployment.GridDeploymentInfo;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.cache.CacheObjectAdapter;
+import org.apache.ignite.internal.processors.cache.CacheObjectImpl;
 import org.apache.ignite.internal.processors.cache.GridCacheAdapter;
 import org.apache.ignite.internal.processors.cache.GridCacheAffinityManager;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
@@ -70,6 +72,7 @@ import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteAsyncCallback;
+import org.apache.ignite.lang.IgniteBiClosure;
 import org.apache.ignite.lang.IgniteBiTuple;
 import org.apache.ignite.lang.IgniteClosure;
 import org.apache.ignite.thread.IgniteStripedThreadPoolExecutor;
@@ -113,13 +116,13 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
     private CacheContinuousQueryDeployableObject rmtFilterDep;
 
     /** Remote transformer. */
-    private Factory<? extends IgniteClosure> rmtTransFactory;
+    private Factory<? extends IgniteBiClosure> rmtTransFactory;
 
     /** Deployable object for transformer. */
     private CacheContinuousQueryDeployableObject rmtTransFactoryDep;
 
     /** */
-    private transient IgniteClosure rmtTrans;
+    private transient IgniteBiClosure rmtTrans;
 
     /** Internal flag. */
     private boolean internal;
@@ -214,7 +217,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         @Nullable CacheEntryUpdatedListener<K, V> locLsnr,
         @Nullable TransformedEventListener locTransLsnr,
         @Nullable CacheEntryEventSerializableFilter<K, V> rmtFilter,
-        @Nullable Factory<? extends IgniteClosure> rmtTransFactory,
+        @Nullable Factory<? extends IgniteBiClosure> rmtTransFactory,
         boolean oldValRequired,
         boolean sync,
         boolean ignoreExpired,
@@ -356,7 +359,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
             }
         }
 
-        final IgniteClosure trans = getTransformer();
+        final IgniteBiClosure trans = getTransformer();
 
         if (trans != null) {
             ctx.resource().injectGeneric(trans);
@@ -622,7 +625,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         return rmtFilter;
     }
 
-    @Nullable public IgniteClosure getTransformer() {
+    @Nullable public IgniteBiClosure getTransformer() {
         if (rmtTrans == null && rmtTransFactory != null)
             rmtTrans = rmtTransFactory.create();
 
@@ -794,7 +797,6 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         }
 
         if (!entries0.isEmpty()) {
-            System.out.println("localNodeID = " + nodeId);
             if (locLsnr != null)
                 locLsnr.onUpdated(entries0);
             if (locTransLsnr != null)
@@ -1045,7 +1047,43 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
         CacheContinuousQueryEventBuffer buf = partitionBuffer(cctx, e.partition());
 
-        return buf.processEntry(e, false);
+        final Object entryOrList = buf.processEntry(e, false);
+
+        if (entryOrList == null)
+            return null;
+
+        final IgniteBiClosure transformer = getTransformer();
+
+        if (transformer != null) {
+            Collection<CacheContinuousQueryEntry> entries = entryOrList instanceof Collection ?
+                (Collection<CacheContinuousQueryEntry>)entryOrList : F.asList((CacheContinuousQueryEntry)entryOrList);
+
+            return F.transform(entries,
+                new IgniteClosure<CacheContinuousQueryEntry, CacheContinuousQueryEntry>() {
+                    @Override public CacheContinuousQueryEntry apply(CacheContinuousQueryEntry entry) {
+                        Object key = cctx.unwrapBinaryIfNeeded(entry.key(), entry.isKeepBinary());
+                        Object val = cctx.unwrapBinaryIfNeeded(entry.value(), entry.isKeepBinary());
+
+                        Object transVal = transformer.apply(key, val);
+
+                        return new CacheContinuousQueryEntry(
+                            entry.cacheId(),
+                            entry.eventType(),
+                            entry.key(),
+                            null,
+                            null,
+                            transVal == null ? null : cctx.toCacheObject(transVal),
+                            entry.isKeepBinary(),
+                            entry.partition(),
+                            entry.updateCounter(),
+                            entry.topologyVersion(),
+                            entry.flags());
+                    }
+                }
+            );
+        }
+
+        return entryOrList;
     }
 
     /**
@@ -1240,7 +1278,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         if (b1)
             rmtTransFactoryDep = (CacheContinuousQueryDeployableObject)in.readObject();
         else
-            rmtTransFactory = (Factory<? extends IgniteClosure>)in.readObject();
+            rmtTransFactory = (Factory<? extends IgniteBiClosure>)in.readObject();
 
         internal = in.readBoolean();
         notifyExisting = in.readBoolean();
@@ -1338,11 +1376,11 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         }
     }
 
-    private Collection<Object> transEvts(Collection<CacheEntryEvent<? extends K, ? extends V>> evts) {
-        return F.transform(evts,
-            new IgniteClosure<CacheEntryEvent<? extends K, ? extends V>, Object>() {
-                @Override public Object apply(CacheEntryEvent<? extends K, ? extends V> evt) {
-                    return getTransformer().apply(evt);
+    private Collection<Object> transEvts(Collection evts) {
+        return F.transform((Collection<CacheContinuousQueryEvent<? extends K, ? extends V>>)evts,
+            new IgniteClosure<CacheContinuousQueryEvent<? extends K, ? extends V>, Object>() {
+                @Override public Object apply(CacheContinuousQueryEvent<? extends K, ? extends V> evt) {
+                    return evt.entry().transValue();
                 }
             }
         );

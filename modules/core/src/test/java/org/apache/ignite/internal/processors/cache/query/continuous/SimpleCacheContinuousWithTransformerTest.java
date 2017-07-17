@@ -20,6 +20,7 @@ import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.cache.query.ScanQuery;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.lang.IgniteBiClosure;
 import org.apache.ignite.lang.IgniteClosure;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 
@@ -140,11 +141,13 @@ public class SimpleCacheContinuousWithTransformerTest extends GridCommonAbstract
                 rmtFilterFactory = FactoryBuilder.factoryOf(new RemoteCacheEntryEventFilter());
             }
 
+            Factory<? extends IgniteBiClosure> factory = FactoryBuilder.factoryOf(new RemoteTransformer(keepBinary));
+
             ContinuousQueryWithTransformer<Integer, Employee, String> qry = new ContinuousQueryWithTransformer<>();
 
             qry.setInitialQuery(new ScanQuery<Integer, Employee>());
             qry.setRemoteFilterFactory((Factory<? extends CacheEntryEventFilter<Integer, Employee>>)rmtFilterFactory);
-            qry.setRemoteTransformerFactory(FactoryBuilder.factoryOf(new RemoteTransformer(keepBinary)));
+            qry.setRemoteTransformerFactory((Factory<? extends IgniteBiClosure<Integer, Employee, String>>)factory);
             qry.setLocalTransformedEventListener(transLsnr);
 
             try (QueryCursor<Cache.Entry<Integer, Employee>> cur = cache.query(qry)) {
@@ -171,18 +174,18 @@ public class SimpleCacheContinuousWithTransformerTest extends GridCommonAbstract
         }
     }
 
-    private static class RemoteTransformer implements IgniteClosure<Cache.Entry<Integer, Employee>, String> {
+    private static class RemoteTransformer implements IgniteBiClosure<Object, Object, String> {
         private boolean keepBinary;
 
         public RemoteTransformer(boolean keepBinary) {
             this.keepBinary = keepBinary;
         }
 
-        @Override public String apply(Cache.Entry entry) {
+        @Override public String apply(Object key, Object val) {
             if (keepBinary)
-                return ((BinaryObject)entry.getValue()).field("name");
+                return ((BinaryObject)val).field("name");
 
-            return ((Employee)entry.getValue()).name;
+            return ((Employee)val).name;
         }
     }
 

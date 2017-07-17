@@ -33,6 +33,7 @@ import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinu
 import org.apache.ignite.internal.processors.continuous.GridContinuousHandler;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.lang.IgniteBiClosure;
 import org.apache.ignite.lang.IgniteClosure;
 import org.jetbrains.annotations.Nullable;
 
@@ -80,7 +81,7 @@ public class CacheContinuousQueryHandlerV2<K, V> extends CacheContinuousQueryHan
         @Nullable CacheEntryUpdatedListener<K, V> locLsnr,
         @Nullable TransformedEventListener locTransLsnr,
         @Nullable Factory<? extends CacheEntryEventFilter<K, V>> rmtFilterFactory,
-        @Nullable Factory<? extends IgniteClosure> rmtTransFactory,
+        @Nullable Factory<? extends IgniteBiClosure> rmtTransFactory,
         boolean oldValRequired,
         boolean sync,
         boolean ignoreExpired,

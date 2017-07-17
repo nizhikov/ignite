@@ -23,6 +23,7 @@ import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.lang.IgniteBiClosure;
 import org.apache.ignite.lang.IgniteBiPredicate;
 import org.apache.ignite.lang.IgniteClosure;
 import org.jetbrains.annotations.Nullable;
@@ -88,7 +89,7 @@ public class CacheQueryExecutedEvent<K, V> extends EventAdapter {
 
     /** Continuous query filter. */
     @GridToStringInclude
-    private final IgniteClosure contQryTrans;
+    private final IgniteBiClosure contQryTrans;
 
     /** Query arguments. */
     @GridToStringInclude
@@ -122,7 +123,7 @@ public class CacheQueryExecutedEvent<K, V> extends EventAdapter {
         @Nullable String clause,
         @Nullable IgniteBiPredicate<K, V> scanQryFilter,
         @Nullable CacheEntryEventSerializableFilter<K, V> contQryFilter,
-        @Nullable IgniteClosure contQryTrans,
+        @Nullable IgniteBiClosure contQryTrans,
         @Nullable Object[] args,
         @Nullable UUID subjId,
         @Nullable String taskName) {
@@ -212,7 +213,7 @@ public class CacheQueryExecutedEvent<K, V> extends EventAdapter {
      *
      * @return Continuous query transformer.
      */
-    @Nullable public IgniteClosure continuousQueryTransformer() {
+    @Nullable public IgniteBiClosure continuousQueryTransformer() {
         return contQryTrans;
     }
 

@@ -3,6 +3,7 @@ package org.apache.ignite.cache.query;
 import javax.cache.Cache;
 import javax.cache.configuration.Factory;
 import javax.cache.event.CacheEntryListenerException;
+import org.apache.ignite.lang.IgniteBiClosure;
 import org.apache.ignite.lang.IgniteClosure;
 
 /**
@@ -12,18 +13,18 @@ public final class ContinuousQueryWithTransformer<K, V, T> extends BaseContinuou
     private static final long serialVersionUID = 0L;
 
     /** Remote transformer factory. */
-    private Factory<? extends IgniteClosure<Cache.Entry<K, V>, T>> rmtTransFactory;
+    private Factory<? extends IgniteBiClosure<K, V, T>> rmtTransFactory;
 
     /** Local listener of transformed event */
     private TransformedEventListener<T> locTransEvtLsnr;
 
     public ContinuousQueryWithTransformer<K, V, T> setRemoteTransformerFactory(
-        Factory<? extends IgniteClosure<Cache.Entry<K, V>, T>> factory) {
+        Factory<? extends IgniteBiClosure<K, V, T>> factory) {
         this.rmtTransFactory = factory;
         return this;
     }
 
-    public Factory<? extends IgniteClosure<Cache.Entry<K, V>, T>> getRemoteTransformerFactory() {
+    public Factory<? extends IgniteBiClosure<K, V, T>> getRemoteTransformerFactory() {
         return rmtTransFactory;
     }
 
