@@ -795,8 +795,8 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
                 qry.getInitialQuery() != null ? query(qry.getInitialQuery()) : null;
 
             return new QueryCursor<Cache.Entry<K, V>>() {
-                @Override public Iterator<Entry<K, V>> iterator() {
-                    return cur != null ? cur.iterator() : new GridEmptyIterator<Entry<K, V>>();
+                @Override public Iterator<Cache.Entry<K, V>> iterator() {
+                    return cur != null ? cur.iterator() : new GridEmptyIterator<Cache.Entry<K, V>>();
                 }
 
                 @Override public List<Cache.Entry<K, V>> getAll() {

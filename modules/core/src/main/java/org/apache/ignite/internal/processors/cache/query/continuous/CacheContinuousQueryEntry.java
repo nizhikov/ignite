@@ -345,7 +345,7 @@ public class CacheContinuousQueryEntry implements GridCacheDeployable, Message {
         return oldVal;
     }
 
-    CacheObject transValue() {
+    CacheObject transformedValue() {
         return transVal;
     }
 

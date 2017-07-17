@@ -50,9 +50,6 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.internal.managers.deployment.GridDeploymentInfo;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
-import org.apache.ignite.internal.processors.cache.CacheObject;
-import org.apache.ignite.internal.processors.cache.CacheObjectAdapter;
-import org.apache.ignite.internal.processors.cache.CacheObjectImpl;
 import org.apache.ignite.internal.processors.cache.GridCacheAdapter;
 import org.apache.ignite.internal.processors.cache.GridCacheAffinityManager;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
@@ -545,7 +542,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                                     if (locLsnr != null)
                                         locLsnr.onUpdated(evts);
                                     if (locTransLsnr != null)
-                                        locTransLsnr.onUpdated(transEvts(evts, cctx));
+                                        locTransLsnr.onUpdated(unpackTransEvts(evts, cctx));
                                 }
                             }, part);
                         }
@@ -555,7 +552,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                                     if (locLsnr != null)
                                         locLsnr.onUpdated(evts);
                                     if (locTransLsnr != null)
-                                        locTransLsnr.onUpdated(transEvts(evts, cctx));
+                                        locTransLsnr.onUpdated(unpackTransEvts(evts, cctx));
                                 }
                             });
                     }
@@ -801,7 +798,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
             if (locLsnr != null)
                 locLsnr.onUpdated(entries0);
             if (locTransLsnr != null)
-                locTransLsnr.onUpdated(transEvts(entries0, cctx));
+                locTransLsnr.onUpdated(unpackTransEvts(entries0, cctx));
         }
     }
 
@@ -878,7 +875,6 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                 final CacheContinuousQueryEntry entry = evt.entry();
 
                 if (!locCache) {
-
                     Collection<CacheEntryEvent<? extends K, ? extends V>> evts = handleEvent(ctx, entry);
 
                     if (!evts.isEmpty()) {
@@ -886,7 +882,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                             locLsnr.onUpdated(evts);
 
                         if (locTransLsnr != null)
-                            locTransLsnr.onUpdated(transEvts(evts, cctx));
+                            locTransLsnr.onUpdated(unpackTransEvts(evts, cctx));
                     }
 
                     if (!internal && !skipPrimaryCheck)
@@ -898,7 +894,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                             locLsnr.onUpdated(F.<CacheEntryEvent<? extends K, ? extends V>>asList(evt));
 
                         if (locTransLsnr != null) {
-                            locTransLsnr.onUpdated(transEvts(F.<CacheEntryEvent<? extends K, ? extends V>>asList(evt), cctx));
+                            locTransLsnr.onUpdated(unpackTransEvts(F.<CacheEntryEvent<? extends K, ? extends V>>asList(evt), cctx));
                         }
                     }
                 }
@@ -1344,11 +1340,11 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         }
     }
 
-    private Collection<Object> transEvts(Collection evts, final GridCacheContext cctx) {
+    private Collection<Object> unpackTransEvts(Collection evts, final GridCacheContext cctx) {
         return F.transform((Collection<CacheContinuousQueryEvent<? extends K, ? extends V>>)evts,
             new IgniteClosure<CacheContinuousQueryEvent<? extends K, ? extends V>, Object>() {
                 @Override public Object apply(CacheContinuousQueryEvent<? extends K, ? extends V> evt) {
-                    return evt.entry().transValue().value(cctx.cacheObjectContext(), false);
+                    return evt.entry().transformedValue().value(cctx.cacheObjectContext(), false);
                 }
             }
         );
