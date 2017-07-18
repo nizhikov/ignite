@@ -23,7 +23,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteTransactions;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.lang.IgniteCallable;
@@ -128,7 +127,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
     }
 
     /**
-     * Test start 1 transaction, suspend it. And then start another transaction, trying to write
+     * Test start 1 transaction, suspendTx it. And then start another transaction, trying to write
      * the same key and commit it.
      *
      * @throws Exception If failed.
@@ -179,7 +178,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
     }
 
     /**
-     * Test for concurrent transaction suspend.
+     * Test for concurrent transaction suspendTx.
      *
      * @throws Exception If failed.
      */
@@ -218,7 +217,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
 
                 return null;
             }
-        }, concurrentThreadsNum, "th-suspend");
+        }, concurrentThreadsNum, "th-suspendTx");
 
         barrier.await();
 

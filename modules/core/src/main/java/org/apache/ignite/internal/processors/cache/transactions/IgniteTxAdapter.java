@@ -134,7 +134,7 @@ public abstract class IgniteTxAdapter extends GridMetadataAwareAdapter implement
 
     /** Thread ID. */
     @GridToStringInclude
-    protected long threadId;
+    protected volatile long threadId;
 
     /** Transaction start time. */
     @GridToStringInclude
