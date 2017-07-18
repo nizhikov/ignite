@@ -198,6 +198,7 @@ public final class ContinuousQuery<K, V> extends Query<Cache.Entry<K, V>> {
      * @return {@code this} for chaining.
      * @see IgniteAsyncCallback
      * @see IgniteConfiguration#getAsyncCallbackPoolSize()
+     * @see ContinuousQueryWithTransformer#setLocalTransformedEventListener(ContinuousQueryWithTransformer.TransformedEventListener)
      */
     public ContinuousQuery<K, V> setLocalListener(CacheEntryUpdatedListener<K, V> locLsnr) {
         this.locLsnr = locLsnr;

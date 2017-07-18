@@ -134,7 +134,6 @@ public final class ContinuousQueryWithTransformer<K, V, T> extends Query<Cache.E
     /** Remote filter factory. */
     private Factory<? extends CacheEntryEventFilter<K, V>> rmtFilterFactory;
 
-
     /** Remote transformer factory. */
     private Factory<? extends IgniteBiClosure<K, V, T>> rmtTransFactory;
 
@@ -302,20 +301,54 @@ public final class ContinuousQueryWithTransformer<K, V, T> extends Query<Cache.E
         return this;
     }
 
+    /**
+     * Gets remote transformer factory
+     *
+     * @return Remote Transformer Factory
+     */
     public Factory<? extends IgniteBiClosure<K, V, T>> getRemoteTransformerFactory() {
         return rmtTransFactory;
     }
 
+    /**
+     * Sets local callback. This callback is called only in local node when new updates are received.
+     * <p>
+     * The callback predicate accepts results of transformed by {@link #getRemoteFilterFactory()} events
+     * <p>
+     * <b>WARNING:</b> all operations that involve any kind of JVM-local or distributed locking (e.g.,
+     * synchronization or transactional cache operations), should be executed asynchronously without
+     * blocking the thread that called the callback. Otherwise, you can get deadlocks.
+     * <p>
+     * If local listener are annotated with {@link IgniteAsyncCallback} then it is executed in async callback pool
+     * (see {@link IgniteConfiguration#getAsyncCallbackPoolSize()}) that allow to perform a cache operations.
+     *
+     * @param locTransEvtLsnr Local callback.
+     * @return {@code this} for chaining.
+     *
+     * @see IgniteAsyncCallback
+     * @see IgniteConfiguration#getAsyncCallbackPoolSize()
+     * @see ContinuousQuery#setLocalListener(CacheEntryUpdatedListener)
+     */
     public ContinuousQueryWithTransformer<K, V, T> setLocalTransformedEventListener(
         TransformedEventListener<T> locTransEvtLsnr) {
         this.locTransEvtLsnr = locTransEvtLsnr;
         return this;
     }
 
+    /**
+     * Gets local transformed event listener
+     *
+     * @return local transformed event listener
+     */
     public TransformedEventListener<T> getLocalTransformedEventListener() {
         return locTransEvtLsnr;
     }
 
+    /**
+     * Interface for listener to implement
+     *
+     * @param <T> type of data produced by transformer {@link #getRemoteTransformerFactory()}
+     */
     public interface TransformedEventListener<T> {
         /**
          * Called after one or more entries have been updated.
