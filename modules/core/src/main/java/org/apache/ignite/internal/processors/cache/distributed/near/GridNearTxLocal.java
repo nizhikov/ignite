@@ -105,6 +105,7 @@ import static org.apache.ignite.internal.processors.cache.GridCacheOperation.TRA
 import static org.apache.ignite.internal.processors.cache.GridCacheOperation.UPDATE;
 import static org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry.SER_READ_EMPTY_ENTRY_VER;
 import static org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry.SER_READ_NOT_EMPTY_VER;
+import static org.apache.ignite.internal.processors.cache.transactions.IgniteTxManager.UNDEFINED_THREAD_ID;
 import static org.apache.ignite.transactions.TransactionState.ACTIVE;
 import static org.apache.ignite.transactions.TransactionState.COMMITTED;
 import static org.apache.ignite.transactions.TransactionState.COMMITTING;
@@ -175,11 +176,23 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
     @GridToStringExclude
     private TransactionProxyImpl proxy;
 
+    private ThreadLocal<Boolean> suspendInProgress = new ThreadLocal<Boolean>() {
+        @Override protected Boolean initialValue() {
+            return false;
+        }
+    };
+
     private ThreadLocal<Boolean> resumeInProgress = new ThreadLocal<Boolean>() {
         @Override protected Boolean initialValue() {
             return false;
         }
     };
+
+    private AffinityTopologyVersion txTopForSuspension;
+
+    /** */
+    @GridToStringExclude
+    private IgniteInternalTx threadCtxForSuspension;
 
     /**
      * Empty constructor required for {@link Externalizable}.
@@ -2867,22 +2880,62 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
         if (log.isDebugEnabled())
             log.debug("Suspend near local tx: " + this);
 
-        if (pessimistic() || system())
+        if (pessimistic() || system()) {
             throw new UnsupportedOperationException("Suspension is not supported for pessimistic " +
                 "and system transactions.");
+        }
 
         if (threadId() != Thread.currentThread().getId())
             throw new IgniteCheckedException("Only thread started transaction can suspend it.");
 
+        if (state() != ACTIVE) {
+            throw new IgniteCheckedException("Trying to suspendTx transaction with incorrect state "
+                + "[expected=" + ACTIVE + ", actual=" + state() + ']');
+        }
+
         checkValid();
 
+        suspendInProgress.set(true);
+        try {
+            cctx.tm().suspendTx(this);
+        } finally {
+            suspendInProgress.set(false);
+        }
+    }
+
+    /**
+     * Resumes transaction (possibly in another thread) if it was previously suspended.
+     *
+     * @throws IgniteCheckedException If the transaction is in an incorrect state, or timed out.
+     */
+    public void resume() throws IgniteCheckedException {
+        if (log.isDebugEnabled())
+            log.debug("Resume near local tx: " + this);
+
+        if (pessimistic() || system()) {
+            throw new UnsupportedOperationException("Resume is not supported for pessimistic " +
+                "and system transactions.");
+        }
+
         synchronized (this) {
-            if (state() != ACTIVE) {
-                throw new IgniteCheckedException("Trying to suspendTx transaction with incorrect state "
-                    + "[expected=" + ACTIVE + ", actual=" + state() + ']');
+            if (state() != SUSPENDED) {
+                throw new IgniteCheckedException("Trying to resume transaction with incorrect state "
+                    + "[expected=" + SUSPENDED + ", actual=" + state() + "]");
             }
 
-            state(SUSPENDED);
+            if (threadId() != UNDEFINED_THREAD_ID) {
+                throw new IgniteCheckedException("Only transaction with undefined threadId can be resumed "
+                    + "[expected=" + UNDEFINED_THREAD_ID + ", actual=" + threadId() + "]");
+            }
+
+            checkValid();
+
+            resumeInProgress.set(true);
+            try {
+                cctx.tm().resumeTx(this);
+            } finally {
+                resumeInProgress.set(false);
+            }
         }
     }
 
@@ -3023,29 +3076,6 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
 
                 // Replace the entry.
                 txEntry.cached(txEntry.context().cache().entryEx(txEntry.key(), topologyVersion()));
-            }
-        }
-    }
-
-    /**
-     * Resumes transaction (possibly in another thread) if it was previously suspended.
-     *
-     * @throws IgniteCheckedException If the transaction is in an incorrect state, or timed out.
-     */
-    public void resume() throws IgniteCheckedException {
-        checkValid();
-
-        synchronized (this) {
-            if (state() != SUSPENDED) {
-                throw new IgniteCheckedException("Trying to resume transaction with incorrect state "
-                    + "[expected=" + SUSPENDED + ", actual=" + state() + ']');
-            }
-
-            resumeInProgress.set(true);
-            try {
-                cctx.tm().resumeTx(this);
-            } finally {
-                resumeInProgress.set(false);
             }
         }
     }
@@ -4011,16 +4041,36 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
     }
 
     public void threadId(long threadId) throws IgniteCheckedException {
-        if (!resumeInProgress.get()) {
+        if (!resumeInProgress() && !suspendInProgress()) {
             throw new IgniteCheckedException("Write threadId prohibited. " +
-                "Use suspendTx and resume instead of direct write of threadId");
+                "Use suspend and resume instead of direct write of threadId");
         }
 
         this.threadId = threadId;
     }
 
+    public boolean suspendInProgress() {
+        return suspendInProgress.get();
+    }
+
     public boolean resumeInProgress() {
         return resumeInProgress.get();
+    }
+
+    public void txTopForSuspension(AffinityTopologyVersion txTop) {
+        this.txTopForSuspension = txTop;
+    }
+
+    public AffinityTopologyVersion txTopForSuspension() {
+        return txTopForSuspension;
+    }
+
+    public void threadCtxForSuspension(IgniteInternalTx threadCtx) {
+        this.threadCtxForSuspension = threadCtx;
+    }
+
+    public IgniteInternalTx threadCtxForSuspension() {
+        return threadCtxForSuspension;
     }
 
     /**
