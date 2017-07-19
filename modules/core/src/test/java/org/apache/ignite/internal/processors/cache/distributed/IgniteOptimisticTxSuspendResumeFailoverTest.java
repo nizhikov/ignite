@@ -28,6 +28,7 @@ import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionIsolation;
 import org.apache.ignite.transactions.TransactionState;
 
+import static org.apache.ignite.internal.processors.cache.distributed.IgniteOptimisticTxSuspendResumeClientTest.CLIENT_NODE_ID;
 import static org.apache.ignite.transactions.TransactionConcurrency.OPTIMISTIC;
 
 /**
@@ -44,7 +45,7 @@ public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransac
      * Starts tx locally with remote residing keys and then remote node fails.
      */
     public void testTxRemoteNodeFailover() throws Exception {
-        startGrid(getTestIgniteInstanceName(0));
+        startGrid(getTestIgniteInstanceName(DEFAULT_NODE_ID));
 
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
@@ -52,7 +53,7 @@ public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransac
 
                 awaitPartitionMapExchange();
 
-                IgniteCache<String, Integer> remoteCache = jcache(1);
+                IgniteCache<String, Integer> remoteCache = jcache(DEFAULT_NODE_ID);
 
                 String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
 
@@ -62,7 +63,7 @@ public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransac
 
                 waitAllTransactionsHasFinished();
 
-                IgniteCache<String, Integer> clientCache = jcache(0);
+                IgniteCache<String, Integer> clientCache = jcache(CLIENT_NODE_ID);
 
                 assertEquals(1, (long)clientCache.get(remotePrimaryKey));
 
@@ -75,28 +76,28 @@ public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransac
      * Starts tx locally with locally residing keys and then local node fails.
      */
     public void testTxLocalNodeFailover() throws Exception {
-        startGrid(getTestIgniteInstanceName(0));
+        startGrid(getTestIgniteInstanceName(DEFAULT_NODE_ID));
 
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
-                startGrid(1);
+                startGrid(CLIENT_NODE_ID);
 
                 awaitPartitionMapExchange();
 
-                IgniteCache localCache = jcache(1);
+                IgniteCache localCache = jcache(CLIENT_NODE_ID);
 
                 String localPrimaryKey = String.valueOf(primaryKey(localCache));
 
                 assert localPrimaryKey != null;
 
                 try {
-                    performTransactionFailover(localPrimaryKey, 1, 1, isolation);
+                    performTransactionFailover(localPrimaryKey, CLIENT_NODE_ID, CLIENT_NODE_ID, isolation);
                 }
                 catch (IgniteCheckedException ignore) {
                     // ignoring node breakage exception.
                 }
 
-                IgniteCache<String, Integer> remoteCache = jcache(0);
+                IgniteCache<String, Integer> remoteCache = jcache(DEFAULT_NODE_ID);
 
                 assertFalse(remoteCache.containsKey(localPrimaryKey));
             }
@@ -109,7 +110,7 @@ public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransac
     public void testTxOnClientBreakRemote() throws Exception {
         startGrid(2);
 
-        startGrid(getTestIgniteInstanceName(0), getConfiguration().setClientMode(true));
+        startGrid(getTestIgniteInstanceName(DEFAULT_NODE_ID), getConfiguration().setClientMode(true));
 
         awaitPartitionMapExchange();
 
@@ -119,17 +120,17 @@ public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransac
 
                 awaitPartitionMapExchange();
 
-                IgniteCache remoteCache = jcache(1);
+                IgniteCache remoteCache = jcache(DEFAULT_NODE_ID);
 
                 String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
 
                 assert remotePrimaryKey != null;
 
-                performTransactionFailover(remotePrimaryKey, 1, 0, isolation);
+                performTransactionFailover(remotePrimaryKey, CLIENT_NODE_ID, DEFAULT_NODE_ID, isolation);
 
                 waitAllTransactionsHasFinished();
 
-                IgniteCache<String, Integer> clientCache = jcache(0);
+                IgniteCache<String, Integer> clientCache = jcache(CLIENT_NODE_ID);
 
                 assertEquals(1, (long)clientCache.get(remotePrimaryKey));
 

@@ -42,8 +42,6 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
 
     public static final int DEFAULT_BARRIER_TIMEOUT = 10_000;
 
-    public static final int CLIENT_NODE_ID = 1;
-
     /** {@inheritDoc} */
     @Override protected void beforeTestsStarted() throws Exception {
         super.beforeTestsStarted();
