@@ -151,14 +151,14 @@ public class CacheJtaManager extends CacheJtaManagerAdapter {
                         TransactionConfiguration txCfg = cctx.kernalContext().config().getTransactionConfiguration();
 
                         tx = cctx.tm().newTx(
-                                /*implicit*/false,
-                                /*implicit single*/false,
+                            /*implicit*/false,
+                            /*implicit single*/false,
                             null,
                             txCfg.getDefaultTxConcurrency(),
                             txCfg.getDefaultTxIsolation(),
                             txCfg.getDefaultTxTimeout(),
-                                /*store enabled*/true,
-                                /*tx size*/0
+                            /*store enabled*/true,
+                            /*tx size*/0
                         );
 
                         CacheJtaResource rsrc = new CacheJtaResource(tx, cctx.kernalContext());

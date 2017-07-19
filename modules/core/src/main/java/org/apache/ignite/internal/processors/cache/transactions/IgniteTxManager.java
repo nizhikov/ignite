@@ -2281,7 +2281,7 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
 
         long threadId = Thread.currentThread().getId();
 
-        if (!threadMap.containsKey(threadId))
+        if (threadMap.containsKey(threadId))
             throw new IgniteCheckedException("Thread already start a transaction.");
 
         if (!sysThreadMap.isEmpty()) {

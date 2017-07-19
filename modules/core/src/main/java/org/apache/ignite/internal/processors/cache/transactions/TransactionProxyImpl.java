@@ -45,6 +45,7 @@ import org.apache.ignite.transactions.TransactionIsolation;
 import org.apache.ignite.transactions.TransactionState;
 
 import static org.apache.ignite.internal.processors.cache.transactions.IgniteTxManager.UNDEFINED_THREAD_ID;
+import static org.apache.ignite.transactions.TransactionState.SUSPENDED;
 
 /**
  * Cache transaction proxy.
@@ -100,7 +101,7 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
      * Enters a call.
      */
     private void enter() {
-        assert TransactionState.SUSPENDED != state() : "Operation is prohibited on suspended transaction.";
+        assert SUSPENDED != state();
 
         enter0();
     }
@@ -109,9 +110,8 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
      * Enters a call without check for {@code SUSPENDED} status
      */
     private void enter0() {
-        assert threadId() ==
-            (state() == TransactionState.SUSPENDED ? UNDEFINED_THREAD_ID : Thread.currentThread().getId()):
-            "Only thread owning active transaction is permitted to operate it.";
+        assert (threadId() == Thread.currentThread().getId()) ||
+            (threadId() == UNDEFINED_THREAD_ID && state() == SUSPENDED);
 
         if (cctx.deploymentEnabled())
             cctx.deploy().onEnter();
