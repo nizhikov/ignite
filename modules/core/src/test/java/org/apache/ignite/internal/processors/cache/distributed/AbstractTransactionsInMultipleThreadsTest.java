@@ -29,9 +29,11 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.distributed.near.GridNearCacheAdapter;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxManager;
 import org.apache.ignite.internal.util.lang.GridAbsPredicate;
+import org.apache.ignite.internal.util.typedef.CI1;
 import org.apache.ignite.internal.util.typedef.G;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteCallable;
+import org.apache.ignite.lang.IgniteInClosure;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.TransactionIsolation;
@@ -40,12 +42,6 @@ import org.apache.ignite.transactions.TransactionIsolation;
  *
  */
 public abstract class AbstractTransactionsInMultipleThreadsTest extends GridCommonAbstractTest {
-    /** Transaction isolation level. */
-    protected TransactionIsolation transactionIsolation;
-
-    /** Id of node, started transaction. */
-    protected int txInitiatorNodeId = 0;
-
     /**
      * Creates new cache configuration.
      *
@@ -95,16 +91,9 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
      * @param testScenario Test scenario.
      * @throws Exception If scenario failed.
      */
-    protected void runWithAllIsolations(IgniteCallable<Void> testScenario) throws Exception {
+    protected void runWithAllIsolations(IgniteInClosure<TransactionIsolation> testScenario) throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
-            this.transactionIsolation = isolation;
-
-            try {
-                testScenario.call();
-            }
-            catch (IgniteCheckedException e) {
-                throw U.convertException(e);
-            }
+            testScenario.apply(isolation);
         }
     }
 
@@ -127,5 +116,17 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
         }, 10000);
 
         assertTrue(txFinished);
+    }
+
+    public abstract class CI1Exc<T> implements CI1<T> {
+        public abstract void applyX(T o) throws Exception;
+
+        @Override public void apply(T o) {
+            try {
+                applyX(o);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 }

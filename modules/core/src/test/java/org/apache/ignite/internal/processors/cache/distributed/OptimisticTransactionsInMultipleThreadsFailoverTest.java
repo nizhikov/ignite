@@ -23,16 +23,121 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteTransactions;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.util.typedef.G;
-import org.apache.ignite.lang.IgniteCallable;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.transactions.Transaction;
-import org.apache.ignite.transactions.TransactionConcurrency;
+import org.apache.ignite.transactions.TransactionIsolation;
 import org.apache.ignite.transactions.TransactionState;
+
+import static org.apache.ignite.transactions.TransactionConcurrency.OPTIMISTIC;
 
 /**
  *
  */
 public class OptimisticTransactionsInMultipleThreadsFailoverTest extends AbstractTransactionsInMultipleThreadsTest {
+    /**
+     * Starts tx locally with remote residing keys and then remote node fails.
+     */
+    public void testTxRemoteNodeFailover() throws Exception {
+        startGrid(getTestIgniteInstanceName(0));
+
+        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
+            @Override public void applyX(TransactionIsolation isolation) throws Exception {
+                startGrid(1);
+
+                awaitPartitionMapExchange();
+
+                IgniteCache<String, Integer> remoteCache = jcache(1);
+
+                String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
+
+                assert remotePrimaryKey != null;
+
+                performTransactionFailover(remotePrimaryKey, 1, 0, isolation);
+
+                waitAllTransactionsHasFinished();
+
+                IgniteCache<String, Integer> clientCache = jcache(0);
+
+                assertEquals(1, (long)clientCache.get(remotePrimaryKey));
+
+                clientCache.removeAll();
+            }
+        });
+
+        stopAllGrids();
+    }
+
+    /**
+     * Starts tx locally with locally residing keys and then local node fails.
+     */
+    public void testTxLocalNodeFailover() throws Exception {
+        startGrid(getTestIgniteInstanceName(0));
+
+        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
+            @Override public void applyX(TransactionIsolation isolation) throws Exception {
+                startGrid(1);
+
+                awaitPartitionMapExchange();
+
+                IgniteCache localCache = jcache(1);
+
+                String localPrimaryKey = String.valueOf(primaryKey(localCache));
+
+                assert localPrimaryKey != null;
+
+                try {
+                    performTransactionFailover(localPrimaryKey, 1, 1, isolation);
+                }
+                catch (IgniteCheckedException ignore) {
+                    // ignoring node breakage exception.
+                }
+
+                IgniteCache<String, Integer> remoteCache = jcache(0);
+
+                assertFalse(remoteCache.containsKey(localPrimaryKey));
+            }
+        });
+
+        stopAllGrids();
+    }
+
+    /**
+     * Starts tx locally on client, and break remote primary node.
+     */
+    public void testTxOnClientBreakRemote() throws Exception {
+        startGrid(2);
+
+        startGrid(getTestIgniteInstanceName(0), getConfiguration().setClientMode(true));
+
+        awaitPartitionMapExchange();
+
+        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
+            @Override public void applyX(TransactionIsolation isolation) throws Exception {
+                startGrid(1);
+
+                awaitPartitionMapExchange();
+
+                IgniteCache remoteCache = jcache(1);
+
+                String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
+
+                assert remotePrimaryKey != null;
+
+                performTransactionFailover(remotePrimaryKey, 1, 0, isolation);
+
+                waitAllTransactionsHasFinished();
+
+                IgniteCache<String, Integer> clientCache = jcache(0);
+
+                assertEquals(1, (long)clientCache.get(remotePrimaryKey));
+
+                clientCache.removeAll();
+            }
+        });
+
+        stopAllGrids();
+    }
+
     /**
      * Starts transaction, breaks node and then resuming it in another thread.
      *
@@ -41,12 +146,12 @@ public class OptimisticTransactionsInMultipleThreadsFailoverTest extends Abstrac
      * @param initiatingNodeIdx Node, starting transaction on.
      * @throws IgniteCheckedException If failed.
      */
-    private void performTransactionFailover(String key,
-        int breakNodeIdx, int initiatingNodeIdx) throws IgniteCheckedException {
+    private void performTransactionFailover(String key, int breakNodeIdx, int initiatingNodeIdx,
+        TransactionIsolation isolation) throws IgniteCheckedException {
         final IgniteTransactions txs = grid(initiatingNodeIdx).transactions();
         IgniteCache<String, Integer> cache = jcache(initiatingNodeIdx);
 
-        final Transaction tx = txs.txStart(TransactionConcurrency.OPTIMISTIC, transactionIsolation);
+        final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
 
         cache.put(key, 1);
 
@@ -72,136 +177,5 @@ public class OptimisticTransactionsInMultipleThreadsFailoverTest extends Abstrac
         });
 
         fut.get();
-    }
-
-    /**
-     * Starts tx locally with remote residing keys and then remote node fails.
-     */
-    public void testTxRemoteNodeFailover() throws Exception {
-        startGrid(getTestIgniteInstanceName(0));
-
-        runWithAllIsolations(new IgniteCallable<Void>() {
-            @Override public Void call() throws Exception {
-                txRemoteNodeFailover();
-
-                return null;
-            }
-        });
-
-        stopAllGrids();
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
-    private void txRemoteNodeFailover() throws Exception {
-        startGrid(1);
-
-        awaitPartitionMapExchange();
-
-        IgniteCache<String, Integer> remoteCache = jcache(1);
-
-        String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
-
-        assert remotePrimaryKey != null;
-
-        performTransactionFailover(remotePrimaryKey, 1, 0);
-
-        waitAllTransactionsHasFinished();
-
-        IgniteCache<String, Integer> clientCache = jcache(0);
-
-        assertEquals(1, (long)clientCache.get(remotePrimaryKey));
-
-        clientCache.removeAll();
-    }
-
-    /**
-     * Starts tx locally with locally residing keys and then local node fails.
-     */
-    public void testTxLocalNodeFailover() throws Exception {
-        startGrid(getTestIgniteInstanceName(0));
-
-        runWithAllIsolations(new IgniteCallable<Void>() {
-            @Override public Void call() throws Exception {
-                txLocalNodeFailover();
-
-                return null;
-            }
-        });
-
-        stopAllGrids();
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
-    private void txLocalNodeFailover() throws Exception {
-        startGrid(1);
-
-        awaitPartitionMapExchange();
-
-        IgniteCache localCache = jcache(1);
-
-        String localPrimaryKey = String.valueOf(primaryKey(localCache));
-
-        assert localPrimaryKey != null;
-
-        try {
-            performTransactionFailover(localPrimaryKey, 1, 1);
-        }
-        catch (IgniteCheckedException ignore) {
-            // ignoring node breakage exception.
-        }
-
-        IgniteCache<String, Integer> remoteCache = jcache(0);
-
-        assertFalse(remoteCache.containsKey(localPrimaryKey));
-    }
-
-    /**
-     * Starts tx locally on client, and break remote primary node.
-     */
-    public void testTxOnClientBreakRemote() throws Exception {
-        startGrid(2);
-
-        startGrid(getTestIgniteInstanceName(0), getConfiguration().setClientMode(true));
-
-        awaitPartitionMapExchange();
-
-        runWithAllIsolations(new IgniteCallable<Void>() {
-            @Override public Void call() throws Exception {
-                txOnClientBreakRemote();
-
-                return null;
-            }
-        });
-
-        stopAllGrids();
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
-    private void txOnClientBreakRemote() throws Exception {
-        startGrid(1);
-
-        awaitPartitionMapExchange();
-
-        IgniteCache remoteCache = jcache(1);
-
-        String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
-
-        assert remotePrimaryKey != null;
-
-        performTransactionFailover(remotePrimaryKey, 1, 0);
-
-        waitAllTransactionsHasFinished();
-
-        IgniteCache<String, Integer> clientCache = jcache(0);
-
-        assertEquals(1, (long)clientCache.get(remotePrimaryKey));
-
-        clientCache.removeAll();
     }
 }
