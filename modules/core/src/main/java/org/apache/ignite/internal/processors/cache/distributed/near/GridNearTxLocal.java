@@ -190,10 +190,6 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
 
     private AffinityTopologyVersion txTopForSuspension;
 
-    /** */
-    @GridToStringExclude
-    private IgniteInternalTx threadCtxForSuspension;
-
     /**
      * Empty constructor required for {@link Externalizable}.
      */
@@ -4063,14 +4059,6 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
 
     public AffinityTopologyVersion txTopForSuspension() {
         return txTopForSuspension;
-    }
-
-    public void threadCtxForSuspension(IgniteInternalTx threadCtx) {
-        this.threadCtxForSuspension = threadCtx;
-    }
-
-    public IgniteInternalTx threadCtxForSuspension() {
-        return threadCtxForSuspension;
     }
 
     /**

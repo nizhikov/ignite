@@ -2259,8 +2259,6 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
 
         tx.txTopForSuspension(txTop.get());
 
-        tx.threadCtxForSuspension(threadCtx.get());
-
         tx.threadId(UNDEFINED_THREAD_ID);
 
         tx.state(SUSPENDED);
@@ -2303,8 +2301,6 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
         txIdMap.put(tx.xidVersion(), tx);
 
         txTop.set(tx.txTopForSuspension());
-
-        threadCtx.set(tx.threadCtxForSuspension());
 
         tx.threadId(threadId);
 
