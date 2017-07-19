@@ -59,7 +59,7 @@ public class IgniteCacheTestSuite6 extends TestSuite {
      * @throws Exception Thrown in case of the failure.
      */
     public static TestSuite suite() throws Exception {
-        TestSuite suite = new TestSuite("IgniteCache Test Suite part 5");
+        TestSuite suite = new TestSuite("IgniteCache Test Suite part 6");
 
         suite.addTestSuite(OptimisticTransactionsInMultipleThreadsTest.class);
         suite.addTestSuite(OptimisticTransactionsInMultipleThreadsClientTest.class);

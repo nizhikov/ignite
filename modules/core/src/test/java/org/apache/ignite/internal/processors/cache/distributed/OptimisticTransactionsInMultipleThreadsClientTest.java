@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.cache.distributed;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
@@ -30,6 +31,7 @@ import org.apache.ignite.transactions.TransactionIsolation;
 import org.apache.ignite.transactions.TransactionState;
 import org.jsr166.LongAdder8;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.ignite.transactions.TransactionConcurrency.OPTIMISTIC;
 
 /**
@@ -39,6 +41,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
     /** Number of concurrently running threads, which tries to perform transaction operations. */
     private int concurrentThreadsNum = 25;
 
+    public static final int DEFAULT_BARRIER_TIMEOUT = 10_000;
     //public static final int DEFAULT_NODE_ID = 1;
 
     /** {@inheritDoc} */
@@ -86,9 +89,9 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
 
                             clientCache.put(remotePrimaryKey, 2);
 
-                            barrier.await();
+                            barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
-                            barrier.await();
+                            barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                             clientTx.commit();
 
@@ -96,7 +99,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
                         }
                     });
 
-                    barrier.await();
+                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                     final Transaction clientTx2 = ignite(DEFAULT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
 
@@ -104,7 +107,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
 
                     clientTx2.commit();
 
-                    barrier.await();
+                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                     fut.get(5000);
 
@@ -185,7 +188,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
                     }
                 }, concurrentThreadsNum, "th-suspendTx");
 
-                barrier.await();
+                barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                 clientTx.suspend();
 
@@ -280,7 +283,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
                             }
                         }, concurrentThreadsNum, "th-commit");
 
-                        barrier.await();
+                        barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                         clientTx.commit();
 
@@ -333,7 +336,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
                             }
                         }, concurrentThreadsNum, "th-rollback");
 
-                        barrier.await();
+                        barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                         clientTx.rollback();
 
@@ -386,7 +389,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
                             }
                         }, concurrentThreadsNum, "th-close");
 
-                        barrier.await();
+                        barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                         clientTx.close();
 
@@ -420,14 +423,14 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
 
             switch (threadNum % 5) {
                 case 0:
-                    barrier.await();
+                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                     clientTx.suspend();
 
                     break;
 
                 case 1:
-                    barrier.await();
+                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                     clientTx.resume();
 
@@ -438,21 +441,21 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
                     return;
 
                 case 2:
-                    barrier.await();
+                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                     clientTx.commit();
 
                     break;
 
                 case 3:
-                    barrier.await();
+                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                     clientTx.rollback();
 
                     break;
 
                 case 4:
-                    barrier.await();
+                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                     clientTx.close();
 
