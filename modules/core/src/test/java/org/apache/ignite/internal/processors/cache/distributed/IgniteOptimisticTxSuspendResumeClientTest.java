@@ -36,7 +36,7 @@ import static org.apache.ignite.transactions.TransactionConcurrency.OPTIMISTIC;
 /**
  *
  */
-public class OptimisticTransactionsInMultipleThreadsClientTest extends OptimisticTransactionsInMultipleThreadsTest {
+public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticTxSuspendResumeTest {
     /** Number of concurrently running threads, which tries to perform transaction operations. */
     private int concurrentThreadsNum = 25;
 
@@ -51,7 +51,12 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
         startGrid(getTestIgniteInstanceName(CLIENT_NODE_ID), getConfiguration().setClientMode(true));
 
         awaitPartitionMapExchange();
+    }
 
+    @Override protected void afterTest() throws Exception {
+        super.afterTest();
+
+        jcache(DEFAULT_NODE_ID).removeAll();
     }
 
     /**
@@ -196,7 +201,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
 
                 clientTx.suspend();
 
-                fut.get();
+                fut.get(5000);
 
                 // if transaction was not closed after resume, then close it now.
                 if (successfulResume.get() == 0) {
@@ -291,7 +296,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
 
                         clientTx.commit();
 
-                        fut.get();
+                        fut.get(5000);
 
                         return null;
                     }
@@ -344,7 +349,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
 
                         clientTx.rollback();
 
-                        fut.get();
+                        fut.get(5000);
 
                         return null;
                     }
@@ -397,7 +402,7 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
 
                         clientTx.close();
 
-                        fut.get();
+                        fut.get(5000);
 
                         return null;
                     }

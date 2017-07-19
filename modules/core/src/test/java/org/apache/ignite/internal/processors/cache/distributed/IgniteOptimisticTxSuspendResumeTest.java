@@ -37,7 +37,7 @@ import static org.apache.ignite.transactions.TransactionConcurrency.OPTIMISTIC;
 /**
  *
  */
-public class OptimisticTransactionsInMultipleThreadsTest extends AbstractTransactionsInMultipleThreadsTest {
+public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInMultipleThreadsTest {
     /** Name for test cache */
     private static final String TEST_CACHE_NAME = "testCache";
 
@@ -46,8 +46,6 @@ public class OptimisticTransactionsInMultipleThreadsTest extends AbstractTransac
 
     /** Transaction timeout. */
     private static final long TIMEOUT = 100;
-
-    public static final int DEFAULT_NODE_ID = 0;
 
     /** {@inheritDoc} */
     @Override protected void beforeTestsStarted() throws Exception {
@@ -65,6 +63,12 @@ public class OptimisticTransactionsInMultipleThreadsTest extends AbstractTransac
         stopAllGrids(true);
     }
 
+    @Override protected void afterTest() throws Exception {
+        super.afterTest();
+
+        jcache(DEFAULT_NODE_ID).removeAll();
+    }
+
     /**
      * Test for transaction starting in one thread, continuing in another.
      *
@@ -75,8 +79,6 @@ public class OptimisticTransactionsInMultipleThreadsTest extends AbstractTransac
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
                 final IgniteCache<String, Integer> cache = jcache(DEFAULT_NODE_ID);
                 final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
-
-                assertNull(cache.get("key1"));
 
                 final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
 
@@ -127,8 +129,6 @@ public class OptimisticTransactionsInMultipleThreadsTest extends AbstractTransac
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
                 final IgniteCache<String, Integer> cache = jcache(DEFAULT_NODE_ID);
                 final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
-
-                assertNull(cache.get("key1"));
 
                 final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
 

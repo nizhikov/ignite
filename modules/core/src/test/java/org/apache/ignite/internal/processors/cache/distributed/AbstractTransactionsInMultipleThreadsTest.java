@@ -42,6 +42,8 @@ import org.apache.ignite.transactions.TransactionIsolation;
  *
  */
 public abstract class AbstractTransactionsInMultipleThreadsTest extends GridCommonAbstractTest {
+    public static final int DEFAULT_NODE_ID = 0;
+
     /**
      * Creates new cache configuration.
      *

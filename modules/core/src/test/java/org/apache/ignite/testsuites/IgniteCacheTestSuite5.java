@@ -41,10 +41,10 @@ import org.apache.ignite.internal.processors.cache.distributed.GridCachePartitio
 import org.apache.ignite.internal.processors.cache.distributed.IgniteCacheGroupsPartitionLossPolicySelfTest;
 import org.apache.ignite.internal.processors.cache.distributed.IgniteCachePartitionLossPolicySelfTest;
 import org.apache.ignite.internal.processors.cache.distributed.IgniteCacheTxIteratorSelfTest;
-import org.apache.ignite.internal.processors.cache.distributed.OptimisticTransactionsInMultipleThreadsClientTest;
-import org.apache.ignite.internal.processors.cache.distributed.OptimisticTransactionsInMultipleThreadsFailoverTest;
-import org.apache.ignite.internal.processors.cache.distributed.OptimisticTransactionsInMultipleThreadsTest;
-import org.apache.ignite.internal.processors.cache.distributed.PessimisticTransactionsInMultipleThreadsTest;
+import org.apache.ignite.internal.processors.cache.distributed.IgniteOptimisticTxSuspendResumeClientTest;
+import org.apache.ignite.internal.processors.cache.distributed.IgniteOptimisticTxSuspendResumeFailoverTest;
+import org.apache.ignite.internal.processors.cache.distributed.IgniteOptimisticTxSuspendResumeTest;
+import org.apache.ignite.internal.processors.cache.distributed.IgnitePessimisticTxSuspendResumeTest;
 import org.apache.ignite.internal.processors.cache.distributed.dht.atomic.IgniteCacheAtomicProtocolTest;
 import org.apache.ignite.internal.processors.cache.distributed.rebalancing.CacheManualRebalancingTest;
 import org.apache.ignite.internal.processors.cache.distributed.replicated.IgniteCacheSyncRebalanceModeSelfTest;
@@ -99,10 +99,10 @@ public class IgniteCacheTestSuite5 extends TestSuite {
 
         suite.addTestSuite(GridCachePartitionEvictionDuringReadThroughSelfTest.class);
 
-        suite.addTestSuite(OptimisticTransactionsInMultipleThreadsTest.class);
-        suite.addTestSuite(OptimisticTransactionsInMultipleThreadsClientTest.class);
-        suite.addTestSuite(OptimisticTransactionsInMultipleThreadsFailoverTest.class);
-        suite.addTestSuite(PessimisticTransactionsInMultipleThreadsTest.class);
+        suite.addTestSuite(IgniteOptimisticTxSuspendResumeTest.class);
+        suite.addTestSuite(IgniteOptimisticTxSuspendResumeClientTest.class);
+        suite.addTestSuite(IgniteOptimisticTxSuspendResumeFailoverTest.class);
+        suite.addTestSuite(IgnitePessimisticTxSuspendResumeTest.class);
 
         return suite;
     }

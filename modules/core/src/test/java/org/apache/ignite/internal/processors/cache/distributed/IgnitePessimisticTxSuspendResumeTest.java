@@ -31,9 +31,7 @@ import org.apache.ignite.transactions.TransactionIsolation;
 /**
  *
  */
-public class PessimisticTransactionsInMultipleThreadsTest extends AbstractTransactionsInMultipleThreadsTest {
-    public static final int DEFAULT_NODE_ID = 0;
-
+public class IgnitePessimisticTxSuspendResumeTest extends AbstractTransactionsInMultipleThreadsTest {
     /** {@inheritDoc} */
     @Override protected void beforeTestsStarted() throws Exception {
         super.beforeTestsStarted();
@@ -41,6 +39,18 @@ public class PessimisticTransactionsInMultipleThreadsTest extends AbstractTransa
         startGrids(2);
 
         awaitPartitionMapExchange();
+    }
+
+    @Override protected void afterTestsStopped() throws Exception {
+        super.afterTestsStopped();
+
+        stopAllGrids();
+    }
+
+    @Override protected void afterTest() throws Exception {
+        super.afterTest();
+
+        jcache(DEFAULT_NODE_ID).removeAll();
     }
 
     /**

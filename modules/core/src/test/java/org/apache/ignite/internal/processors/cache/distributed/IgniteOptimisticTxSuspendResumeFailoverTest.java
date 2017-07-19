@@ -33,7 +33,13 @@ import static org.apache.ignite.transactions.TransactionConcurrency.OPTIMISTIC;
 /**
  *
  */
-public class OptimisticTransactionsInMultipleThreadsFailoverTest extends AbstractTransactionsInMultipleThreadsTest {
+public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransactionsInMultipleThreadsTest {
+    @Override protected void afterTest() throws Exception {
+        super.afterTest();
+
+        stopAllGrids();
+    }
+
     /**
      * Starts tx locally with remote residing keys and then remote node fails.
      */
@@ -63,8 +69,6 @@ public class OptimisticTransactionsInMultipleThreadsFailoverTest extends Abstrac
                 clientCache.removeAll();
             }
         });
-
-        stopAllGrids();
     }
 
     /**
@@ -97,8 +101,6 @@ public class OptimisticTransactionsInMultipleThreadsFailoverTest extends Abstrac
                 assertFalse(remoteCache.containsKey(localPrimaryKey));
             }
         });
-
-        stopAllGrids();
     }
 
     /**
@@ -134,8 +136,6 @@ public class OptimisticTransactionsInMultipleThreadsFailoverTest extends Abstrac
                 clientCache.removeAll();
             }
         });
-
-        stopAllGrids();
     }
 
     /**
