@@ -117,16 +117,16 @@ public final class ContinuousQueryWithTransformer<K, V, T> extends Query<Cache.E
      * Default page size. Size of {@code 1} means that all entries
      * will be sent to master node immediately (buffering is disabled).
      */
-    public static final int DFLT_PAGE_SIZE = 1;
+    private static final int DFLT_PAGE_SIZE = 1;
 
     /** Maximum default time interval after which buffer will be flushed (if buffering is enabled). */
-    public static final long DFLT_TIME_INTERVAL = 0;
+    private static final long DFLT_TIME_INTERVAL = 0;
 
     /**
      * Default value for automatic unsubscription flag. Remote filters
      * will be unregistered by default if master node leaves topology.
      */
-    public static final boolean DFLT_AUTO_UNSUBSCRIBE = true;
+    private static final boolean DFLT_AUTO_UNSUBSCRIBE = true;
 
     /** Initial query. */
     private Query<Cache.Entry<K, V>> initQry;
