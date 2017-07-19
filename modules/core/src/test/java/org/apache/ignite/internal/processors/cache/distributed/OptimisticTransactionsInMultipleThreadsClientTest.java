@@ -19,7 +19,6 @@ package org.apache.ignite.internal.processors.cache.distributed;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
@@ -42,13 +41,14 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
     private int concurrentThreadsNum = 25;
 
     public static final int DEFAULT_BARRIER_TIMEOUT = 10_000;
-    //public static final int DEFAULT_NODE_ID = 1;
+
+    public static final int CLIENT_NODE_ID = 1;
 
     /** {@inheritDoc} */
     @Override protected void beforeTestsStarted() throws Exception {
         super.beforeTestsStarted();
 
-        startGrid(getTestIgniteInstanceName(1), getConfiguration().setClientMode(true));
+        startGrid(getTestIgniteInstanceName(CLIENT_NODE_ID), getConfiguration().setClientMode(true));
 
         awaitPartitionMapExchange();
 
@@ -61,61 +61,62 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
      * @throws Exception If failed.
      */
     public void testResumeTxWhileStartingAnotherTx() throws Exception {
-        for (final TransactionIsolation firstTxIsolation : TransactionIsolation.values())
-            runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-                @Override public void applyX(TransactionIsolation isolation) throws Exception {
-                    final IgniteCache<String, Integer> clientCache = jcache(DEFAULT_NODE_ID);
-                    final IgniteCache<String, Integer> remoteCache = jcache(0);
+        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
+            @Override public void applyX(final TransactionIsolation isolation1) throws Exception {
+                runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
+                    @Override public void applyX(TransactionIsolation isolation2) throws Exception {
+                        final IgniteCache<String, Integer> clientCache = jcache(CLIENT_NODE_ID);
+                        final IgniteCache<String, Integer> remoteCache = jcache(DEFAULT_NODE_ID);
 
-                    final CyclicBarrier barrier = new CyclicBarrier(2);
+                        final CyclicBarrier barrier = new CyclicBarrier(2);
 
-                    final String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
+                        final String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
 
-                    final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
+                        final IgniteTransactions txs = ignite(CLIENT_NODE_ID).transactions();
 
-                    final Transaction clientTx = txs.txStart(OPTIMISTIC,
-                        firstTxIsolation);
+                        final Transaction clientTx = txs.txStart(OPTIMISTIC, isolation1);
 
-                    clientCache.put(remotePrimaryKey, 1);
+                        clientCache.put(remotePrimaryKey, 1);
 
-                    clientTx.suspend();
+                        clientTx.suspend();
 
-                    final IgniteInternalFuture<Boolean> fut = GridTestUtils.runAsync(new Callable<Boolean>() {
-                        @Override public Boolean call() throws Exception {
-                            assertNull(txs.tx());
-                            assertEquals(TransactionState.SUSPENDED, clientTx.state());
+                        final IgniteInternalFuture<Boolean> fut = GridTestUtils.runAsync(new Callable<Boolean>() {
+                            @Override public Boolean call() throws Exception {
+                                assertNull(txs.tx());
+                                assertEquals(TransactionState.SUSPENDED, clientTx.state());
 
-                            clientTx.resume();
+                                clientTx.resume();
 
-                            clientCache.put(remotePrimaryKey, 2);
+                                clientCache.put(remotePrimaryKey, 2);
 
-                            barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
+                                barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
-                            barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
+                                barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
-                            clientTx.commit();
+                                clientTx.commit();
 
-                            return true;
-                        }
-                    });
+                                return true;
+                            }
+                        });
 
-                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
+                        barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
-                    final Transaction clientTx2 = ignite(DEFAULT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
+                        final Transaction clientTx2 = txs.txStart(OPTIMISTIC, isolation2);
 
-                    clientCache.put(remotePrimaryKey, 3);
+                        clientCache.put(remotePrimaryKey, 3);
 
-                    clientTx2.commit();
+                        clientTx2.commit();
 
-                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
+                        barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
-                    fut.get(5000);
+                        assertTrue(fut.get(5000));
+                        assertEquals(2, remoteCache.get(remotePrimaryKey).intValue());
 
-                    assertEquals(2, jcache(0).get(remotePrimaryKey));
-
-                    jcache(0).removeAll();
-                }
-            });
+                        remoteCache.removeAll();
+                    }
+                });
+            }
+        });
     }
 
     /**
@@ -125,37 +126,40 @@ public class OptimisticTransactionsInMultipleThreadsClientTest extends Optimisti
      * @throws Exception If failed.
      */
     public void testSuspendTxAndStartNewTx() throws Exception {
-        for (final TransactionIsolation firstTxIsolation : TransactionIsolation.values())
-            runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-                @Override public void applyX(TransactionIsolation isolation) throws Exception {
-                    final IgniteCache<String, Integer> clientCache = jcache(DEFAULT_NODE_ID);
-                    final IgniteCache<String, Integer> remoteCache = jcache(0);
+        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
+            @Override public void applyX(final TransactionIsolation isolation1) throws Exception {
+                runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
+                    @Override public void applyX(TransactionIsolation isolation2) throws Exception {
+                        final IgniteCache<String, Integer> clientCache = jcache(DEFAULT_NODE_ID);
+                        final IgniteCache<String, Integer> remoteCache = jcache(0);
 
-                    String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
+                        String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
 
-                    Ignite clientIgnite = ignite(DEFAULT_NODE_ID);
+                        Ignite clientIgnite = ignite(DEFAULT_NODE_ID);
 
-                    final Transaction clientTx = clientIgnite.transactions().txStart(OPTIMISTIC, firstTxIsolation);
+                        final Transaction clientTx = clientIgnite.transactions().txStart(OPTIMISTIC, isolation1);
 
-                    clientCache.put(remotePrimaryKey, 1);
+                        clientCache.put(remotePrimaryKey, 1);
 
-                    clientTx.suspend();
+                        clientTx.suspend();
 
-                    final Transaction clientTx2 = clientIgnite.transactions().txStart(OPTIMISTIC, isolation);
+                        final Transaction clientTx2 = clientIgnite.transactions().txStart(OPTIMISTIC, isolation2);
 
-                    clientCache.put(remotePrimaryKey, 2);
+                        clientCache.put(remotePrimaryKey, 2);
 
-                    clientTx2.commit();
+                        clientTx2.commit();
 
-                    assertEquals(2, jcache(0).get(remotePrimaryKey));
+                        assertEquals(2, jcache(0).get(remotePrimaryKey));
 
-                    clientTx.resume();
+                        clientTx.resume();
 
-                    clientTx.close();
+                        clientTx.close();
 
-                    remoteCache.removeAll();
-                }
-            });
+                        remoteCache.removeAll();
+                    }
+                });
+            }
+        });
     }
 
     /**
