@@ -1036,9 +1036,8 @@ public abstract class IgniteTxAdapter extends GridMetadataAwareAdapter implement
                 }
 
                 case ROLLING_BACK: {
-                    valid =
-                        prev == ACTIVE || prev == MARKED_ROLLBACK || prev == PREPARING ||
-                            prev == PREPARED || (prev == COMMITTING && local() && !dht()) || prev == SUSPENDED;
+                    valid = prev == ACTIVE || prev == MARKED_ROLLBACK || prev == PREPARING ||
+                        prev == PREPARED || prev == SUSPENDED || (prev == COMMITTING && local() && !dht());
 
                     break;
                 }
@@ -1077,6 +1076,8 @@ public abstract class IgniteTxAdapter extends GridMetadataAwareAdapter implement
             // Seal transactions maps.
             if (state != ACTIVE)
                 seal();
+            else if (prev == SUSPENDED)
+                unseal();
         }
 
         return valid;
@@ -2119,6 +2120,11 @@ public abstract class IgniteTxAdapter extends GridMetadataAwareAdapter implement
 
         /** {@inheritDoc} */
         @Override public void seal() {
+
+        }
+
+        /** {@inheritDoc} */
+        @Override public void unseal() {
 
         }
 

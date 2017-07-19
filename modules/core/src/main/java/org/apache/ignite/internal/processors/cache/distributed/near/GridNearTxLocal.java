@@ -175,12 +175,6 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
     @GridToStringExclude
     private TransactionProxyImpl proxy;
 
-    private ThreadLocal<Boolean> suspensionInProgress = new ThreadLocal<Boolean>() {
-        @Override protected Boolean initialValue() {
-            return false;
-        }
-    };
-
     private ThreadLocal<Boolean> resumeInProgress = new ThreadLocal<Boolean>() {
         @Override protected Boolean initialValue() {
             return false;
@@ -2877,21 +2871,18 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
             throw new UnsupportedOperationException("Suspension is not supported for pessimistic " +
                 "and system transactions.");
 
+        if (threadId() != Thread.currentThread().getId())
+            throw new IgniteCheckedException("Only thread started transaction can suspend it.");
+
         checkValid();
 
         synchronized (this) {
-            if (ACTIVE != state()) {
+            if (state() != ACTIVE) {
                 throw new IgniteCheckedException("Trying to suspendTx transaction with incorrect state "
                     + "[expected=" + ACTIVE + ", actual=" + state() + ']');
             }
 
-            this.suspensionInProgress.set(true);
-            try {
-                cctx.tm().suspendTx(this);
-            } finally {
-                this.suspensionInProgress.set(false);
-            }
-
+            state(SUSPENDED);
         }
     }
 
@@ -3045,7 +3036,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
         checkValid();
 
         synchronized (this) {
-            if (SUSPENDED != state()) {
+            if (state() != SUSPENDED) {
                 throw new IgniteCheckedException("Trying to resume transaction with incorrect state "
                     + "[expected=" + SUSPENDED + ", actual=" + state() + ']');
             }
@@ -4020,16 +4011,12 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
     }
 
     public void threadId(long threadId) throws IgniteCheckedException {
-        if (!resumeInProgress.get() && !suspensionInProgress.get()) {
+        if (!resumeInProgress.get()) {
             throw new IgniteCheckedException("Write threadId prohibited. " +
                 "Use suspendTx and resume instead of direct write of threadId");
         }
 
         this.threadId = threadId;
-    }
-
-    public boolean suspensionInProgress() {
-        return suspensionInProgress.get();
     }
 
     public boolean resumeInProgress() {

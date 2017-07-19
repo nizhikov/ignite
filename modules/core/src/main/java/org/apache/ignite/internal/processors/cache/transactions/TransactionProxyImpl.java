@@ -44,6 +44,8 @@ import org.apache.ignite.transactions.TransactionConcurrency;
 import org.apache.ignite.transactions.TransactionIsolation;
 import org.apache.ignite.transactions.TransactionState;
 
+import static org.apache.ignite.internal.processors.cache.transactions.IgniteTxManager.UNDEFINED_THREAD_ID;
+
 /**
  * Cache transaction proxy.
  */
@@ -96,14 +98,20 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
 
     /**
      * Enters a call.
-     * @param permittedOnSuspendedTx {@code True} If operation is permitted on suspended transaction.
      */
-    private void enter(boolean permittedOnSuspendedTx) {
-        assert Thread.currentThread().getId() == threadId() || TransactionState.SUSPENDED == state() :
-            "Only thread owning active transaction is permitted to operate it.";
+    private void enter() {
+        assert TransactionState.SUSPENDED != state() : "Operation is prohibited on suspended transaction.";
 
-        assert TransactionState.SUSPENDED != state() || permittedOnSuspendedTx :
-            "Operation is prohibited on suspended transaction.";
+        enter0();
+    }
+
+    /**
+     * Enters a call without check for {@code SUSPENDED} status
+     */
+    private void enter0() {
+        assert threadId() ==
+            (state() == TransactionState.SUSPENDED ? UNDEFINED_THREAD_ID : Thread.currentThread().getId()):
+            "Only thread owning active transaction is permitted to operate it.";
 
         if (cctx.deploymentEnabled())
             cctx.deploy().onEnter();
@@ -212,7 +220,7 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
 
     /** {@inheritDoc} */
     @Override public void suspend() throws IgniteException {
-        enter(false);
+        enter();
 
         try {
             cctx.suspendTx(tx);
@@ -247,7 +255,7 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
 
     /** {@inheritDoc} */
     @Override public boolean setRollbackOnly() {
-        enter(false);
+        enter();
 
         try {
             return tx.setRollbackOnly();
@@ -259,7 +267,7 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
 
     /** {@inheritDoc} */
     @Override public boolean isRollbackOnly() {
-        enter(false);
+        enter();
 
         try {
             if (async)
@@ -274,7 +282,7 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
 
     /** {@inheritDoc} */
     @Override public void commit() {
-        enter(false);
+        enter();
 
         try {
             IgniteInternalFuture<IgniteInternalTx> commitFut = cctx.commitTxAsync(tx);
@@ -294,7 +302,7 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
 
     /** {@inheritDoc} */
     @Override public IgniteFuture<Void> commitAsync() throws IgniteException {
-        enter(false);
+        enter();
 
         try {
             return (IgniteFuture<Void>)createFuture(cctx.commitTxAsync(tx));
@@ -306,7 +314,7 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
 
     /** {@inheritDoc} */
     @Override public void close() {
-        enter(false);
+        enter();
 
         try {
             cctx.endTx(tx);
@@ -321,7 +329,7 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
 
     /** {@inheritDoc} */
     @Override public void rollback() {
-        enter(false);
+        enter();
 
         try {
             IgniteInternalFuture rollbackFut = cctx.rollbackTxAsync(tx);
@@ -341,7 +349,7 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
 
     /** {@inheritDoc} */
     @Override public IgniteFuture<Void> rollbackAsync() throws IgniteException {
-        enter(false);
+        enter();
 
         try {
             return (IgniteFuture<Void>)(new IgniteFutureImpl(cctx.rollbackTxAsync(tx)));
@@ -356,7 +364,7 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
 
     /** {@inheritDoc} */
     @Override public void resume() throws IgniteException {
-        enter(true);
+        enter0();
 
         try {
             cctx.resumeTx(tx);

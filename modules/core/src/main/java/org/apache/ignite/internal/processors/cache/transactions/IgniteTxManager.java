@@ -129,9 +129,6 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
     /** Tx salvage timeout. */
     private static final int TX_SALVAGE_TIMEOUT = Integer.getInteger(IGNITE_TX_SALVAGE_TIMEOUT, 100);
 
-    /** */
-    public static final long UNDEFINED_THREAD_ID = -1L;
-
     /** One phase commit deferred ack request timeout. */
     public static final int DEFERRED_ONE_PHASE_COMMIT_ACK_REQUEST_TIMEOUT =
         Integer.getInteger(IGNITE_DEFERRED_ONE_PHASE_COMMIT_ACK_REQUEST_TIMEOUT, 500);
@@ -2247,51 +2244,32 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
      */
     public void resumeTx(GridNearTxLocal tx) throws IgniteCheckedException {
         assert tx != null;
-        assert tx.state() == SUSPENDED;
-        assert tx.threadId() == UNDEFINED_THREAD_ID;
+        assert !tx.system();
 
         if (!tx.resumeInProgress())
             throw new IgniteCheckedException("Use resumeTx prohibited. Use tx.resume() instead.");
 
-        if (threadMap.containsKey(Thread.currentThread().getId())) {
-            IgniteInternalTx tx1 = threadMap.get(Thread.currentThread().getId());
-            throw new IgniteCheckedException("Thread already has transaction - " + tx1);
+        if (tx.state() != SUSPENDED)
+            throw new IgniteCheckedException("Only suspended transaction can be resumed.");
+
+        long threadId = Thread.currentThread().getId();
+
+        if (threadMap.containsKey(threadId)) {
+            IgniteInternalTx tx1 = threadMap.get(threadId);
+            throw new IgniteCheckedException("Nested transactions not supported. " +
+                "Thread already has transaction - " + tx1);
         }
 
         if (threadMap.containsValue(tx))
             throw new IgniteCheckedException("Transaction already owned by other thread ");
 
-        threadMap.put(Thread.currentThread().getId(), tx);
+        threadMap.put(threadId, tx);
 
         threadCtx.set(tx);
 
-        tx.threadId(Thread.currentThread().getId());
+        tx.threadId(threadId);
 
         tx.state(ACTIVE);
-    }
-
-    /**
-     * Detaches current thread from the transaction.
-     *
-     * @param tx Transaction to be detached.
-     * @return {@code False} if already detached.
-     */
-    public boolean suspendTx(final GridNearTxLocal tx) throws IgniteCheckedException {
-        assert tx != null;
-        assert tx.state() == ACTIVE;
-        assert tx.threadId() == Thread.currentThread().getId();
-        assert !tx.system();
-
-        if (!tx.suspensionInProgress())
-            throw new IgniteCheckedException("Use suspendTx prohibited. Use tx.suspend() instead.");
-
-        tx.threadId(UNDEFINED_THREAD_ID);
-
-        tx.state(SUSPENDED);
-
-        resetContext();
-
-        return threadMap.remove(Thread.currentThread().getId(), tx);
     }
 
     /**
