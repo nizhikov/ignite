@@ -58,27 +58,25 @@ public class IgnitePessimisticTxSuspendResumeTest extends AbstractTransactionsIn
      * @throws Exception If failed.
      */
     public void testSuspendPessimisticTransaction() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
+        for (TransactionIsolation isolation : TransactionIsolation.values()) {
+            final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
 
-                final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
+            final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
-                try (Transaction tx = txs.txStart(TransactionConcurrency.PESSIMISTIC, isolation)) {
-                    cache.put(1, "1");
+            try (Transaction tx = txs.txStart(TransactionConcurrency.PESSIMISTIC, isolation)) {
+                cache.put(1, "1");
 
-                    tx.suspend();
+                tx.suspend();
 
-                    fail("Suspend must fail, because it isn't supported for pessimistic transactions.");
-                }
-                catch (Throwable e) {
-                    if (!X.hasCause(e, UnsupportedOperationException.class))
-                        throw e;
-                }
-
-                assertNull(cache.get(1));
+                fail("Suspend must fail, because it isn't supported for pessimistic transactions.");
             }
-        });
+            catch (Throwable e) {
+                if (!X.hasCause(e, UnsupportedOperationException.class))
+                    throw e;
+            }
+
+            assertNull(cache.get(1));
+        }
     }
 
     /**
@@ -87,31 +85,29 @@ public class IgnitePessimisticTxSuspendResumeTest extends AbstractTransactionsIn
      * @throws Exception If failed.
      */
     public void testResumePessimisticTransaction() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
+        for (TransactionIsolation isolation : TransactionIsolation.values()) {
+            final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
 
-                final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
+            final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
-                try (Transaction tx = txs.txStart(TransactionConcurrency.PESSIMISTIC, isolation)) {
-                    cache.put(1, "1");
+            try (Transaction tx = txs.txStart(TransactionConcurrency.PESSIMISTIC, isolation)) {
+                cache.put(1, "1");
 
-                    tx.suspend();
+                tx.suspend();
 
-                    GridTestUtils.runAsync(new Runnable() {
-                        @Override public void run() {
-                            tx.resume();
-                        }
-                    }).get(FUT_TIMEOUT);
+                GridTestUtils.runAsync(new Runnable() {
+                    @Override public void run() {
+                        tx.resume();
+                    }
+                }).get(FUT_TIMEOUT);
 
-                    fail("Resume must fail, because it isn't supported for pessimistic transactions.");
-                }
-                catch (UnsupportedOperationException ignored) {
-                    // No-op.
-                }
-
-                assertNull(cache.get(1));
+                fail("Resume must fail, because it isn't supported for pessimistic transactions.");
             }
-        });
+            catch (UnsupportedOperationException ignored) {
+                // No-op.
+            }
+
+            assertNull(cache.get(1));
+        }
     }
 }

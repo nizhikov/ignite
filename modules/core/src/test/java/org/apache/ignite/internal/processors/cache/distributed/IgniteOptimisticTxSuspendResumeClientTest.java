@@ -22,6 +22,7 @@ import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteTransactions;
 import org.apache.ignite.internal.IgniteInternalFuture;
+import org.apache.ignite.internal.util.typedef.CI1;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionIsolation;
@@ -61,60 +62,57 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
      * @throws Exception If failed.
      */
     public void testResumeTxWhileStartingAnotherTx() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(final TransactionIsolation tx1Isolation) throws Exception {
-                runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-                    @Override public void applyx(TransactionIsolation tx2Isolation) throws Exception {
-                        final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
+        for (TransactionIsolation tx1Isolation : TransactionIsolation.values()) {
+            for (TransactionIsolation tx2Isolation : TransactionIsolation.values()) {
+                final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
 
-                        final IgniteCache<Integer, String> remoteCache = jcache(DEFAULT_NODE_ID);
+                final IgniteCache<Integer, String> remoteCache = jcache(DEFAULT_NODE_ID);
 
-                        final CyclicBarrier barrier = new CyclicBarrier(2);
+                final CyclicBarrier barrier = new CyclicBarrier(2);
 
-                        final IgniteTransactions txs = ignite(CLIENT_NODE_ID).transactions();
+                final IgniteTransactions txs = ignite(CLIENT_NODE_ID).transactions();
 
-                        final Transaction clientTx = txs.txStart(OPTIMISTIC, tx1Isolation);
+                final Transaction clientTx = txs.txStart(OPTIMISTIC, tx1Isolation);
 
-                        clientCache.put(1, "1");
+                clientCache.put(1, "1");
 
-                        clientTx.suspend();
+                clientTx.suspend();
 
-                        final IgniteInternalFuture fut = GridTestUtils.runAsync(new RunnableX() {
-                            @Override public void runx() throws Exception {
-                                assertNull(txs.tx());
-                                assertEquals(TransactionState.SUSPENDED, clientTx.state());
+                final IgniteInternalFuture fut = GridTestUtils.runAsync(new RunnableX() {
+                    @Override public void runx() throws Exception {
+                        assertNull(txs.tx());
 
-                                clientTx.resume();
+                        assertEquals(TransactionState.SUSPENDED, clientTx.state());
 
-                                clientCache.put(1, "2");
+                        clientTx.resume();
 
-                                barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
-
-                                barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
-
-                                clientTx.commit();
-                            }
-                        });
+                        clientCache.put(1, "2");
 
                         barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
-                        final Transaction clientTx2 = txs.txStart(OPTIMISTIC, tx2Isolation);
-
-                        clientCache.put(1, "3");
-
-                        clientTx2.commit();
-
                         barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
-                        fut.get(FUT_TIMEOUT);
-
-                        assertEquals("2", remoteCache.get(1));
-
-                        remoteCache.removeAll();
+                        clientTx.commit();
                     }
                 });
+
+                barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
+
+                final Transaction clientTx2 = txs.txStart(OPTIMISTIC, tx2Isolation);
+
+                clientCache.put(1, "3");
+
+                clientTx2.commit();
+
+                barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
+
+                fut.get(FUT_TIMEOUT);
+
+                assertEquals("2", remoteCache.get(1));
+
+                remoteCache.removeAll();
             }
-        });
+        }
     }
 
     /**
@@ -124,39 +122,35 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
      * @throws Exception If failed.
      */
     public void testSuspendTxAndStartNewTx() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(final TransactionIsolation tx1Isolation) throws Exception {
-                runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-                    @Override public void applyx(TransactionIsolation tx2Isolation) throws Exception {
-                        final Ignite remoteIgnite = ignite(DEFAULT_NODE_ID);
-                        final IgniteCache<Integer, String> remoteCache = remoteIgnite.cache(DEFAULT_CACHE_NAME);
+        for (TransactionIsolation tx1Isolation : TransactionIsolation.values()) {
+            for (TransactionIsolation tx2Isolation : TransactionIsolation.values()) {
+                final Ignite remoteIgnite = ignite(DEFAULT_NODE_ID);
+                final IgniteCache<Integer, String> remoteCache = remoteIgnite.cache(DEFAULT_CACHE_NAME);
 
-                        final Ignite clientIgnite = ignite(CLIENT_NODE_ID);
-                        final IgniteCache<Integer, String> clientCache = clientIgnite.cache(DEFAULT_CACHE_NAME);
+                final Ignite clientIgnite = ignite(CLIENT_NODE_ID);
+                final IgniteCache<Integer, String> clientCache = clientIgnite.cache(DEFAULT_CACHE_NAME);
 
-                        final Transaction clientTx = clientIgnite.transactions().txStart(OPTIMISTIC, tx1Isolation);
+                final Transaction clientTx = clientIgnite.transactions().txStart(OPTIMISTIC, tx1Isolation);
 
-                        clientCache.put(1, "1");
+                clientCache.put(1, "1");
 
-                        clientTx.suspend();
+                clientTx.suspend();
 
-                        final Transaction clientTx2 = clientIgnite.transactions().txStart(OPTIMISTIC, tx2Isolation);
+                final Transaction clientTx2 = clientIgnite.transactions().txStart(OPTIMISTIC, tx2Isolation);
 
-                        clientCache.put(1, "2");
+                clientCache.put(1, "2");
 
-                        clientTx2.commit();
+                clientTx2.commit();
 
-                        assertEquals("2", remoteCache.get(1));
+                assertEquals("2", remoteCache.get(1));
 
-                        clientTx.resume();
+                clientTx.resume();
 
-                        clientTx.close();
+                clientTx.close();
 
-                        remoteCache.removeAll();
-                    }
-                });
+                remoteCache.removeAll();
             }
-        });
+        }
     }
 
     /**
@@ -165,45 +159,43 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
      * @throws Exception If failed.
      */
     public void testTxConcurrentSuspend() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
+        for (TransactionIsolation isolation : TransactionIsolation.values()) {
+            final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
 
-                final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
+            final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
 
-                clientCache.put(1, "1");
+            clientCache.put(1, "1");
 
-                clientTx.suspend();
+            clientTx.suspend();
 
-                final boolean[] opSuc = {false};
-                GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
-                    @Override public void applyx(Integer idx) throws Exception {
-                        try {
-                            suspendedTxProhibitedOps.get(idx).apply(clientTx);
+            final boolean[] opSuc = {false};
+            GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
+                @Override public void applyx(Integer idx) throws Exception {
+                    try {
+                        suspendedTxProhibitedOps.get(idx).apply(clientTx);
 
-                            opSuc[0] = true;
-                        }
-                        catch (Exception ignored) {
-                            // No-op.
-                        }
-                        catch (AssertionError ignored) {
-                            // No-op.
-                        }
+                        opSuc[0] = true;
                     }
-                }, suspendedTxProhibitedOps.size(), "th-suspendTx");
-
-                assertFalse(opSuc[0]);
-
-                GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
-                    @Override public void applyx(Integer idx) throws Exception {
-                        clientTx.resume();
-                        clientTx.close();
+                    catch (Exception ignored) {
+                        // No-op.
                     }
-                }, 1, "th-suspendTx");
+                    catch (AssertionError ignored) {
+                        // No-op.
+                    }
+                }
+            }, suspendedTxProhibitedOps.size(), "th-suspendTx");
 
-                assertNull(clientCache.get(1));
-            }
-        });
+            assertFalse(opSuc[0]);
+
+            GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
+                @Override public void applyx(Integer idx) throws Exception {
+                    clientTx.resume();
+                    clientTx.close();
+                }
+            }, 1, "th-suspendTx");
+
+            assertNull(clientCache.get(1));
+        }
     }
 
     /**
@@ -212,47 +204,13 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
      * @throws Exception If failed.
      */
     public void testTxConcurrentCommit() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
-
-                final IgniteCache<Integer, String> remoteCache = jcache(DEFAULT_NODE_ID);
-
-                final Transaction clientTx = ignite(DEFAULT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
-
-                clientCache.put(1, "1");
-
-                clientTx.suspend();
-
-                GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
-                    @Override public void applyx(Integer threadNum) throws Exception {
-                        clientTx.resume();
-                        clientTx.commit();
-
-                        final boolean[] opSuc = {false};
-                        GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
-                            @Override public void applyx(Integer idx) throws Exception {
-                                try {
-                                    suspendedTxProhibitedOps.get(idx).apply(clientTx);
-
-                                    opSuc[0] = true;
-                                }
-                                catch (Exception ignored) {
-                                    // No-op.
-                                }
-                                catch (AssertionError ignored) {
-                                    // No-op.
-                                }
-                            }
-                        }, suspendedTxProhibitedOps.size(), "th-commit");
-
-                        assertFalse(opSuc[0]);
-                    }
-                }, 1, "th-commit-outer");
-
-                assertEquals("1", remoteCache.get(1));
+        final CI1Exc<Transaction> operationBefore = new CI1Exc<Transaction>() {
+            @Override public void applyx(Transaction tx) throws Exception {
+                tx.resume();
+                tx.commit();
             }
-        });
+        };
+        doProhibitedOperationAfter(operationBefore, "1");
     }
 
     /**
@@ -261,45 +219,13 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
      * @throws Exception If failed.
      */
     public void testTxConcurrentRollback() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
-
-                final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
-
-                clientCache.put(1, "1");
-
-                clientTx.suspend();
-
-                GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
-                    @Override public void applyx(Integer threadNum) throws Exception {
-                        clientTx.resume();
-                        clientTx.rollback();
-
-                        final boolean[] opSuc = {false};
-                        GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
-                            @Override public void applyx(Integer idx) throws Exception {
-                                try {
-                                    suspendedTxProhibitedOps.get(idx).apply(clientTx);
-
-                                    opSuc[0] = true;
-                                }
-                                catch (Exception ignored) {
-                                    // No-op.
-                                }
-                                catch (AssertionError ignored) {
-                                    // No-op.
-                                }
-                            }
-                        }, suspendedTxProhibitedOps.size(), "th-rollback");
-
-                        assertFalse(opSuc[0]);
-                    }
-                }, 1, "th-rollback-outer");
-
-                assertNull(clientCache.get(1));
+        final CI1Exc<Transaction> operationBefore = new CI1Exc<Transaction>() {
+            @Override public void applyx(Transaction tx) throws Exception {
+                tx.resume();
+                tx.rollback();
             }
-        });
+        };
+        doProhibitedOperationAfter(operationBefore, null);
     }
 
     /**
@@ -308,42 +234,54 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
      * @throws Exception If failed.
      */
     public void testTxConcurrentClose() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
-
-                final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
-
-                clientCache.put(1, "1");
-
-                clientTx.suspend();
-
-                GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
-                    @Override public void applyx(Integer threadNum) throws Exception {
-                        clientTx.resume();
-                        clientTx.close();
-
-                        final boolean[] opSuc = {false};
-                        GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
-                            @Override public void applyx(Integer idx) throws Exception {
-                                try {
-                                    suspendedTxProhibitedOps.get(idx).apply(clientTx);
-
-                                    opSuc[0] = true;
-                                }
-                                catch (Exception ignored) {
-                                    // No-op.
-                                }
-                                catch (AssertionError ignored) {
-                                    // No-op.
-                                }
-                            }
-                        }, suspendedTxProhibitedOps.size(), "th-close");
-                    }
-                }, 1, "th-close-outer");
-
-                assertNull(clientCache.get(1));
+        final CI1Exc<Transaction> operationBefore = new CI1Exc<Transaction>() {
+            @Override public void applyx(Transaction tx) throws Exception {
+                tx.resume();
+                tx.close();
             }
-        });
+        };
+        doProhibitedOperationAfter(operationBefore, null);
+    }
+
+    private void doProhibitedOperationAfter(final CI1<Transaction> operationBefore,
+        final String expVal) throws Exception {
+        for (TransactionIsolation isolation : TransactionIsolation.values()) {
+            final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
+
+            final IgniteCache<Integer, String> remoteCache = jcache(DEFAULT_NODE_ID);
+
+            final Transaction clientTx = ignite(DEFAULT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
+
+            clientCache.put(1, "1");
+
+            clientTx.suspend();
+
+            GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
+                @Override public void applyx(Integer threadNum) throws Exception {
+                    operationBefore.apply(clientTx);
+
+                    final boolean[] opSuc = {false};
+                    GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
+                        @Override public void applyx(Integer idx) throws Exception {
+                            try {
+                                suspendedTxProhibitedOps.get(idx).apply(clientTx);
+
+                                opSuc[0] = true;
+                            }
+                            catch (Exception ignored) {
+                                // No-op.
+                            }
+                            catch (AssertionError ignored) {
+                                // No-op.
+                            }
+                        }
+                    }, suspendedTxProhibitedOps.size(), "th-commit");
+
+                    assertFalse(opSuc[0]);
+                }
+            }, 1, "th-commit-outer");
+
+            assertEquals(expVal, remoteCache.get(1));
+        }
     }
 }

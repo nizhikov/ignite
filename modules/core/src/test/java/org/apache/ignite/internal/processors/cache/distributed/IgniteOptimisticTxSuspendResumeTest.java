@@ -67,49 +67,47 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
      * @throws Exception If failed.
      */
     public void testSimpleTransactionInAnotherThread() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
+        for (TransactionIsolation isolation : TransactionIsolation.values()) {
+            final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
 
-                final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
+            final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
-                final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
+            final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
 
-                cache.put(1, "1");
-                cache.put(2, "2");
+            cache.put(1, "1");
+            cache.put(2, "2");
 
-                tx.suspend();
+            tx.suspend();
 
-                assertNull(cache.get(1));
+            assertNull(cache.get(1));
 
-                GridTestUtils.runAsync(new Runnable() {
-                    @Override public void run() {
-                        assertNull(txs.tx());
+            GridTestUtils.runAsync(new Runnable() {
+                @Override public void run() {
+                    assertNull(txs.tx());
 
-                        assertEquals(SUSPENDED, tx.state());
+                    assertEquals(SUSPENDED, tx.state());
 
-                        tx.resume();
+                    tx.resume();
 
-                        assertEquals(ACTIVE, tx.state());
+                    assertEquals(ACTIVE, tx.state());
 
-                        cache.put(3, "3");
+                    cache.put(3, "3");
 
-                        cache.remove(2);
+                    cache.remove(2);
 
-                        tx.commit();
-                    }
-                }).get(FUT_TIMEOUT);
+                    tx.commit();
+                }
+            }).get(FUT_TIMEOUT);
 
-                assertEquals(COMMITTED, tx.state());
+            assertEquals(COMMITTED, tx.state());
 
-                assertEquals("1", cache.get(1));
-                assertEquals("3", cache.get(3));
+            assertEquals("1", cache.get(1));
+            assertEquals("3", cache.get(3));
 
-                assertFalse(cache.containsKey(2));
+            assertFalse(cache.containsKey(2));
 
-                cache.removeAll();
-            }
-        });
+            cache.removeAll();
+        }
     }
 
     /**
@@ -118,67 +116,65 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
      * @throws Exception If failed.
      */
     public void testSimpleTransactionInAnotherThreadContinued() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
+        for (TransactionIsolation isolation : TransactionIsolation.values()) {
+            final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
 
-                final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
+            final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
-                final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
+            final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
 
-                cache.put(1, "1");
-                cache.put(4, "4");
+            cache.put(1, "1");
+            cache.put(4, "4");
 
-                tx.suspend();
+            tx.suspend();
 
-                assertNull(cache.get(1));
+            assertNull(cache.get(1));
 
-                GridTestUtils.runAsync(new Runnable() {
-                    @Override public void run() {
-                        assertNull(txs.tx());
+            GridTestUtils.runAsync(new Runnable() {
+                @Override public void run() {
+                    assertNull(txs.tx());
 
-                        assertEquals(SUSPENDED, tx.state());
+                    assertEquals(SUSPENDED, tx.state());
 
-                        tx.resume();
+                    tx.resume();
 
-                        assertEquals(ACTIVE, tx.state());
+                    assertEquals(ACTIVE, tx.state());
 
-                        cache.put(2, "2");
-                        cache.remove(4, "4");
-                        cache.put(5, "5");
-                        cache.put(6, "6");
+                    cache.put(2, "2");
+                    cache.remove(4, "4");
+                    cache.put(5, "5");
+                    cache.put(6, "6");
 
-                        tx.suspend();
-                    }
-                }).get(FUT_TIMEOUT);
+                    tx.suspend();
+                }
+            }).get(FUT_TIMEOUT);
 
-                assertNull(txs.tx());
+            assertNull(txs.tx());
 
-                assertEquals(SUSPENDED, tx.state());
+            assertEquals(SUSPENDED, tx.state());
 
-                tx.resume();
+            tx.resume();
 
-                assertEquals(ACTIVE, tx.state());
+            assertEquals(ACTIVE, tx.state());
 
-                cache.put(3, "3");
-                cache.remove(5, "5");
-                cache.remove(6, "6");
+            cache.put(3, "3");
+            cache.remove(5, "5");
+            cache.remove(6, "6");
 
-                tx.commit();
+            tx.commit();
 
-                assertEquals(COMMITTED, tx.state());
+            assertEquals(COMMITTED, tx.state());
 
-                assertEquals("1", cache.get(1));
-                assertEquals("3", cache.get(3));
-                assertEquals("3", cache.get(3));
+            assertEquals("1", cache.get(1));
+            assertEquals("3", cache.get(3));
+            assertEquals("3", cache.get(3));
 
-                assertFalse(cache.containsKey(4));
-                assertFalse(cache.containsKey(5));
-                assertFalse(cache.containsKey(6));
+            assertFalse(cache.containsKey(4));
+            assertFalse(cache.containsKey(5));
+            assertFalse(cache.containsKey(6));
 
-                cache.removeAll();
-            }
-        });
+            cache.removeAll();
+        }
     }
 
     /**
@@ -188,55 +184,53 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
      * @throws Exception If failed.
      */
     public void testCrossCacheTransactionInAnotherThread() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(TransactionIsolation isolation) throws Exception {
-                final Ignite ignite = ignite(DEFAULT_NODE_ID);
+        for (TransactionIsolation isolation : TransactionIsolation.values()) {
+            final Ignite ignite = ignite(DEFAULT_NODE_ID);
 
-                final IgniteTransactions txs = ignite.transactions();
+            final IgniteTransactions txs = ignite.transactions();
 
-                final IgniteCache<Integer, String> cache1 =
-                    ignite.getOrCreateCache(getCacheConfiguration().setName("cache1"));
+            final IgniteCache<Integer, String> cache1 =
+                ignite.getOrCreateCache(getCacheConfiguration().setName("cache1"));
 
-                final IgniteCache<Integer, String> cache2 =
-                    ignite.getOrCreateCache(getCacheConfiguration().setName("cache2"));
+            final IgniteCache<Integer, String> cache2 =
+                ignite.getOrCreateCache(getCacheConfiguration().setName("cache2"));
 
-                final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
+            final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
 
-                cache1.put(1, "1");
-                cache2.put(2, "2");
+            cache1.put(1, "1");
+            cache2.put(2, "2");
 
-                tx.suspend();
+            tx.suspend();
 
-                GridTestUtils.runAsync(new Runnable() {
-                    @Override public void run() {
-                        assertNull(txs.tx());
+            GridTestUtils.runAsync(new Runnable() {
+                @Override public void run() {
+                    assertNull(txs.tx());
 
-                        assertEquals(SUSPENDED, tx.state());
+                    assertEquals(SUSPENDED, tx.state());
 
-                        tx.resume();
+                    tx.resume();
 
-                        assertEquals(ACTIVE, tx.state());
+                    assertEquals(ACTIVE, tx.state());
 
-                        cache1.put(3, "3");
+                    cache1.put(3, "3");
 
-                        cache2.remove(2);
+                    cache2.remove(2);
 
-                        tx.commit();
-                    }
-                }).get(FUT_TIMEOUT);
+                    tx.commit();
+                }
+            }).get(FUT_TIMEOUT);
 
-                assertEquals(COMMITTED, tx.state());
+            assertEquals(COMMITTED, tx.state());
 
-                assertEquals("1", cache1.get(1));
-                assertEquals("3", cache1.get(3));
+            assertEquals("1", cache1.get(1));
+            assertEquals("3", cache1.get(3));
 
-                assertFalse(cache2.containsKey(2));
+            assertFalse(cache2.containsKey(2));
 
-                cache2.removeAll();
+            cache2.removeAll();
 
-                cache1.removeAll();
-            }
-        });
+            cache1.removeAll();
+        }
     }
 
     /**
@@ -246,76 +240,74 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
      * @throws Exception If failed.
      */
     public void testCrossCacheTransactionInAnotherThreadContinued() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(TransactionIsolation isolation) throws Exception {
-                final Ignite ignite = ignite(DEFAULT_NODE_ID);
+        for (TransactionIsolation isolation : TransactionIsolation.values()) {
+            final Ignite ignite = ignite(DEFAULT_NODE_ID);
 
-                final IgniteTransactions txs = ignite.transactions();
+            final IgniteTransactions txs = ignite.transactions();
 
-                final IgniteCache<Integer, String> cache1 =
-                    ignite.getOrCreateCache(getCacheConfiguration().setName("cache1"));
+            final IgniteCache<Integer, String> cache1 =
+                ignite.getOrCreateCache(getCacheConfiguration().setName("cache1"));
 
-                final IgniteCache<Integer, String> cache2 =
-                    ignite.getOrCreateCache(getCacheConfiguration().setName("cache2"));
+            final IgniteCache<Integer, String> cache2 =
+                ignite.getOrCreateCache(getCacheConfiguration().setName("cache2"));
 
-                final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
+            final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
 
-                cache1.put(1, "1");
-                cache1.put(2, "2");
+            cache1.put(1, "1");
+            cache1.put(2, "2");
 
-                cache2.put(11, "11");
+            cache2.put(11, "11");
 
-                tx.suspend();
+            tx.suspend();
 
-                GridTestUtils.runAsync(new Runnable() {
-                    @Override public void run() {
-                        assertNull(txs.tx());
+            GridTestUtils.runAsync(new Runnable() {
+                @Override public void run() {
+                    assertNull(txs.tx());
 
-                        assertEquals(SUSPENDED, tx.state());
+                    assertEquals(SUSPENDED, tx.state());
 
-                        tx.resume();
+                    tx.resume();
 
-                        assertEquals(ACTIVE, tx.state());
+                    assertEquals(ACTIVE, tx.state());
 
-                        cache1.put(3, "3");
-                        cache1.put(4, "4");
+                    cache1.put(3, "3");
+                    cache1.put(4, "4");
 
-                        cache2.put(12, "12");
-                        cache2.remove(11);
+                    cache2.put(12, "12");
+                    cache2.remove(11);
 
-                        tx.suspend();
-                    }
-                }).get(FUT_TIMEOUT);
+                    tx.suspend();
+                }
+            }).get(FUT_TIMEOUT);
 
-                assertNull(txs.tx());
+            assertNull(txs.tx());
 
-                assertEquals(SUSPENDED, tx.state());
+            assertEquals(SUSPENDED, tx.state());
 
-                tx.resume();
+            tx.resume();
 
-                assertEquals(ACTIVE, tx.state());
+            assertEquals(ACTIVE, tx.state());
 
-                cache1.remove(4, "4");
+            cache1.remove(4, "4");
 
-                cache2.remove(12, "12");
+            cache2.remove(12, "12");
 
-                tx.commit();
+            tx.commit();
 
-                assertEquals(COMMITTED, tx.state());
+            assertEquals(COMMITTED, tx.state());
 
-                assertEquals("1", cache1.get(1));
-                assertEquals("2", cache1.get(2));
-                assertEquals("3", cache1.get(3));
+            assertEquals("1", cache1.get(1));
+            assertEquals("2", cache1.get(2));
+            assertEquals("3", cache1.get(3));
 
-                assertFalse(cache1.containsKey(4));
-                assertFalse(cache2.containsKey(11));
-                assertFalse(cache2.containsKey(12));
+            assertFalse(cache1.containsKey(4));
+            assertFalse(cache2.containsKey(11));
+            assertFalse(cache2.containsKey(12));
 
-                cache1.removeAll();
+            cache1.removeAll();
 
-                cache2.removeAll();
-            }
-        });
+            cache2.removeAll();
+        }
     }
 
     /**
@@ -324,46 +316,44 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
      * @throws Exception If failed.
      */
     public void testTransactionRollback() throws Exception {
-        runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyx(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
+        for (TransactionIsolation isolation : TransactionIsolation.values()) {
+            final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
 
-                final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
+            final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
-                final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
+            final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
 
-                cache.put(1, "1");
-                cache.put(2, "2");
+            cache.put(1, "1");
+            cache.put(2, "2");
 
-                tx.suspend();
+            tx.suspend();
 
-                GridTestUtils.runAsync(new Runnable() {
-                    @Override public void run() {
-                        assertNull(txs.tx());
+            GridTestUtils.runAsync(new Runnable() {
+                @Override public void run() {
+                    assertNull(txs.tx());
 
-                        assertEquals(SUSPENDED, tx.state());
+                    assertEquals(SUSPENDED, tx.state());
 
-                        tx.resume();
+                    tx.resume();
 
-                        assertEquals(ACTIVE, tx.state());
+                    assertEquals(ACTIVE, tx.state());
 
-                        cache.put(3, "3");
+                    cache.put(3, "3");
 
-                        assertTrue(cache.remove(2));
+                    assertTrue(cache.remove(2));
 
-                        tx.rollback();
-                    }
-                }).get(FUT_TIMEOUT);
+                    tx.rollback();
+                }
+            }).get(FUT_TIMEOUT);
 
-                assertEquals(ROLLED_BACK, tx.state());
+            assertEquals(ROLLED_BACK, tx.state());
 
-                assertFalse(cache.containsKey(1));
-                assertFalse(cache.containsKey(2));
-                assertFalse(cache.containsKey(3));
+            assertFalse(cache.containsKey(1));
+            assertFalse(cache.containsKey(2));
+            assertFalse(cache.containsKey(3));
 
-                cache.removeAll();
-            }
-        });
+            cache.removeAll();
+        }
     }
 
     /**
@@ -437,10 +427,11 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
                 multithreaded(new RunnableX() {
                     @Override public void runx() throws Exception {
                         try {
-                            txOperation.applyx(tx);
+                            txOperation.apply(tx);
 
                             opSuc[0] = true;
-                        } catch (Exception ignored) {
+                        }
+                        catch (Exception ignored) {
                             // No-op.
                         }
                         catch (AssertionError ignored) {

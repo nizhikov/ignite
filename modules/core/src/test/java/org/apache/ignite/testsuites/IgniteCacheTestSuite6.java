@@ -19,7 +19,6 @@ package org.apache.ignite.testsuites;
 
 import junit.framework.TestSuite;
 import org.apache.ignite.internal.processors.cache.distributed.IgniteOptimisticTxSuspendResumeClientTest;
-import org.apache.ignite.internal.processors.cache.distributed.IgniteOptimisticTxSuspendResumeFailoverTest;
 import org.apache.ignite.internal.processors.cache.distributed.IgniteOptimisticTxSuspendResumeTest;
 import org.apache.ignite.internal.processors.cache.distributed.IgnitePessimisticTxSuspendResumeTest;
 
@@ -36,7 +35,6 @@ public class IgniteCacheTestSuite6 extends TestSuite {
 
         suite.addTestSuite(IgniteOptimisticTxSuspendResumeTest.class);
         suite.addTestSuite(IgniteOptimisticTxSuspendResumeClientTest.class);
-        suite.addTestSuite(IgniteOptimisticTxSuspendResumeFailoverTest.class);
         suite.addTestSuite(IgnitePessimisticTxSuspendResumeTest.class);
 
         return suite;

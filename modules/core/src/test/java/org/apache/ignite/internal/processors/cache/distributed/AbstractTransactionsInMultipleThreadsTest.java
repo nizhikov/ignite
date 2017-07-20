@@ -19,20 +19,11 @@ package org.apache.ignite.internal.processors.cache.distributed;
 
 import java.util.Arrays;
 import java.util.List;
-import org.apache.ignite.Ignite;
-import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
-import org.apache.ignite.internal.IgniteKernal;
-import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
-import org.apache.ignite.internal.processors.cache.transactions.IgniteTxManager;
 import org.apache.ignite.internal.util.typedef.CI1;
-import org.apache.ignite.internal.util.typedef.G;
-import org.apache.ignite.lang.IgniteFuture;
-import org.apache.ignite.lang.IgniteInClosure;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
-import org.apache.ignite.transactions.TransactionIsolation;
 
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 
@@ -57,7 +48,7 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
     public static final int FUT_TIMEOUT = 5000;
 
     /**
-     * List of closures that execute some transaction operation
+     * List of closures that execute transaction operation that prohibited in suspended or committed state.
      */
     protected List<CI1Exc<Transaction>> suspendedTxProhibitedOps = Arrays.asList(
         new CI1Exc<Transaction>() {
@@ -121,37 +112,6 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
         return cfg;
     }
 
-    /** {@inheritDoc} */
-    @Override protected void afterTest() throws Exception {
-        super.afterTest();
-
-        checkAllTransactionsHasEnded();
-    }
-
-    /**
-     * Checks whether all transactions has ended.
-     */
-    private void checkAllTransactionsHasEnded() {
-        for (Ignite ignite : G.allGrids()) {
-            GridCacheSharedContext<Object, Object> cctx = ((IgniteKernal)ignite).context().cache().context();
-
-            IgniteTxManager txMgr = cctx.tm();
-
-            assertTrue(txMgr.activeTransactions().isEmpty());
-        }
-    }
-
-    /**
-     * Starts test scenario for all transaction isolation levels.
-     *
-     * @param testScenario Test scenario.
-     * @throws Exception If failed.
-     */
-    protected void runWithAllIsolations(IgniteInClosure<TransactionIsolation> testScenario) throws Exception {
-        for (TransactionIsolation isolation : TransactionIsolation.values())
-            testScenario.apply(isolation);
-    }
-
     /**
      * Closure that can throw any exception
      *
@@ -163,7 +123,8 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
         @Override public void apply(T o) {
             try {
                 applyx(o);
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
                 throw new RuntimeException(e);
             }
         }
@@ -178,7 +139,8 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
         @Override public void run() {
             try {
                 runx();
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
                 throw new RuntimeException(e);
             }
         }
