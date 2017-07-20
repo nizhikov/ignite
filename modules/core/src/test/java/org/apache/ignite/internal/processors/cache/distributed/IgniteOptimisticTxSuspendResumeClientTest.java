@@ -71,6 +71,7 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
                 runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
                     @Override public void applyX(TransactionIsolation isolation2) throws Exception {
                         final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
+
                         final IgniteCache<Integer, String> remoteCache = jcache(DEFAULT_NODE_ID);
 
                         final CyclicBarrier barrier = new CyclicBarrier(2);
@@ -133,10 +134,10 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
             @Override public void applyX(final TransactionIsolation isolation1) throws Exception {
                 runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
                     @Override public void applyX(TransactionIsolation isolation2) throws Exception {
-                        Ignite remoteIgnite = ignite(DEFAULT_NODE_ID);
-                        Ignite clientIgnite = ignite(CLIENT_NODE_ID);
-
+                        final Ignite remoteIgnite = ignite(DEFAULT_NODE_ID);
                         final IgniteCache<Integer, String> remoteCache = remoteIgnite.cache(DEFAULT_CACHE_NAME);
+
+                        final Ignite clientIgnite = ignite(CLIENT_NODE_ID);
                         final IgniteCache<Integer, String> clientCache = clientIgnite.cache(DEFAULT_CACHE_NAME);
 
                         final Transaction clientTx = clientIgnite.transactions().txStart(OPTIMISTIC, isolation1);
@@ -175,6 +176,7 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
                 final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
 
                 final LongAdder8 failedTxNumber = new LongAdder8();
+
                 final AtomicInteger successfulResume = new AtomicInteger();
 
                 final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
@@ -214,6 +216,7 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
                 final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
 
                 final LongAdder8 failNumber = new LongAdder8();
+
                 final AtomicInteger successfulResume = new AtomicInteger();
 
                 final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
@@ -244,9 +247,11 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
                 final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
+
                 final IgniteCache<Integer, String> remoteCache = jcache(DEFAULT_NODE_ID);
 
                 final LongAdder8 failNumber = new LongAdder8();
+
                 final AtomicInteger successfulResume = new AtomicInteger();
 
                 final Transaction clientTx = ignite(DEFAULT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
@@ -286,6 +291,7 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
                 final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
 
                 final LongAdder8 failNumber = new LongAdder8();
+
                 final AtomicInteger successfulResume = new AtomicInteger();
 
                 final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
@@ -327,6 +333,7 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
                 final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
 
                 final LongAdder8 failNumber = new LongAdder8();
+
                 final AtomicInteger successfulResume = new AtomicInteger();
 
                 final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);

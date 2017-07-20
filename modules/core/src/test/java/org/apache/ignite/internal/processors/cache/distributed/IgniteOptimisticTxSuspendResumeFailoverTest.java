@@ -46,6 +46,7 @@ public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransac
      */
     public void testTxLocalNodeFailover() throws Exception {
         final IgniteEx remoteNode = startGrid(DEFAULT_NODE_ID);
+
         final IgniteCache<Integer, String> remoteCache = remoteNode.cache(DEFAULT_CACHE_NAME);
 
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
@@ -74,8 +75,8 @@ public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransac
      * @param key Key to put.
      * @throws IgniteCheckedException If failed.
      */
-    private void performTxFailover(Ignite gridToBreak, Ignite gridToPerform, int key,
-        TransactionIsolation isolation) throws IgniteCheckedException {
+    private void performTxFailover(Ignite gridToBreak, Ignite gridToPerform, int key, TransactionIsolation isolation)
+        throws IgniteCheckedException {
 
         final IgniteTransactions txs = gridToBreak.transactions();
 

@@ -133,6 +133,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
                 final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
+
                 final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
                 final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
@@ -201,9 +202,12 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
     public void testCrossCacheTransactionInAnotherThread() throws Exception {
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
-                Ignite ignite = ignite(DEFAULT_NODE_ID);
+                final Ignite ignite = ignite(DEFAULT_NODE_ID);
+
                 final IgniteTransactions txs = ignite.transactions();
+
                 final IgniteCache<Integer, String> cache1 = ignite.getOrCreateCache(getCacheConfiguration().setName(TEST_CACHE_NAME));
+
                 final IgniteCache<Integer, String> cache2 = ignite.getOrCreateCache(getCacheConfiguration().setName(TEST_CACHE_NAME2));
 
                 final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
@@ -253,9 +257,12 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
     public void testCrossCacheTransactionInAnotherThreadContinued() throws Exception {
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
-                Ignite ignite = ignite(DEFAULT_NODE_ID);
+                final Ignite ignite = ignite(DEFAULT_NODE_ID);
+
                 final IgniteTransactions txs = ignite.transactions();
+
                 final IgniteCache<Integer, String> cache1 = ignite.getOrCreateCache(getCacheConfiguration().setName(TEST_CACHE_NAME));
+
                 final IgniteCache<Integer, String> cache2 = ignite.getOrCreateCache(getCacheConfiguration().setName(TEST_CACHE_NAME2));
 
                 final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
@@ -312,6 +319,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
                 assertFalse(cache2.containsKey(12));
 
                 cache1.removeAll();
+
                 cache2.removeAll();
             }
         });
@@ -326,6 +334,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
                 final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
+
                 final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
                 final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
@@ -378,6 +387,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
             IgniteCache<Integer, String> clientCache = jcache(DEFAULT_NODE_ID);
 
             Ignite clientNode = ignite(DEFAULT_NODE_ID);
+
             Transaction clientTx;
 
             for (int i = 0; i < 10; i++) {
@@ -425,6 +435,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
         for (int opIdx = 0; opIdx < 7; opIdx++)
             for (TransactionIsolation isolation : TransactionIsolation.values()) {
                 final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
+
                 final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
                 final Transaction tx = txs.txStart(OPTIMISTIC, isolation);
@@ -486,7 +497,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
                     throw e;
             }
 
-            assert tryResume;
+            assertTrue(tryResume);
         }
     }
 
@@ -498,6 +509,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
     public void testTransactionTimeoutOnSuspendedTransaction() throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
             final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
+
             final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
 
             boolean trySuspend = false;
@@ -533,6 +545,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends AbstractTransactionsInM
         for (int opIdx = 0; opIdx < 7; opIdx++)
             for (TransactionIsolation isolation : TransactionIsolation.values()) {
                 final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
+
                 final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
                 Transaction tx = txs.txStart(OPTIMISTIC, isolation);

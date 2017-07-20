@@ -62,6 +62,7 @@ public class IgnitePessimisticTxSuspendResumeTest extends AbstractTransactionsIn
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
                 final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
+
                 final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
                 try (Transaction tx = txs.txStart(TransactionConcurrency.PESSIMISTIC, isolation)) {
@@ -90,6 +91,7 @@ public class IgnitePessimisticTxSuspendResumeTest extends AbstractTransactionsIn
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
                 final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
+
                 final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
                 try (Transaction tx = txs.txStart(TransactionConcurrency.PESSIMISTIC, isolation)) {

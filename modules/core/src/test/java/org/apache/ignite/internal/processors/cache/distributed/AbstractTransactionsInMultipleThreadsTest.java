@@ -101,26 +101,6 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
         }
     }
 
-    /**
-     * Waits all transactions to finish.
-     *
-     * @throws IgniteInterruptedCheckedException If interrupted.
-     */
-    protected void waitAllTransactionsHasFinished(final Ignite node) throws IgniteInterruptedCheckedException {
-        boolean txFinished = GridTestUtils.waitForCondition(new GridAbsPredicate() {
-            @Override public boolean apply() {
-                GridCacheAdapter<?, ?> cache = ((IgniteKernal)node).internalCache(DEFAULT_CACHE_NAME);
-
-                IgniteTxManager txMgr = cache.isNear() ? ((GridNearCacheAdapter)cache).dht().context().tm() :
-                    cache.context().tm();
-
-                return txMgr.activeTransactions().isEmpty();
-            }
-        }, 10_000);
-
-        assertTrue(txFinished);
-    }
-
     public abstract class CI1Exc<T> implements CI1<T> {
         public abstract void applyX(T o) throws Exception;
 
