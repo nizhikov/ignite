@@ -17,34 +17,84 @@
 
 package org.apache.ignite.internal.processors.cache.distributed;
 
+import java.util.Arrays;
+import java.util.List;
 import org.apache.ignite.Ignite;
-import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
-import org.apache.ignite.internal.IgniteInterruptedCheckedException;
 import org.apache.ignite.internal.IgniteKernal;
-import org.apache.ignite.internal.processors.cache.GridCacheAdapter;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
-import org.apache.ignite.internal.processors.cache.distributed.near.GridNearCacheAdapter;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxManager;
-import org.apache.ignite.internal.util.lang.GridAbsPredicate;
 import org.apache.ignite.internal.util.typedef.CI1;
 import org.apache.ignite.internal.util.typedef.G;
-import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.lang.IgniteCallable;
+import org.apache.ignite.lang.IgniteFuture;
 import org.apache.ignite.lang.IgniteInClosure;
-import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
+import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionIsolation;
 
 /**
  *
  */
 public abstract class AbstractTransactionsInMultipleThreadsTest extends GridCommonAbstractTest {
+    /**
+     * Default node id.
+     */
     public static final int DEFAULT_NODE_ID = 0;
 
+    /**
+     * Client node id.
+     */
     public static final int CLIENT_NODE_ID = 1;
+
+    /** Transaction timeout. */
+    public static final long TX_TIMEOUT = 100;
+
+    /** Future timeout */
+    public static final int FUT_TIMEOUT = 5000;
+
+    /**
+     * List of closures that execute some transaction operation
+     */
+    protected List<CI1Exc<Transaction>> suspendedTxProhibitedOps = Arrays.asList(
+        new CI1Exc<Transaction>() {
+            @Override public void applyx(Transaction tx) throws Exception {
+                tx.suspend();
+            }
+        },
+        new CI1Exc<Transaction>() {
+            @Override public void applyx(Transaction tx) throws Exception {
+                tx.close();
+            }
+        },
+        new CI1Exc<Transaction>() {
+            @Override public void applyx(Transaction tx) throws Exception {
+                tx.commit();
+            }
+        },
+        new CI1Exc<Transaction>() {
+            @Override public void applyx(Transaction tx) throws Exception {
+                tx.commitAsync().get(FUT_TIMEOUT);
+            }
+        },
+        new CI1Exc<Transaction>() {
+            @Override public void applyx(Transaction tx) throws Exception {
+                tx.rollback();
+            }
+        },
+        new CI1Exc<Transaction>() {
+            @Override public void applyx(Transaction tx) throws Exception {
+                tx.rollbackAsync().get(FUT_TIMEOUT);
+            }
+        },
+
+        new CI1Exc<Transaction>() {
+            @Override public void applyx(Transaction tx) throws Exception {
+                tx.setRollbackOnly();
+            }
+        }
+    );
 
     /**
      * Creates new cache configuration.
@@ -73,6 +123,7 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
     @Override protected void afterTest() throws Exception {
         super.afterTest();
 
+        //TODO: remove to test
         checkAllTransactionsHasEnded();
     }
 
@@ -96,17 +147,36 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
      * @throws Exception If scenario failed.
      */
     protected void runWithAllIsolations(IgniteInClosure<TransactionIsolation> testScenario) throws Exception {
-        for (TransactionIsolation isolation : TransactionIsolation.values()) {
+        for (TransactionIsolation isolation : TransactionIsolation.values())
             testScenario.apply(isolation);
-        }
     }
 
+    /**
+     * Closure that can throw any exception
+     *
+     * @param <T> type of closure parameter
+     */
     public abstract class CI1Exc<T> implements CI1<T> {
-        public abstract void applyX(T o) throws Exception;
+        public abstract void applyx(T o) throws Exception;
 
         @Override public void apply(T o) {
             try {
-                applyX(o);
+                applyx(o);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    /**
+     * Runnable that can throw any exception
+     */
+    public abstract class RunnableX implements Runnable {
+        abstract void runx() throws Exception;
+
+        @Override public void run() {
+            try {
+                runx();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

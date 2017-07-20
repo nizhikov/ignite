@@ -176,18 +176,21 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
     @GridToStringExclude
     private TransactionProxyImpl proxy;
 
+    /** Flag to indicate that current thread perform transaction suspension. */
     private ThreadLocal<Boolean> suspendInProgress = new ThreadLocal<Boolean>() {
         @Override protected Boolean initialValue() {
             return false;
         }
     };
 
+    /** Flag to indicate that current thread perform transaction resume. */
     private ThreadLocal<Boolean> resumeInProgress = new ThreadLocal<Boolean>() {
         @Override protected Boolean initialValue() {
             return false;
         }
     };
 
+    /** Cached topology version for suspended transaction. */
     private AffinityTopologyVersion txTopForSuspension;
 
     /**
@@ -2876,6 +2879,19 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
         if (log.isDebugEnabled())
             log.debug("Suspend near local tx: " + this);
 
+        if (pessimistic() || system()) {
+            throw new UnsupportedOperationException("Suspension is not supported for pessimistic " +
+                "and system transactions.");
+        }
+
+        if (threadId() != Thread.currentThread().getId())
+            throw new IgniteCheckedException("Only thread started transaction can suspend it.");
+
+        if (state() != ACTIVE) {
+            throw new IgniteCheckedException("Trying to suspendTx transaction with incorrect state "
+                + "[expected=" + ACTIVE + ", actual=" + state() + ']');
+        }
+
         checkValid();
 
         suspendInProgress.set(true);
@@ -2895,20 +2911,20 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
         if (log.isDebugEnabled())
             log.debug("Resume near local tx: " + this);
 
-        if (pessimistic() || system()) {
-            throw new UnsupportedOperationException("Resume is not supported for pessimistic " +
-                "and system transactions.");
-        }
-
         synchronized (this) {
+            if (pessimistic() || system()) {
+                throw new UnsupportedOperationException("Resume is not supported for pessimistic " +
+                    "and system transactions.");
+            }
+
+            if (threadId != UNDEFINED_THREAD_ID) {
+                throw new IgniteCheckedException("Only transaction with undefined threadId can be resumed "
+                    + "[expected=" + UNDEFINED_THREAD_ID + ", actual=" + threadId + "]");
+            }
+
             if (state() != SUSPENDED) {
                 throw new IgniteCheckedException("Trying to resume transaction with incorrect state "
                     + "[expected=" + SUSPENDED + ", actual=" + state() + "]");
-            }
-
-            if (threadId() != UNDEFINED_THREAD_ID) {
-                throw new IgniteCheckedException("Only transaction with undefined threadId can be resumed "
-                    + "[expected=" + UNDEFINED_THREAD_ID + ", actual=" + threadId() + "]");
             }
 
             checkValid();
@@ -4023,6 +4039,10 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
         return fut;
     }
 
+    /**
+     * @param threadId new owner of transaction.
+     * @throws IgniteCheckedException if method executed not in the middle of resume or suspend.
+     */
     public void threadId(long threadId) throws IgniteCheckedException {
         if (!resumeInProgress() && !suspendInProgress()) {
             throw new IgniteCheckedException("Write threadId prohibited. " +
@@ -4032,18 +4052,36 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
         this.threadId = threadId;
     }
 
+    /**
+     * @return True if current thread in the middle of suspend.
+     */
     public boolean suspendInProgress() {
         return suspendInProgress.get();
     }
 
+    /**
+     * @return True if current thread in the middle of resume.
+     */
     public boolean resumeInProgress() {
         return resumeInProgress.get();
     }
 
-    public void txTopForSuspension(AffinityTopologyVersion txTop) {
+    /**
+     * @param txTop Affinity topology version to cache for suspended transaction.
+     * @throws IgniteCheckedException If method executed not in the middle of resume or suspend.
+     */
+    public void txTopForSuspension(AffinityTopologyVersion txTop) throws IgniteCheckedException {
+        if (!resumeInProgress() && !suspendInProgress()) {
+            throw new IgniteCheckedException("Write txTopForSuspension prohibited. " +
+                "Use suspend and resume instead of direct write of txTopForSuspension");
+        }
+
         this.txTopForSuspension = txTop;
     }
 
+    /**
+     * @return Cached affinity topology version.
+     */
     public AffinityTopologyVersion txTopForSuspension() {
         return txTopForSuspension;
     }

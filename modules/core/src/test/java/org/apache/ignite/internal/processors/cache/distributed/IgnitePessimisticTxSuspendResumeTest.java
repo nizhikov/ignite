@@ -17,12 +17,9 @@
 
 package org.apache.ignite.internal.processors.cache.distributed;
 
-import java.util.concurrent.Callable;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteTransactions;
-import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.util.typedef.X;
-import org.apache.ignite.lang.IgniteInClosure;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionConcurrency;
@@ -41,12 +38,14 @@ public class IgnitePessimisticTxSuspendResumeTest extends AbstractTransactionsIn
         awaitPartitionMapExchange();
     }
 
+    /** {@inheritDoc} */
     @Override protected void afterTestsStopped() throws Exception {
         super.afterTestsStopped();
 
         stopAllGrids();
     }
 
+    /** {@inheritDoc} */
     @Override protected void afterTest() throws Exception {
         super.afterTest();
 
@@ -60,13 +59,13 @@ public class IgnitePessimisticTxSuspendResumeTest extends AbstractTransactionsIn
      */
     public void testSuspendPessimisticTransaction() throws Exception {
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyX(TransactionIsolation isolation) throws Exception {
+            @Override public void applyx(TransactionIsolation isolation) throws Exception {
                 final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
 
                 final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
                 try (Transaction tx = txs.txStart(TransactionConcurrency.PESSIMISTIC, isolation)) {
-                    cache.put(1, "val1");
+                    cache.put(1, "1");
 
                     tx.suspend();
 
@@ -89,31 +88,26 @@ public class IgnitePessimisticTxSuspendResumeTest extends AbstractTransactionsIn
      */
     public void testResumePessimisticTransaction() throws Exception {
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyX(TransactionIsolation isolation) throws Exception {
+            @Override public void applyx(TransactionIsolation isolation) throws Exception {
                 final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
 
                 final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
                 try (Transaction tx = txs.txStart(TransactionConcurrency.PESSIMISTIC, isolation)) {
-                    cache.put(1, "val1");
+                    cache.put(1, "1");
 
                     tx.suspend();
 
-                    IgniteInternalFuture<Boolean> fut = GridTestUtils.runAsync(new Callable<Boolean>() {
-                        @Override public Boolean call() throws Exception {
+                    GridTestUtils.runAsync(new Runnable() {
+                        @Override public void run() {
                             tx.resume();
-
-                            return null;
                         }
-                    });
-
-                    fut.get();
+                    }).get(FUT_TIMEOUT);
 
                     fail("Resume must fail, because it isn't supported for pessimistic transactions.");
                 }
-                catch (Throwable e) {
-                    assertTrue("Resume mus fail with UnsupportedOperationException",
-                        X.hasCause(e, UnsupportedOperationException.class));
+                catch (UnsupportedOperationException ignored) {
+                    // No-op.
                 }
 
                 assertNull(cache.get(1));

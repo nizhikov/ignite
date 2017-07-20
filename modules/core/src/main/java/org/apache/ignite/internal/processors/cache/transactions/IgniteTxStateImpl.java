@@ -456,6 +456,7 @@ public class IgniteTxStateImpl extends IgniteTxLocalStateAdapter {
             writeView.seal();
     }
 
+    /** {@inheritDoc} */
     @Override public void unseal() {
         if (readView != null)
             readView.unseal();

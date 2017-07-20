@@ -2244,29 +2244,19 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
     }
 
     /**
-     * Detaches current thread from the transaction.
+     * Suspends transaction.
      *
-     * @param tx Transaction to be detached.
-     * @return {@code False} if already detached.
+     * @param tx Transaction to be suspended.
+     *
+     * @see #resumeTx(GridNearTxLocal)
+     * @see GridNearTxLocal#suspend()
+     * @see GridNearTxLocal#resume()
      */
     public void suspendTx(final GridNearTxLocal tx) throws IgniteCheckedException {
         assert tx != null;
 
         if (!tx.suspendInProgress())
             throw new IgniteCheckedException("Use suspendTx prohibited. Use tx.suspend() instead.");
-
-        if (tx.pessimistic() || tx.system()) {
-            throw new UnsupportedOperationException("Suspension is not supported for pessimistic " +
-                "and system transactions.");
-        }
-
-        if (tx.threadId() != Thread.currentThread().getId())
-            throw new IgniteCheckedException("Only thread started transaction can suspend it.");
-
-        if (tx.state() != ACTIVE) {
-            throw new IgniteCheckedException("Trying to suspendTx transaction with incorrect state "
-                + "[expected=" + ACTIVE + ", actual=" + tx.state() + ']');
-        }
 
         clearThreadMap(tx);
 
@@ -2277,13 +2267,16 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
         tx.state(SUSPENDED);
 
         tx.threadId(UNDEFINED_THREAD_ID);
-
     }
 
     /**
-     * Attaches current thread to transaction.
+     * Resume transaction in current thread.
      *
-     * @param tx Transaction to be attached.
+     * @param tx Transaction to be resumed
+     *
+     * @see #suspendTx(GridNearTxLocal)
+     * @see GridNearTxLocal#suspend()
+     * @see GridNearTxLocal#resume()
      */
     public void resumeTx(GridNearTxLocal tx) throws IgniteCheckedException {
         assert tx != null;

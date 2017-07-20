@@ -35,6 +35,7 @@ import static org.apache.ignite.transactions.TransactionState.SUSPENDED;
  *
  */
 public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransactionsInMultipleThreadsTest {
+    /** {@inheritDoc} */
     @Override protected void afterTest() throws Exception {
         super.afterTest();
 
@@ -43,6 +44,8 @@ public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransac
 
     /**
      * Starts tx locally with locally residing keys and then local node fails.
+     *
+     * @throws Exception If failed.
      */
     public void testTxLocalNodeFailover() throws Exception {
         final IgniteEx remoteNode = startGrid(DEFAULT_NODE_ID);
@@ -50,7 +53,7 @@ public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransac
         final IgniteCache<Integer, String> remoteCache = remoteNode.cache(DEFAULT_CACHE_NAME);
 
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
-            @Override public void applyX(TransactionIsolation isolation) throws Exception {
+            @Override public void applyx(TransactionIsolation isolation) throws Exception {
                 Ignite clientNode = startGrid(getTestIgniteInstanceName(CLIENT_NODE_ID));
 
                 awaitPartitionMapExchange();
@@ -104,6 +107,6 @@ public class IgniteOptimisticTxSuspendResumeFailoverTest extends AbstractTransac
 
                 tx.commit();
             }
-        }).get(5000);
+        }).get(FUT_TIMEOUT);
     }
 }
