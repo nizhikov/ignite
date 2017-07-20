@@ -2116,12 +2116,12 @@ public abstract class IgniteTxAdapter extends GridMetadataAwareAdapter implement
 
         /** {@inheritDoc} */
         @Override public void seal() {
-
+            //No-op.
         }
 
         /** {@inheritDoc} */
         @Override public void unseal() {
-
+            //No-op.
         }
 
         /** {@inheritDoc} */

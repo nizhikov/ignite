@@ -130,7 +130,7 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
     /** Tx salvage timeout. */
     private static final int TX_SALVAGE_TIMEOUT = Integer.getInteger(IGNITE_TX_SALVAGE_TIMEOUT, 100);
 
-    /** */
+    /** threadId for {@code SUSPENDED} transactions */
     public static final long UNDEFINED_THREAD_ID = -1L;
 
     /** One phase commit deferred ack request timeout. */
@@ -2251,10 +2251,22 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
      */
     public void suspendTx(final GridNearTxLocal tx) throws IgniteCheckedException {
         assert tx != null;
-        assert !tx.system() && !tx.pessimistic();
 
         if (!tx.suspendInProgress())
             throw new IgniteCheckedException("Use suspendTx prohibited. Use tx.suspend() instead.");
+
+        if (tx.pessimistic() || tx.system()) {
+            throw new UnsupportedOperationException("Suspension is not supported for pessimistic " +
+                "and system transactions.");
+        }
+
+        if (tx.threadId() != Thread.currentThread().getId())
+            throw new IgniteCheckedException("Only thread started transaction can suspend it.");
+
+        if (tx.state() != ACTIVE) {
+            throw new IgniteCheckedException("Trying to suspendTx transaction with incorrect state "
+                + "[expected=" + ACTIVE + ", actual=" + tx.state() + ']');
+        }
 
         clearThreadMap(tx);
 
@@ -2262,9 +2274,10 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
 
         tx.txTopForSuspension(txTop.get());
 
+        tx.state(SUSPENDED);
+
         tx.threadId(UNDEFINED_THREAD_ID);
 
-        tx.state(SUSPENDED);
     }
 
     /**

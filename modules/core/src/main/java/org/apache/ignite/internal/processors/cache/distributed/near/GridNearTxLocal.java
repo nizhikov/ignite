@@ -2876,19 +2876,6 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
         if (log.isDebugEnabled())
             log.debug("Suspend near local tx: " + this);
 
-        if (pessimistic() || system()) {
-            throw new UnsupportedOperationException("Suspension is not supported for pessimistic " +
-                "and system transactions.");
-        }
-
-        if (threadId() != Thread.currentThread().getId())
-            throw new IgniteCheckedException("Only thread started transaction can suspend it.");
-
-        if (state() != ACTIVE) {
-            throw new IgniteCheckedException("Trying to suspendTx transaction with incorrect state "
-                + "[expected=" + ACTIVE + ", actual=" + state() + ']');
-        }
-
         checkValid();
 
         suspendInProgress.set(true);
