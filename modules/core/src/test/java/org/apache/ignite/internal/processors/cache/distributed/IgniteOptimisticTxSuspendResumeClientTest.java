@@ -248,9 +248,7 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
             final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
 
-            final IgniteCache<Integer, String> remoteCache = jcache(DEFAULT_NODE_ID);
-
-            final Transaction clientTx = ignite(DEFAULT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
+            final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
 
             clientCache.put(1, "1");
 
@@ -281,7 +279,9 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
                 }
             }, 1, "th-commit-outer");
 
-            assertEquals(expVal, remoteCache.get(1));
+
+
+            assertEquals(expVal, jcache(DEFAULT_NODE_ID).get(1));
         }
     }
 }
