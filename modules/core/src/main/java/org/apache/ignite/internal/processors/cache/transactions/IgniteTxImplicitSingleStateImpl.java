@@ -282,6 +282,10 @@ public class IgniteTxImplicitSingleStateImpl extends IgniteTxLocalStateAdapter {
         // No-op.
     }
 
+    @Override public void unseal() {
+        // No-op.
+    }
+
     /** {@inheritDoc} */
     @Override public IgniteTxEntry singleWrite() {
         return entry != null ? entry.get(0) : null;
