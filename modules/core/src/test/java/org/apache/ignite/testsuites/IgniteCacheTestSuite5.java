@@ -99,11 +99,6 @@ public class IgniteCacheTestSuite5 extends TestSuite {
 
         suite.addTestSuite(GridCachePartitionEvictionDuringReadThroughSelfTest.class);
 
-        suite.addTestSuite(IgniteOptimisticTxSuspendResumeTest.class);
-        suite.addTestSuite(IgniteOptimisticTxSuspendResumeClientTest.class);
-        suite.addTestSuite(IgniteOptimisticTxSuspendResumeFailoverTest.class);
-        suite.addTestSuite(IgnitePessimisticTxSuspendResumeTest.class);
-
         return suite;
     }
 }

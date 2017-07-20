@@ -34,6 +34,8 @@ import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionIsolation;
 
+import static org.apache.ignite.cache.CacheMode.PARTITIONED;
+
 /**
  *
  */
@@ -104,7 +106,7 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
     protected CacheConfiguration<Integer, String> getCacheConfiguration() {
         CacheConfiguration<Integer, String> cacheCfg = defaultCacheConfiguration();
 
-        cacheCfg.setCacheMode(CacheMode.PARTITIONED);
+        cacheCfg.setCacheMode(PARTITIONED);
 
         return cacheCfg;
     }
@@ -123,7 +125,6 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
     @Override protected void afterTest() throws Exception {
         super.afterTest();
 
-        //TODO: remove to test
         checkAllTransactionsHasEnded();
     }
 
@@ -144,7 +145,7 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
      * Starts test scenario for all transaction isolation levels.
      *
      * @param testScenario Test scenario.
-     * @throws Exception If scenario failed.
+     * @throws Exception If failed.
      */
     protected void runWithAllIsolations(IgniteInClosure<TransactionIsolation> testScenario) throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values())
