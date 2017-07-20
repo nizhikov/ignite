@@ -51,8 +51,8 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
      *
      * @return CacheConfiguration New cache configuration.
      */
-    protected CacheConfiguration<String, Integer> getCacheConfiguration() {
-        CacheConfiguration<String, Integer> cacheCfg = defaultCacheConfiguration();
+    protected CacheConfiguration<Integer, String> getCacheConfiguration() {
+        CacheConfiguration<Integer, String> cacheCfg = defaultCacheConfiguration();
 
         cacheCfg.setCacheMode(CacheMode.PARTITIONED);
 
@@ -106,18 +106,17 @@ public abstract class AbstractTransactionsInMultipleThreadsTest extends GridComm
      *
      * @throws IgniteInterruptedCheckedException If interrupted.
      */
-    protected void waitAllTransactionsHasFinished() throws IgniteInterruptedCheckedException {
+    protected void waitAllTransactionsHasFinished(final Ignite node) throws IgniteInterruptedCheckedException {
         boolean txFinished = GridTestUtils.waitForCondition(new GridAbsPredicate() {
             @Override public boolean apply() {
-                GridCacheAdapter<?, ?> cache = ((IgniteKernal)ignite(0)).internalCache(DEFAULT_CACHE_NAME);
+                GridCacheAdapter<?, ?> cache = ((IgniteKernal)node).internalCache(DEFAULT_CACHE_NAME);
 
-                IgniteTxManager txMgr = cache.isNear() ?
-                    ((GridNearCacheAdapter)cache).dht().context().tm() :
+                IgniteTxManager txMgr = cache.isNear() ? ((GridNearCacheAdapter)cache).dht().context().tm() :
                     cache.context().tm();
 
                 return txMgr.activeTransactions().isEmpty();
             }
-        }, 10000);
+        }, 10_000);
 
         assertTrue(txFinished);
     }

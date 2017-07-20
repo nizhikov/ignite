@@ -61,11 +61,11 @@ public class IgnitePessimisticTxSuspendResumeTest extends AbstractTransactionsIn
     public void testSuspendPessimisticTransaction() throws Exception {
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<String, Integer> cache = jcache(DEFAULT_NODE_ID);
+                final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
                 final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
                 try (Transaction tx = txs.txStart(TransactionConcurrency.PESSIMISTIC, isolation)) {
-                    cache.put("key1", 1);
+                    cache.put(1, "val1");
 
                     tx.suspend();
 
@@ -76,7 +76,7 @@ public class IgnitePessimisticTxSuspendResumeTest extends AbstractTransactionsIn
                         throw e;
                 }
 
-                assertNull(cache.get("key1"));
+                assertNull(cache.get(1));
             }
         });
     }
@@ -89,11 +89,11 @@ public class IgnitePessimisticTxSuspendResumeTest extends AbstractTransactionsIn
     public void testResumePessimisticTransaction() throws Exception {
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<String, Integer> cache = jcache(DEFAULT_NODE_ID);
+                final IgniteCache<Integer, String> cache = jcache(DEFAULT_NODE_ID);
                 final IgniteTransactions txs = ignite(DEFAULT_NODE_ID).transactions();
 
                 try (Transaction tx = txs.txStart(TransactionConcurrency.PESSIMISTIC, isolation)) {
-                    cache.put("key1", 1);
+                    cache.put(1, "val1");
 
                     tx.suspend();
 
@@ -114,7 +114,7 @@ public class IgnitePessimisticTxSuspendResumeTest extends AbstractTransactionsIn
                         X.hasCause(e, UnsupportedOperationException.class));
                 }
 
-                assertNull(cache.get("key1"));
+                assertNull(cache.get(1));
             }
         });
     }

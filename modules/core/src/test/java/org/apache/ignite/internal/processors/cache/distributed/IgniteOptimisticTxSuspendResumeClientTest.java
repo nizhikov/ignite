@@ -24,6 +24,7 @@ import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteTransactions;
 import org.apache.ignite.internal.IgniteInternalFuture;
+import org.apache.ignite.lang.IgniteInClosure;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionIsolation;
@@ -55,6 +56,7 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
         super.afterTest();
 
         jcache(DEFAULT_NODE_ID).removeAll();
+        jcache(CLIENT_NODE_ID).removeAll();
     }
 
     /**
@@ -68,18 +70,16 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
             @Override public void applyX(final TransactionIsolation isolation1) throws Exception {
                 runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
                     @Override public void applyX(TransactionIsolation isolation2) throws Exception {
-                        final IgniteCache<String, Integer> clientCache = jcache(CLIENT_NODE_ID);
-                        final IgniteCache<String, Integer> remoteCache = jcache(DEFAULT_NODE_ID);
+                        final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
+                        final IgniteCache<Integer, String> remoteCache = jcache(DEFAULT_NODE_ID);
 
                         final CyclicBarrier barrier = new CyclicBarrier(2);
-
-                        final String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
 
                         final IgniteTransactions txs = ignite(CLIENT_NODE_ID).transactions();
 
                         final Transaction clientTx = txs.txStart(OPTIMISTIC, isolation1);
 
-                        clientCache.put(remotePrimaryKey, 1);
+                        clientCache.put(1, "1");
 
                         clientTx.suspend();
 
@@ -90,7 +90,7 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
 
                                 clientTx.resume();
 
-                                clientCache.put(remotePrimaryKey, 2);
+                                clientCache.put(1, "2");
 
                                 barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
@@ -106,14 +106,14 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
 
                         final Transaction clientTx2 = txs.txStart(OPTIMISTIC, isolation2);
 
-                        clientCache.put(remotePrimaryKey, 3);
+                        clientCache.put(1, "3");
 
                         clientTx2.commit();
 
                         barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
 
                         assertTrue(fut.get(5000));
-                        assertEquals(2, remoteCache.get(remotePrimaryKey).intValue());
+                        assertEquals("2", remoteCache.get(1));
 
                         remoteCache.removeAll();
                     }
@@ -133,26 +133,25 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
             @Override public void applyX(final TransactionIsolation isolation1) throws Exception {
                 runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
                     @Override public void applyX(TransactionIsolation isolation2) throws Exception {
-                        final IgniteCache<String, Integer> clientCache = jcache(DEFAULT_NODE_ID);
-                        final IgniteCache<String, Integer> remoteCache = jcache(0);
+                        Ignite remoteIgnite = ignite(DEFAULT_NODE_ID);
+                        Ignite clientIgnite = ignite(CLIENT_NODE_ID);
 
-                        String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
-
-                        Ignite clientIgnite = ignite(DEFAULT_NODE_ID);
+                        final IgniteCache<Integer, String> remoteCache = remoteIgnite.cache(DEFAULT_CACHE_NAME);
+                        final IgniteCache<Integer, String> clientCache = clientIgnite.cache(DEFAULT_CACHE_NAME);
 
                         final Transaction clientTx = clientIgnite.transactions().txStart(OPTIMISTIC, isolation1);
 
-                        clientCache.put(remotePrimaryKey, 1);
+                        clientCache.put(1, "1");
 
                         clientTx.suspend();
 
                         final Transaction clientTx2 = clientIgnite.transactions().txStart(OPTIMISTIC, isolation2);
 
-                        clientCache.put(remotePrimaryKey, 2);
+                        clientCache.put(1, "2");
 
                         clientTx2.commit();
 
-                        assertEquals(2, jcache(0).get(remotePrimaryKey));
+                        assertEquals("2", remoteCache.get(1));
 
                         clientTx.resume();
 
@@ -173,33 +172,22 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
     public void testTxConcurrentSuspend() throws Exception {
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<String, Integer> clientCache = jcache(DEFAULT_NODE_ID);
-                final IgniteCache<String, Integer> remoteCache = jcache(0);
+                final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
 
-                final CyclicBarrier barrier = new CyclicBarrier(concurrentThreadsNum + 1);
                 final LongAdder8 failedTxNumber = new LongAdder8();
-                final AtomicInteger threadCnt = new AtomicInteger();
                 final AtomicInteger successfulResume = new AtomicInteger();
 
-                String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
+                final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
 
-                final Transaction clientTx = ignite(DEFAULT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
-
-                clientCache.put(remotePrimaryKey, 1);
-
-                IgniteInternalFuture<Long> fut = GridTestUtils.runMultiThreadedAsync(new Callable<Object>() {
-                    @Override public Object call() throws Exception {
-                        waitAndPerformOperation(threadCnt, barrier, clientTx, successfulResume, failedTxNumber);
-
-                        return null;
-                    }
-                }, concurrentThreadsNum, "th-suspendTx");
-
-                barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
+                clientCache.put(1, "1");
 
                 clientTx.suspend();
 
-                fut.get(5000);
+                GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
+                    @Override public void applyX(Integer threadNum) throws Exception {
+                        waitAndPerformOperation(threadNum, clientTx, successfulResume, failedTxNumber);
+                    }
+                }, concurrentThreadsNum, "th-suspendTx");
 
                 // if transaction was not closed after resume, then close it now.
                 if (successfulResume.get() == 0) {
@@ -208,9 +196,9 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
                     clientTx.close();
                 }
 
-                assertTrue(successfulResume.get() < 2);
+                assertEquals(1, successfulResume.get());
                 assertEquals(concurrentThreadsNum, failedTxNumber.intValue() + successfulResume.intValue());
-                assertNull(remoteCache.get(remotePrimaryKey));
+                assertNull(clientCache.get(1));
             }
         });
     }
@@ -223,33 +211,26 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
     public void testTxConcurrentResume() throws Exception {
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<String, Integer> clientCache = jcache(DEFAULT_NODE_ID);
-                final IgniteCache<String, Integer> remoteCache = jcache(0);
+                final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
 
-                final CyclicBarrier barrier = new CyclicBarrier(concurrentThreadsNum);
                 final LongAdder8 failNumber = new LongAdder8();
-                final AtomicInteger threadCnt = new AtomicInteger();
                 final AtomicInteger successfulResume = new AtomicInteger();
 
-                String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
+                final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
 
-                final Transaction clientTx = ignite(DEFAULT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
-
-                clientCache.put(remotePrimaryKey, 1);
+                clientCache.put(1, "1");
 
                 clientTx.suspend();
 
-                multithreaded(new Callable<Object>() {
-                    @Override public Object call() throws Exception {
-                        waitAndPerformOperation(threadCnt, barrier, clientTx, successfulResume, failNumber);
-
-                        return null;
+                GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
+                    @Override public void applyX(Integer threadNum) throws Exception {
+                        waitAndPerformOperation(threadNum, clientTx, successfulResume, failNumber);
                     }
-                }, concurrentThreadsNum);
+                }, concurrentThreadsNum, "th-resumeTx");
 
                 assertEquals(1, successfulResume.get());
                 assertEquals(concurrentThreadsNum - 1, failNumber.intValue());
-                assertNull(remoteCache.get(remotePrimaryKey));
+                assertFalse(clientCache.containsKey(1));
             }
         });
     }
@@ -262,47 +243,34 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
     public void testTxConcurrentCommit() throws Exception {
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<String, Integer> clientCache = jcache(DEFAULT_NODE_ID);
-                final IgniteCache<String, Integer> remoteCache = jcache(0);
+                final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
+                final IgniteCache<Integer, String> remoteCache = jcache(DEFAULT_NODE_ID);
 
-                final CyclicBarrier barrier = new CyclicBarrier(concurrentThreadsNum + 1);
                 final LongAdder8 failNumber = new LongAdder8();
-                final AtomicInteger threadCnt = new AtomicInteger();
                 final AtomicInteger successfulResume = new AtomicInteger();
-
-                String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
 
                 final Transaction clientTx = ignite(DEFAULT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
 
-                clientCache.put(remotePrimaryKey, 1);
+                clientCache.put(1, "1");
 
                 clientTx.suspend();
 
-                multithreaded(new Callable<Object>() {
-                    @Override public Object call() throws Exception {
+                GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
+                    @Override public void applyX(Integer threadNum) throws Exception {
                         clientTx.resume();
-
-                        IgniteInternalFuture<Long> fut = GridTestUtils.runMultiThreadedAsync(new Callable<Object>() {
-                            @Override public Object call() throws Exception {
-                                waitAndPerformOperation(threadCnt, barrier, clientTx, successfulResume, failNumber);
-
-                                return null;
-                            }
-                        }, concurrentThreadsNum, "th-commit");
-
-                        barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
-
                         clientTx.commit();
 
-                        fut.get(5000);
-
-                        return null;
+                        GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
+                            @Override public void applyX(Integer threadNum) throws Exception {
+                                waitAndPerformOperation(threadNum, clientTx, successfulResume, failNumber);
+                            }
+                        }, concurrentThreadsNum, "th-commit");
                     }
-                }, 1);
+                }, 1, "th-commit-outer");
 
                 assertEquals(0, successfulResume.get());
                 assertEquals(concurrentThreadsNum, failNumber.intValue());
-                assertEquals(1, jcache(0).get(remotePrimaryKey));
+                assertEquals("1", remoteCache.get(1));
             }
         });
     }
@@ -315,47 +283,35 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
     public void testTxConcurrentRollback() throws Exception {
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<String, Integer> clientCache = jcache(DEFAULT_NODE_ID);
-                final IgniteCache<String, Integer> remoteCache = jcache(0);
+                final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
 
-                final CyclicBarrier barrier = new CyclicBarrier(concurrentThreadsNum + 1);
                 final LongAdder8 failNumber = new LongAdder8();
-                final AtomicInteger threadCnt = new AtomicInteger();
                 final AtomicInteger successfulResume = new AtomicInteger();
 
-                String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
+                final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
 
-                final Transaction clientTx = ignite(DEFAULT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
-
-                clientCache.put(remotePrimaryKey, 1);
+                clientCache.put(1, "1");
 
                 clientTx.suspend();
 
-                multithreaded(new Callable<Object>() {
-                    @Override public Object call() throws Exception {
+                GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
+                    @Override public void applyX(Integer threadNum) throws Exception {
                         clientTx.resume();
+                        clientTx.rollback();
 
-                        IgniteInternalFuture<Long> fut = GridTestUtils.runMultiThreadedAsync(new Callable<Object>() {
-                            @Override public Object call() throws Exception {
-                                waitAndPerformOperation(threadCnt, barrier, clientTx, successfulResume, failNumber);
-
-                                return null;
+                        GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
+                            @Override public void applyX(Integer threadNum) throws Exception {
+                                waitAndPerformOperation(threadNum, clientTx, successfulResume, failNumber);
                             }
                         }, concurrentThreadsNum, "th-rollback");
 
-                        barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
-
-                        clientTx.rollback();
-
-                        fut.get(5000);
-
-                        return null;
                     }
-                }, 1);
+                }, 1, "th-rollback-outer");
+
 
                 assertEquals(0, successfulResume.get());
                 assertEquals(concurrentThreadsNum, failNumber.intValue());
-                assertNull(jcache(0).get(remotePrimaryKey));
+                assertNull(clientCache.get(1));
             }
         });
     }
@@ -368,47 +324,34 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
     public void testTxConcurrentClose() throws Exception {
         runWithAllIsolations(new CI1Exc<TransactionIsolation>() {
             @Override public void applyX(TransactionIsolation isolation) throws Exception {
-                final IgniteCache<String, Integer> clientCache = jcache(DEFAULT_NODE_ID);
-                final IgniteCache<String, Integer> remoteCache = jcache(0);
+                final IgniteCache<Integer, String> clientCache = jcache(CLIENT_NODE_ID);
 
-                final CyclicBarrier barrier = new CyclicBarrier(concurrentThreadsNum + 1);
                 final LongAdder8 failNumber = new LongAdder8();
-                final AtomicInteger threadCnt = new AtomicInteger();
                 final AtomicInteger successfulResume = new AtomicInteger();
 
-                String remotePrimaryKey = String.valueOf(primaryKey(remoteCache));
+                final Transaction clientTx = ignite(CLIENT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
 
-                final Transaction clientTx = ignite(DEFAULT_NODE_ID).transactions().txStart(OPTIMISTIC, isolation);
-
-                clientCache.put(remotePrimaryKey, 1);
+                clientCache.put(1, "1");
 
                 clientTx.suspend();
 
-                multithreaded(new Callable<Object>() {
-                    @Override public Object call() throws Exception {
+                GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
+                    @Override public void applyX(Integer threadNum) throws Exception {
                         clientTx.resume();
+                        clientTx.close();
 
-                        IgniteInternalFuture<Long> fut = GridTestUtils.runMultiThreadedAsync(new Callable<Object>() {
-                            @Override public Object call() throws Exception {
-                                waitAndPerformOperation(threadCnt, barrier, clientTx, successfulResume, failNumber);
-
-                                return null;
+                        GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
+                            @Override public void applyX(Integer threadNum) throws Exception {
+                                waitAndPerformOperation(threadNum, clientTx, successfulResume, failNumber);
                             }
                         }, concurrentThreadsNum, "th-close");
 
-                        barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
-
-                        clientTx.close();
-
-                        fut.get(5000);
-
-                        return null;
                     }
-                }, 1);
+                }, 1, "th-close-outer");
 
                 assertEquals(0, successfulResume.get());
                 assertEquals(concurrentThreadsNum, failNumber.intValue());
-                assertNull(jcache(0).get(remotePrimaryKey));
+                assertNull(clientCache.get(1));
             }
         });
     }
@@ -416,29 +359,21 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
     /**
      * Thread begin waiting on barrier and then performs some operation.
      *
-     * @param threadCnt Common counter for threads.
-     * @param barrier Barrier, all threads are waiting on.
      * @param clientTx Transaction instance that we test.
      * @param successfulResume Counter for successful resume operations.
      * @param failedTxNumber Counter for failed operations.
      * @throws Exception If failed.
      */
-    private void waitAndPerformOperation(AtomicInteger threadCnt, CyclicBarrier barrier, Transaction clientTx,
+    private void waitAndPerformOperation(int threadNum, Transaction clientTx,
         AtomicInteger successfulResume, LongAdder8 failedTxNumber) throws Exception {
         try {
-            int threadNum = threadCnt.incrementAndGet();
-
             switch (threadNum % 5) {
                 case 0:
-                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
-
                     clientTx.suspend();
 
                     break;
 
                 case 1:
-                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
-
                     clientTx.resume();
 
                     successfulResume.incrementAndGet();
@@ -448,22 +383,16 @@ public class IgniteOptimisticTxSuspendResumeClientTest extends IgniteOptimisticT
                     return;
 
                 case 2:
-                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
-
                     clientTx.commit();
 
                     break;
 
                 case 3:
-                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
-
                     clientTx.rollback();
 
                     break;
 
                 case 4:
-                    barrier.await(DEFAULT_BARRIER_TIMEOUT, MILLISECONDS);
-
                     clientTx.close();
 
                     break;
