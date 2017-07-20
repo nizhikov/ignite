@@ -192,7 +192,6 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
 
         if (keyLockFut != null)
             keyLockFut.onDone(e);
-
     }
 
     /** {@inheritDoc} */
