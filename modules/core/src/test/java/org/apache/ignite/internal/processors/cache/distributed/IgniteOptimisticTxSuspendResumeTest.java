@@ -80,7 +80,6 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
                 tx.rollbackAsync().get(FUT_TIMEOUT);
             }
         },
-
         new CI1Exc<Transaction>() {
             @Override public void applyx(Transaction tx) throws Exception {
                 tx.setRollbackOnly();
@@ -504,6 +503,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
                 tx.commit();
             }
         };
+
         doProhibitedOperationAfter(operationBefore, "1");
     }
 
@@ -519,6 +519,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
                 tx.rollback();
             }
         };
+
         doProhibitedOperationAfter(operationBefore, null);
     }
 
@@ -534,6 +535,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
                 tx.rollbackAsync().get(FUT_TIMEOUT);
             }
         };
+
         doProhibitedOperationAfter(operationBefore, null);
     }
 
@@ -549,9 +551,22 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
                 tx.close();
             }
         };
+
         doProhibitedOperationAfter(operationBefore, null);
     }
 
+    /**
+     * 1. Start tx.<br>
+     * 2. Put some data.<br>
+     * 3. Suspend tx.<br>
+     * 4. Runs <code>opeartionBefore</code> in other thread.<br>
+     * 5. Run all <code>SUSP_TX_PROHIB_OPS</code>.<br>
+     * 6. Check all <code>SUSP_TX_PROHIB_OPS</code> fail.
+     *
+     * @param operationBefore operation to execute before trying to execute prohibited operations.
+     * @param expVal expected val in cache after operations.
+     * @throws Exception If failed.
+     */
     private void doProhibitedOperationAfter(final CI1<Transaction> operationBefore,
         final String expVal) throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
@@ -597,13 +612,20 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
     }
 
     /**
-     * Closure that can throw any exception
+     * Closure that can throw any exception.
      *
-     * @param <T> type of closure parameter
+     * @param <T> Type of closure parameter.
      */
     public static abstract class CI1Exc<T> implements CI1<T> {
+        /**
+         * Closure body.
+         *
+         * @param o Closure argument.
+         * @throws Exception If failed.
+         */
         public abstract void applyx(T o) throws Exception;
 
+        /** {@inheritdoc} */
         @Override public void apply(T o) {
             try {
                 applyx(o);
@@ -615,11 +637,17 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
     }
 
     /**
-     * Runnable that can throw any exception
+     * Runnable that can throw any exception.
      */
     public static abstract class RunnableX implements Runnable {
-        abstract void runx() throws Exception;
+        /**
+         * Closure body.
+         *
+         * @throws Exception If failed.
+         */
+        public abstract void runx() throws Exception;
 
+        /** {@inheritdoc} */
         @Override public void run() {
             try {
                 runx();

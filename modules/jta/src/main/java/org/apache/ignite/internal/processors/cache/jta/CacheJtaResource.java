@@ -315,7 +315,7 @@ final class CacheJtaResource implements XAResource, Synchronization {
     }
 
     /**
-     * @return internal tx
+     * @return Internal tx
      */
     GridNearTxLocal cacheTx() {
         return cacheTx;
