@@ -407,7 +407,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testTxTimeoutOnResume() throws Exception {
+    public void testTxTimeoutOnResumed() throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
             Transaction tx = grid().transactions().txStart(OPTIMISTIC, isolation, TX_TIMEOUT, 0);
 
@@ -419,6 +419,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
 
             try {
                 tx.resume();
+                tx.commit();
 
                 fail("tx.resume shouldn't succeed.");
             }

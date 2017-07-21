@@ -88,7 +88,7 @@ public class IgniteTxMap extends AbstractMap<IgniteTxKey, IgniteTxEntry> impleme
     /**
      * Unseals this map.
      *
-     * @return This map for chaining.
+     * @return {@code this} for chaining.
      */
     IgniteTxMap unseal() {
         sealed = false;

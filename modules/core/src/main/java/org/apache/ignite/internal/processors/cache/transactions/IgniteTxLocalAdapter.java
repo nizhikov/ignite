@@ -1243,10 +1243,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter implements Ig
      * @throws IgniteCheckedException If transaction check failed.
      */
     protected void checkValid() throws IgniteCheckedException {
-        if (local() && !dht() && remainingTime() == -1) {
-            if (state() == SUSPENDED)
-                threadId = Thread.currentThread().getId();
-
+        if (local() && !dht() && remainingTime() == -1 && state() != SUSPENDED) {
             state(MARKED_ROLLBACK, true);
         }
 

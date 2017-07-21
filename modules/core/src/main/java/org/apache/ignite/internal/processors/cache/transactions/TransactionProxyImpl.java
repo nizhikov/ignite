@@ -107,7 +107,7 @@ public class TransactionProxyImpl<K, V> implements TransactionProxy, Externaliza
     }
 
     /**
-     * Enters a call without check for not {@code SUSPENDED} status
+     * Enters a call without check for not {@code SUSPENDED} status.
      */
     private void enter0() {
         assert (threadId() == Thread.currentThread().getId()) ||
