@@ -411,17 +411,17 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
             Transaction tx = grid().transactions().txStart(OPTIMISTIC, isolation, TX_TIMEOUT, 0);
 
+            jcache().put(1, "1");
+
             tx.suspend();
 
-            long sleep = TX_TIMEOUT * 2;
-
-            Thread.sleep(sleep);
+            Thread.sleep(TX_TIMEOUT * 2);
 
             try {
                 tx.resume();
                 tx.commit();
 
-                fail("tx.resume shouldn't succeed.");
+                fail("tx.suspend shouldn't succeed.");
             }
             catch (TransactionTimeoutException ignored) {
                 // No-op.
@@ -438,15 +438,11 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      */
     public void testTxTimeoutOnSuspend() throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
-            final IgniteCache<Integer, String> cache = jcache();
-
             Transaction tx = grid().transactions().txStart(OPTIMISTIC, isolation, TX_TIMEOUT, 0);
 
-            cache.put(1, "1");
+            jcache().put(1, "1");
 
-            long sleep = TX_TIMEOUT * 2;
-
-            Thread.sleep(sleep);
+            Thread.sleep(TX_TIMEOUT * 2);
 
             try {
                 tx.suspend();
@@ -459,7 +455,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
                 tx.close();
             }
 
-            assertNull(cache.get(1));
+            assertNull(jcache().get(1));
         }
     }
 
