@@ -264,7 +264,7 @@ final class CacheJtaResource implements XAResource, Synchronization {
             cacheTx.prepare();
         }
         catch (IgniteCheckedException e) {
-            throw new CacheException("Failed to prepare cache transaction: " + e.getMessage(), e);
+            throw new CacheException("Failed to prepare cache transaction.", e);
         }
     }
 
@@ -279,7 +279,7 @@ final class CacheJtaResource implements XAResource, Synchronization {
                     cacheTx.commit();
                 }
                 catch (IgniteCheckedException e) {
-                    throw new CacheException("Failed to commit cache transaction: " + e.getMessage(), e);
+                    throw new CacheException("Failed to commit cache transaction.", e);
                 }
 
                 break;
@@ -292,7 +292,7 @@ final class CacheJtaResource implements XAResource, Synchronization {
                     cacheTx.rollback();
                 }
                 catch (IgniteCheckedException e) {
-                    throw new CacheException("Failed to rollback cache transaction: " + e.getMessage(), e);
+                    throw new CacheException("Failed to rollback cache transaction.", e);
                 }
 
                 break;
