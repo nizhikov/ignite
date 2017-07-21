@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.ignite.IgniteCache;
-import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.util.typedef.CI1;
 import org.apache.ignite.testframework.GridTestUtils;
@@ -89,29 +88,15 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
         }
     );
 
-    /**
-     * Creates new cache configuration.
-     *
-     * @return CacheConfiguration New cache configuration.
-     */
-    protected CacheConfiguration<Integer, String> getCacheConfiguration() {
-        CacheConfiguration<Integer, String> cacheCfg = defaultCacheConfiguration();
-
-        cacheCfg.setCacheMode(PARTITIONED);
-
-        return cacheCfg;
-    }
-
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
         IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
 
         cfg.setClientMode(false);
-        cfg.setCacheConfiguration(getCacheConfiguration());
+        cfg.setCacheConfiguration(defaultCacheConfiguration().setCacheMode(PARTITIONED));
 
         return cfg;
     }
-
 
     /** {@inheritDoc} */
     @Override protected void beforeTestsStarted() throws Exception {
@@ -199,10 +184,10 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
     public void testCrossCacheTxInAnotherThread() throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
             final IgniteCache<Integer, String> cache1 =
-                grid().getOrCreateCache(getCacheConfiguration().setName("cache1"));
+                grid().getOrCreateCache("cache1");
 
             final IgniteCache<Integer, String> cache2 =
-                grid().getOrCreateCache(getCacheConfiguration().setName("cache2"));
+                grid().getOrCreateCache("cache2");
 
             final Transaction tx = grid().transactions().txStart(OPTIMISTIC, isolation);
 

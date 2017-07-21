@@ -18,12 +18,11 @@
 package org.apache.ignite.internal.processors.cache;
 
 import javax.cache.configuration.Factory;
-import javax.transaction.Status;
 import javax.transaction.Transaction;
 import org.apache.ignite.IgniteCache;
-import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.configuration.TransactionConfiguration;
+import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.TransactionConcurrency;
 import org.apache.ignite.transactions.TransactionIsolation;
 import org.objectweb.jotm.Current;
@@ -36,16 +35,14 @@ import static org.apache.ignite.transactions.TransactionState.ACTIVE;
 /**
  * JTA Tx Manager test.
  */
-public class GridJtaTransactionManagerSelfTest extends GridCacheAbstractSelfTest {
-    /** */
-    private static final int GRID_CNT = 1;
-
+public class GridJtaTransactionManagerSelfTest extends GridCommonAbstractTest {
     /** Java Open Transaction Manager facade. */
     private static Jotm jotm;
 
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
-        IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
+        IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName).
+            setCacheConfiguration(defaultCacheConfiguration().setCacheMode(PARTITIONED));
 
         cfg.getTransactionConfiguration().setTxManagerFactory(new Factory<TransactionManager>() {
             private static final long serialVersionUID = 0L;
@@ -60,28 +57,22 @@ public class GridJtaTransactionManagerSelfTest extends GridCacheAbstractSelfTest
 
     /** {@inheritDoc} */
     @Override protected void beforeTestsStarted() throws Exception {
+        super.beforeTestsStarted();
+
         jotm = new Jotm(true, false);
 
         Current.setAppServer(false);
 
-        super.beforeTestsStarted();
+        startGrid();
     }
 
     /** {@inheritDoc} */
     @Override protected void afterTestsStopped() throws Exception {
         super.afterTestsStopped();
 
+        stopAllGrids();
+
         jotm.stop();
-    }
-
-    /** {@inheritDoc} */
-    @Override protected int gridCount() {
-        return GRID_CNT;
-    }
-
-    /** {@inheritDoc} */
-    @Override protected CacheMode cacheMode() {
-        return PARTITIONED;
     }
 
     /**
@@ -89,88 +80,130 @@ public class GridJtaTransactionManagerSelfTest extends GridCacheAbstractSelfTest
      *
      * @throws Exception If failed.
      */
-    public void testJtaTransactionContextSwitch() throws Exception {
+    public void testJtaTxContextSwitch() throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
-
-            TransactionConfiguration cfg = grid(0).context().config().getTransactionConfiguration();
+            TransactionConfiguration cfg = grid().context().config().getTransactionConfiguration();
 
             cfg.setDefaultTxConcurrency(TransactionConcurrency.OPTIMISTIC);
             cfg.setDefaultTxIsolation(isolation);
 
-            jtaTransactionContextSwitch((TransactionIsolation.REPEATABLE_READ.equals(isolation)));
+            TransactionManager jtaTm = jotm.getTransactionManager();
+
+            IgniteCache<Integer, String> cache = jcache();
+
+            assertNull(grid().transactions().tx());
+
+            jtaTm.begin();
+
+            Transaction tx1 = jtaTm.getTransaction();
+
+            cache.put(1, Integer.toString(1));
+
+            assertNotNull(grid().transactions().tx());
+
+            assertEquals(ACTIVE, grid().transactions().tx().state());
+
+            assertEquals(Integer.toString(1), cache.get(1));
+
+            jtaTm.suspend();
+
+            assertNull(grid().transactions().tx());
+
+            assertNull(cache.get(1));
+
+            jtaTm.begin();
+
+            Transaction tx2 = jtaTm.getTransaction();
+
+            assertNotSame(tx1, tx2);
+
+            cache.put(2, Integer.toString(2));
+
+            assertNotNull(grid().transactions().tx());
+
+            assertEquals(ACTIVE, grid().transactions().tx().state());
+
+            assertEquals(Integer.toString(2), cache.get(2));
+
+            jtaTm.commit();
+
+            assertNull(grid().transactions().tx());
+
+            assertEquals(Integer.toString(2), cache.get(2));
+
+            jtaTm.resume(tx1);
+
+            assertNotNull(grid().transactions().tx());
+
+            assertEquals(ACTIVE, grid().transactions().tx().state());
+
+            cache.put(3, Integer.toString(3));
+
+            jtaTm.commit();
+
+            assertEquals("1", cache.get(1));
+            assertEquals("2", cache.get(2));
+            assertEquals("3", cache.get(3));
+
+            assertNull(grid().transactions().tx());
+
+            cache.removeAll();
         }
     }
 
     /**
-     * @param checkRepeatableRead True if repeatable read scenario should be tested.
      * @throws Exception If failed.
      */
-    private void jtaTransactionContextSwitch(boolean checkRepeatableRead) throws Exception {
-        TransactionManager jtaTm = jotm.getTransactionManager();
+    public void testJtaTxContextSwitchWithExistingTx() throws Exception {
+        for (TransactionIsolation isolation : TransactionIsolation.values()) {
+            TransactionConfiguration cfg = grid().context().config().getTransactionConfiguration();
 
-        IgniteCache<String, Integer> cache = jcache();
+            cfg.setDefaultTxConcurrency(TransactionConcurrency.OPTIMISTIC);
+            cfg.setDefaultTxIsolation(isolation);
 
-        Integer[] vals = {1, 2, 3};
-        String[] keys = {"key1", "key2", "key3"};
+            TransactionManager jtaTm = jotm.getTransactionManager();
 
-        Transaction[] jtaTxs = new Transaction[3];
+            IgniteCache<Integer, String> cache = jcache();
 
-        try {
-            for (int i = 0; i < 3; i++) {
-                assertNull(ignite(0).transactions().tx());
+            jtaTm.begin();
 
-                jtaTm.begin();
+            Transaction tx1 = jtaTm.getTransaction();
 
-                jtaTxs[i] = jtaTm.getTransaction();
+            cache.put(1, Integer.toString(1));
 
-                assertNull(ignite(0).transactions().tx());
-                assertNull(cache.getAndPut(keys[i], vals[i]));
+            assertNotNull(grid().transactions().tx());
 
-                assertNotNull(ignite(0).transactions().tx());
-                assertEquals(ACTIVE, ignite(0).transactions().tx().state());
-                assertEquals(vals[i], cache.get(keys[i]));
+            assertEquals(ACTIVE, grid().transactions().tx().state());
 
-                if (checkRepeatableRead)
-                    for (int j = 0; j < 3; j++)
-                        assertEquals(j == i ? vals[j] : null, cache.get(keys[j]));
+            assertEquals(Integer.toString(1), cache.get(1));
 
-                jtaTm.suspend();
+            jtaTm.suspend();
 
-                assertNull(ignite(0).transactions().tx());
-                assertNull(cache.get(keys[i]));
+            jtaTm.begin();
+
+            Transaction tx2 = jtaTm.getTransaction();
+
+            assertNotSame(tx1, tx2);
+
+            cache.put(2, Integer.toString(2));
+
+            boolean opSuc = false;
+            try {
+                jtaTm.resume(tx1);
+
+                opSuc = true;
+            } catch (IllegalStateException ignored) {
+                // No-op.
+            } finally {
+                jtaTm.rollback(); //rolling back tx2
             }
 
-            for (int i = 0; i < 3; i++) {
-                jtaTm.resume(jtaTxs[i]);
+            assertFalse(opSuc);
 
-                assertNotNull(ignite(0).transactions().tx());
-                assertEquals(ACTIVE, ignite(0).transactions().tx().state());
+            jtaTm.resume(tx1);
+            jtaTm.rollback();
 
-                if (checkRepeatableRead)
-                    for (int j = 0; j < 3; j++)
-                        assertEquals(j == i ? vals[j] : null, cache.get(keys[j]));
-                else
-                    for (int j = 0; j < 3; j++)
-                        assertEquals(j <= i ? vals[j] : null, cache.get(keys[j]));
-
-                jtaTm.commit();
-
-                for (int j = 0; j < 3; j++)
-                    assertEquals(j <= i ? vals[j] : null, cache.get(keys[j]));
-
-                assertNull(ignite(0).transactions().tx());
-            }
-
+            cache.removeAll();
         }
-        finally {
-            for (int i = 0; i < 3; i++)
-                if (jtaTxs[i] != null && jtaTxs[i].getStatus() == Status.STATUS_ACTIVE)
-                    jtaTxs[i].rollback();
-        }
-
-        for (int i = 0; i < 3; i++)
-            assertEquals(vals[i], cache.get(keys[i]));
-
-        cache.removeAll();
     }
 }
