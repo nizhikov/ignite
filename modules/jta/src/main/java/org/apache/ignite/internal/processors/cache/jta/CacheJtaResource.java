@@ -129,7 +129,7 @@ final class CacheJtaResource implements XAResource, Synchronization {
             cacheTx.prepare();
         }
         catch (IgniteCheckedException e) {
-            throwException("Failed to prepare cache transaction: " + e.getMessage(), e);
+            throwException("Failed to prepare cache transaction.", e);
         }
 
         return XA_OK;
@@ -310,6 +310,10 @@ final class CacheJtaResource implements XAResource, Synchronization {
         TransactionState state = cacheTx.state();
 
         return state == COMMITTED || state == ROLLED_BACK;
+    }
+
+    GridNearTxLocal cacheTx() {
+        return cacheTx;
     }
 
     /** {@inheritDoc} */

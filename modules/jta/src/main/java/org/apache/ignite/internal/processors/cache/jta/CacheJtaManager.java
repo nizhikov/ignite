@@ -28,6 +28,7 @@ import org.apache.ignite.cache.jta.CacheTmLookup;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.TransactionConfiguration;
 import org.apache.ignite.internal.processors.cache.distributed.near.GridNearTxLocal;
+import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.lifecycle.LifecycleAware;
 import org.jetbrains.annotations.Nullable;
 
@@ -35,6 +36,9 @@ import org.jetbrains.annotations.Nullable;
  * Implementation of {@link CacheJtaManagerAdapter}.
  */
 public class CacheJtaManager extends CacheJtaManagerAdapter {
+    /** */
+    private final ThreadLocal<CacheJtaResource> rsrc = new ThreadLocal<>();
+
     /** */
     private TransactionManager jtaTm;
 
@@ -141,40 +145,47 @@ public class CacheJtaManager extends CacheJtaManagerAdapter {
         }
 
         if (jtaTm != null) {
-            try {
-                Transaction jtaTx = jtaTm.getTransaction();
+            CacheJtaResource rsrc = this.rsrc.get();
 
-                if (jtaTx != null) {
-                    GridNearTxLocal tx = cctx.tm().userTx();
+            if (rsrc == null || rsrc.isFinished() || rsrc.cacheTx().threadId() != Thread.currentThread().getId()) {
+                try {
+                    Transaction jtaTx = jtaTm.getTransaction();
 
-                    if (tx == null) {
-                        TransactionConfiguration txCfg = cctx.kernalContext().config().getTransactionConfiguration();
+                    if (jtaTx != null) {
+                        GridNearTxLocal tx = cctx.tm().userTx();
 
-                        tx = cctx.tm().newTx(
-                            /*implicit*/false,
-                            /*implicit single*/false,
-                            null,
-                            txCfg.getDefaultTxConcurrency(),
-                            txCfg.getDefaultTxIsolation(),
-                            txCfg.getDefaultTxTimeout(),
-                            /*store enabled*/true,
-                            /*tx size*/0
-                        );
+                        if (tx == null) {
+                            TransactionConfiguration tCfg = cctx.kernalContext().config()
+                                .getTransactionConfiguration();
 
-                        CacheJtaResource rsrc = new CacheJtaResource(tx, cctx.kernalContext());
+                            tx = cctx.tm().newTx(
+                                /*implicit*/false,
+                                /*implicit single*/false,
+                                null,
+                                tCfg.getDefaultTxConcurrency(),
+                                tCfg.getDefaultTxIsolation(),
+                                tCfg.getDefaultTxTimeout(),
+                                /*store enabled*/true,
+                                /*tx size*/0
+                            );
+                        }
+
+                        rsrc = new CacheJtaResource(tx, cctx.kernalContext());
 
                         if (useJtaSync)
                             jtaTx.registerSynchronization(rsrc);
                         else if (!jtaTx.enlistResource(rsrc))
                             throw new IgniteCheckedException("Failed to enlist XA resource to JTA user transaction.");
+
+                        this.rsrc.set(rsrc);
                     }
                 }
-            }
-            catch (SystemException e) {
-                throw new IgniteCheckedException("Failed to obtain JTA transaction.", e);
-            }
-            catch (RollbackException e) {
-                throw new IgniteCheckedException("Failed to enlist XAResource to JTA transaction.", e);
+                catch (SystemException e) {
+                    throw new IgniteCheckedException("Failed to obtain JTA transaction.", e);
+                }
+                catch (RollbackException e) {
+                    throw new IgniteCheckedException("Failed to enlist XAResource to JTA transaction.", e);
+                }
             }
         }
     }
