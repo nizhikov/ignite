@@ -90,40 +90,6 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
     );
 
     /**
-     * Closure that can throw any exception
-     *
-     * @param <T> type of closure parameter
-     */
-    public static abstract class CI1Exc<T> implements CI1<T> {
-        public abstract void applyx(T o) throws Exception;
-
-        @Override public void apply(T o) {
-            try {
-                applyx(o);
-            }
-            catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    /**
-     * Runnable that can throw any exception
-     */
-    public static abstract class RunnableX implements Runnable {
-        abstract void runx() throws Exception;
-
-        @Override public void run() {
-            try {
-                runx();
-            }
-            catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    /**
      * Creates new cache configuration.
      *
      * @return CacheConfiguration New cache configuration.
@@ -175,7 +141,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testSimpleTransactionInAnotherThread() throws Exception {
+    public void testResumeTxInAnotherThread() throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
             final IgniteCache<Integer, String> cache = jcache();
 
@@ -230,7 +196,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testCrossCacheTransactionInAnotherThreadContinued() throws Exception {
+    public void testCrossCacheTxInAnotherThread() throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
             final IgniteCache<Integer, String> cache1 =
                 grid().getOrCreateCache(getCacheConfiguration().setName("cache1"));
@@ -288,7 +254,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testTransactionRollback() throws Exception {
+    public void testTxRollback() throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
             final IgniteCache<Integer, String> cache = jcache();
 
@@ -330,7 +296,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testMultipleTransactionsSuspendResume() throws Exception {
+    public void testMultiTxSuspendResume() throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
             IgniteCache<Integer, String> cache = jcache();
 
@@ -372,7 +338,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testOperationsAreProhibitedOnSuspendedTxFromTheOtherThread() throws Exception {
+    public void testOpsProhibitedOnSuspendedTxFromOtherThread() throws Exception {
         for (final CI1Exc<Transaction> txOperation : SUSP_TX_PROHIB_OPS) {
             for (TransactionIsolation isolation : TransactionIsolation.values()) {
                 final IgniteCache<Integer, String> cache = jcache();
@@ -415,7 +381,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testOperationsAreProhibitedOnSuspendedTx() throws Exception {
+    public void testOpsProhibitedOnSuspendedTx() throws Exception {
         for (CI1Exc<Transaction> txOperation : SUSP_TX_PROHIB_OPS) {
             for (TransactionIsolation isolation : TransactionIsolation.values()) {
                 final IgniteCache<Integer, String> cache = jcache();
@@ -454,7 +420,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testTransactionTimeoutOnResumedTransaction() throws Exception {
+    public void testTxTimeoutOnResume() throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
             Transaction tx = grid().transactions().txStart(OPTIMISTIC, isolation, TX_TIMEOUT, 0);
 
@@ -485,7 +451,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testTransactionTimeoutOnSuspendedTransaction() throws Exception {
+    public void testTxTimeoutOnSuspend() throws Exception {
         for (TransactionIsolation isolation : TransactionIsolation.values()) {
             final IgniteCache<Integer, String> cache = jcache();
 
@@ -521,7 +487,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testSuspendTxAndStartNewTx() throws Exception {
+    public void testSuspendTxAndStartNew() throws Exception {
         for (TransactionIsolation tx1Isolation : TransactionIsolation.values()) {
             for (TransactionIsolation tx2Isolation : TransactionIsolation.values()) {
                 IgniteCache<Integer, String> cache = grid().cache(DEFAULT_CACHE_NAME);
@@ -549,56 +515,11 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
     }
 
     /**
-     * Test for concurrent transaction suspendTx.
-     *
-     * @throws Exception If failed.
-     */
-    public void testTxConcurrentSuspend() throws Exception {
-        for (TransactionIsolation isolation : TransactionIsolation.values()) {
-            final IgniteCache<Integer, String> cache = jcache();
-
-            final Transaction clientTx = grid().transactions().txStart(OPTIMISTIC, isolation);
-
-            cache.put(1, "1");
-
-            clientTx.suspend();
-
-            final boolean[] opSuc = {false};
-            GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
-                @Override public void applyx(Integer idx) throws Exception {
-                    try {
-                        SUSP_TX_PROHIB_OPS.get(idx).apply(clientTx);
-
-                        opSuc[0] = true;
-                    }
-                    catch (Exception ignored) {
-                        // No-op.
-                    }
-                    catch (AssertionError ignored) {
-                        // No-op.
-                    }
-                }
-            }, SUSP_TX_PROHIB_OPS.size(), "th-suspendTx");
-
-            assertFalse(opSuc[0]);
-
-            GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
-                @Override public void applyx(Integer idx) throws Exception {
-                    clientTx.resume();
-                    clientTx.close();
-                }
-            }, 1, "th-suspendTx");
-
-            assertNull(cache.get(1));
-        }
-    }
-
-    /**
      * Test for concurrent transaction commit.
      *
      * @throws Exception If failed.
      */
-    public void testTxConcurrentCommit() throws Exception {
+    public void testTxProhibOpsAfterCommit() throws Exception {
         final CI1Exc<Transaction> operationBefore = new CI1Exc<Transaction>() {
             @Override public void applyx(Transaction tx) throws Exception {
                 tx.resume();
@@ -613,7 +534,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testTxConcurrentRollback() throws Exception {
+    public void testTxProhibOpsAfterRollback() throws Exception {
         final CI1Exc<Transaction> operationBefore = new CI1Exc<Transaction>() {
             @Override public void applyx(Transaction tx) throws Exception {
                 tx.resume();
@@ -628,7 +549,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testTxConcurrentRollbackAsync() throws Exception {
+    public void testTxProhibOpsAfterRollbackAsync() throws Exception {
         final CI1Exc<Transaction> operationBefore = new CI1Exc<Transaction>() {
             @Override public void applyx(Transaction tx) throws Exception {
                 tx.resume();
@@ -643,7 +564,7 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
      *
      * @throws Exception If failed.
      */
-    public void testTxConcurrentClose() throws Exception {
+    public void testTxProhibOpsAfterClose() throws Exception {
         final CI1Exc<Transaction> operationBefore = new CI1Exc<Transaction>() {
             @Override public void applyx(Transaction tx) throws Exception {
                 tx.resume();
@@ -692,6 +613,40 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
 
 
             assertEquals(expVal, jcache().get(1));
+        }
+    }
+
+    /**
+     * Closure that can throw any exception
+     *
+     * @param <T> type of closure parameter
+     */
+    public static abstract class CI1Exc<T> implements CI1<T> {
+        public abstract void applyx(T o) throws Exception;
+
+        @Override public void apply(T o) {
+            try {
+                applyx(o);
+            }
+            catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    /**
+     * Runnable that can throw any exception
+     */
+    public static abstract class RunnableX implements Runnable {
+        abstract void runx() throws Exception;
+
+        @Override public void run() {
+            try {
+                runx();
+            }
+            catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 }

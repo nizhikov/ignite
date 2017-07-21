@@ -96,6 +96,7 @@ import static org.apache.ignite.transactions.TransactionState.MARKED_ROLLBACK;
 import static org.apache.ignite.transactions.TransactionState.PREPARING;
 import static org.apache.ignite.transactions.TransactionState.ROLLED_BACK;
 import static org.apache.ignite.transactions.TransactionState.ROLLING_BACK;
+import static org.apache.ignite.transactions.TransactionState.SUSPENDED;
 import static org.apache.ignite.transactions.TransactionState.UNKNOWN;
 
 /**
@@ -1242,8 +1243,12 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter implements Ig
      * @throws IgniteCheckedException If transaction check failed.
      */
     protected void checkValid() throws IgniteCheckedException {
-        if (local() && !dht() && remainingTime() == -1)
+        if (local() && !dht() && remainingTime() == -1) {
+            if (state() == SUSPENDED)
+                threadId = Thread.currentThread().getId();
+
             state(MARKED_ROLLBACK, true);
+        }
 
         if (isRollbackOnly()) {
             if (remainingTime() == -1)
