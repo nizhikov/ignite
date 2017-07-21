@@ -187,18 +187,15 @@ public class GridJtaTransactionManagerSelfTest extends GridCommonAbstractTest {
 
             cache.put(2, Integer.toString(2));
 
-            boolean opSuc = false;
             try {
                 jtaTm.resume(tx1);
 
-                opSuc = true;
+                fail("jtaTm.resume shouldn't success.");
             } catch (IllegalStateException ignored) {
                 // No-op.
             } finally {
                 jtaTm.rollback(); //rolling back tx2
             }
-
-            assertFalse(opSuc);
 
             jtaTm.resume(tx1);
             jtaTm.rollback();

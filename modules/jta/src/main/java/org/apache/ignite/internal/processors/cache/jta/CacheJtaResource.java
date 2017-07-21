@@ -78,13 +78,14 @@ final class CacheJtaResource implements XAResource, Synchronization {
         // Simply save global transaction id.
         this.xid = xid;
 
-        if ((flags & TMRESUME) == TMRESUME)
+        if ((flags & TMRESUME) == TMRESUME) {
             try {
                 cacheTx.resume();
             }
             catch (IgniteCheckedException e) {
                 throwException("Failed to resume cache transaction: " + e.getMessage(), e);
             }
+        }
     }
 
     /**
@@ -142,15 +143,16 @@ final class CacheJtaResource implements XAResource, Synchronization {
         if (log.isDebugEnabled())
             log.debug("XA resource end(...) [xid=" + xid + ", flags=<" + flags(flags) + ">]");
 
-        if ((flags & TMSUSPEND) == TMSUSPEND)
+        if ((flags & TMFAIL) > 0)
+            cacheTx.setRollbackOnly();
+        else if ((flags & TMSUSPEND) == TMSUSPEND) {
             try {
                 cacheTx.suspend();
             }
             catch (Throwable e) {
                 throwException("Failed to suspend cache transaction: " + e.getMessage(), e);
             }
-        else if ((flags & TMFAIL) > 0)
-            cacheTx.setRollbackOnly();
+        }
     }
 
     /** {@inheritDoc} */
@@ -312,6 +314,9 @@ final class CacheJtaResource implements XAResource, Synchronization {
         return state == COMMITTED || state == ROLLED_BACK;
     }
 
+    /**
+     * @return internal tx
+     */
     GridNearTxLocal cacheTx() {
         return cacheTx;
     }

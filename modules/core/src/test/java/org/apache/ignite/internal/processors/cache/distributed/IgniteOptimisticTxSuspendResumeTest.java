@@ -334,13 +334,14 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
 
                 tx.suspend();
 
-                final boolean[] opSuc = {false};
                 multithreaded(new RunnableX() {
                     @Override public void runx() throws Exception {
+                        boolean opSuc = false;
+
                         try {
                             txOperation.apply(tx);
 
-                            opSuc[0] = true;
+                            opSuc = true;
                         }
                         catch (Exception ignored) {
                             // No-op.
@@ -348,10 +349,11 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
                         catch (AssertionError ignored) {
                             // No-op.
                         }
+
+                        assertFalse(opSuc);
                     }
                 }, 1);
 
-                assertFalse(opSuc[0]);
 
                 tx.resume();
                 tx.close();
@@ -415,19 +417,16 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
 
             Thread.sleep(sleep);
 
-            boolean opSuc = false;
             try {
                 tx.resume();
 
-                opSuc = true;
+                fail("tx.resume shouldn't succeed.");
             }
             catch (TransactionTimeoutException ignored) {
                 // No-op.
             } finally {
                 tx.close();
             }
-
-            assertFalse(opSuc);
         }
     }
 
@@ -448,19 +447,16 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
 
             Thread.sleep(sleep);
 
-            boolean opSuc = false;
             try {
                 tx.suspend();
 
-                opSuc = true;
+                fail("tx.suspend shouldn't succeed.");
             }
             catch (TransactionTimeoutException ignored) {
                 // No-op.
             } finally {
                 tx.close();
             }
-
-            assertFalse(opSuc);
 
             assertNull(cache.get(1));
         }
@@ -574,13 +570,14 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
                 @Override public void applyx(Integer threadNum) throws Exception {
                     operationBefore.apply(tx);
 
-                    final boolean[] opSuc = {false};
                     GridTestUtils.runMultiThreaded(new CI1Exc<Integer>() {
                         @Override public void applyx(Integer idx) throws Exception {
+                            boolean opSuc = false;
+
                             try {
                                 SUSP_TX_PROHIB_OPS.get(idx).apply(tx);
 
-                                opSuc[0] = true;
+                                opSuc = true;
                             }
                             catch (Exception ignored) {
                                 // No-op.
@@ -588,10 +585,11 @@ public class IgniteOptimisticTxSuspendResumeTest extends GridCommonAbstractTest 
                             catch (AssertionError ignored) {
                                 // No-op.
                             }
+
+                            assertFalse(opSuc);
                         }
                     }, SUSP_TX_PROHIB_OPS.size(), "th-commit");
 
-                    assertFalse(opSuc[0]);
                 }
             }, 1, "th-commit-outer");
 
