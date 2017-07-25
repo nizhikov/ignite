@@ -30,11 +30,15 @@ import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cache.query.ContinuousQuery;
+import org.apache.ignite.cache.query.ContinuousQueryWithTransformer;
+import org.apache.ignite.cache.query.ContinuousQueryWithTransformer.TransformedEventListener;
+import org.apache.ignite.cache.query.Query;
 import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.util.lang.GridAbsPredicate;
+import org.apache.ignite.internal.util.typedef.CI2;
 import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
@@ -50,12 +54,16 @@ import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 /**
  *
  */
-public class CacheContinuousQueryConcurrentPartitionUpdateTest extends GridCommonAbstractTest {
+public class CacheContinuousQueryConcurrentPartitionUpdateTest extends AbstractContinuousQueryTest {
     /** */
     private static final TcpDiscoveryIpFinder ipFinder = new TcpDiscoveryVmIpFinder(true);
 
     /** */
     private boolean client;
+
+    @Override public boolean isContinuousWithTransformer() {
+        return false;
+    }
 
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
@@ -114,6 +122,8 @@ public class CacheContinuousQueryConcurrentPartitionUpdateTest extends GridCommo
         client = true;
 
         Ignite client = startGrid(1);
+
+        awaitPartitionMapExchange();
 
         List<AtomicInteger> cntrs = new ArrayList<>();
         List<String> caches = new ArrayList<>();
@@ -194,7 +204,7 @@ public class CacheContinuousQueryConcurrentPartitionUpdateTest extends GridCommo
 
                         return evtCnt.get() >= THREADS * UPDATES;
                     }
-                }, 5000);
+                }, 20_000);
 
                 assertEquals(THREADS * UPDATES, evtCnt.get());
 
@@ -210,23 +220,28 @@ public class CacheContinuousQueryConcurrentPartitionUpdateTest extends GridCommo
     private T2<AtomicInteger, QueryCursor> startListener(IgniteCache<Object, Object> cache) {
         final AtomicInteger evtCnt = new AtomicInteger();
 
-        ContinuousQuery<Object, Object> qry = new ContinuousQuery<>();
+        Query qry = createContinuousQuery();
 
-        qry.setLocalListener(new CacheEntryUpdatedListener<Object, Object>() {
-            @Override public void onUpdated(Iterable<CacheEntryEvent<?, ?>> evts) {
-                for (CacheEntryEvent evt : evts) {
-                    assertNotNull(evt.getKey());
-                    assertNotNull(evt.getValue());
+        CI2<Ignite, T2<Object, Object>> lsnrClsr =
+            new CI2<Ignite, T2<Object, Object>>() {
+                @Override public void apply(Ignite ignite, T2<Object, Object> e) {
+                    assertNotNull(e.getKey());
+                    assertNotNull(e.getValue());
 
-                    if ((Integer)evt.getValue() >= 0)
+                    if ((Integer)e.getValue() >= 0)
                         evtCnt.incrementAndGet();
                 }
-            }
-        });
+            };
+
+        if (isContinuousWithTransformer()) {
+            ((ContinuousQueryWithTransformer)qry).setLocalTransformedEventListener(new TransformedEventListenerImpl(lsnrClsr));
+        } else
+            ((ContinuousQuery)qry).setLocalListener(new CacheInvokeListener<>(lsnrClsr));
 
         QueryCursor cur = cache.query(qry);
 
         return new T2<>(evtCnt, cur);
+
     }
 
     /**
