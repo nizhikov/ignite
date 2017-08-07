@@ -28,6 +28,7 @@ import org.apache.ignite.IgniteCache;
 import org.apache.ignite.Ignition;
 import org.apache.ignite.binary.BinaryObject;
 import org.apache.ignite.cache.query.ContinuousQuery;
+import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.cache.query.ScanQuery;
 import org.apache.ignite.cache.query.SpiQuery;
 import org.apache.ignite.cache.query.SqlFieldsQuery;
@@ -115,6 +116,48 @@ public class GridCacheQueryTransformerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    public void testGetPagedKeys() throws Exception {
+        IgniteCache<Integer, String> cache = grid().createCache("test-cache");
+
+        try {
+            for (int i = 0; i < 50; i++)
+                cache.put(i, "val" + i);
+
+            IgniteClosure<Cache.Entry<Integer, String>, Integer> transformer =
+                new IgniteClosure<Cache.Entry<Integer, String>, Integer>() {
+                    @Override public Integer apply(Cache.Entry<Integer, String> e) {
+                        return e.getKey();
+                    }
+                };
+
+            ScanQuery<Integer, String> qry = new ScanQuery<>();
+            qry.setPageSize(2);
+
+            QueryCursor<Integer> query = cache.query(qry, transformer);
+
+            List<Integer> keys = new ArrayList<>();
+
+            for (Integer key : query) {
+                assertNotNull(key);
+
+                keys.add(key);
+            }
+
+            assertEquals(50, keys.size());
+
+            Collections.sort(keys);
+
+            for (int i = 0; i < 50; i++)
+                assertEquals(i, keys.get(i).intValue());
+        }
+        finally {
+            cache.destroy();
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
     public void testGetKeysFiltered() throws Exception {
         IgniteCache<Integer, String> cache = grid().createCache("test-cache");
 
@@ -136,6 +179,55 @@ public class GridCacheQueryTransformerSelfTest extends GridCommonAbstractTest {
                 };
 
             List<Integer> keys = cache.query(new ScanQuery<>(filter), transformer).getAll();
+
+            assertEquals(5, keys.size());
+
+            Collections.sort(keys);
+
+            for (int i = 0; i < 5; i++)
+                assertEquals(i * 10, keys.get(i).intValue());
+        }
+        finally {
+            cache.destroy();
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testGetPagedKeysFiltered() throws Exception {
+        IgniteCache<Integer, String> cache = grid().createCache("test-cache");
+
+        try {
+            for (int i = 0; i < 50; i++)
+                cache.put(i, "val" + i);
+
+            IgniteBiPredicate<Integer, String> filter = new IgniteBiPredicate<Integer, String>() {
+                @Override public boolean apply(Integer k, String v) {
+                    return k % 10 == 0;
+                }
+            };
+
+            IgniteClosure<Cache.Entry<Integer, String>, Integer> transformer =
+                new IgniteClosure<Cache.Entry<Integer, String>, Integer>() {
+                    @Override public Integer apply(Cache.Entry<Integer, String> e) {
+                        return e.getKey();
+                    }
+                };
+
+            ScanQuery<Integer, String> qry = new ScanQuery<>(filter);
+            qry.setPageSize(2);
+
+            List<Integer> keys = new ArrayList<>();
+
+            QueryCursor<Integer> query = cache.query(qry, transformer);
+            for (Integer key : query) {
+                assertNotNull(key);
+
+                assertEquals(key % 10, 0);
+
+                keys.add(key);
+            }
 
             assertEquals(5, keys.size());
 
