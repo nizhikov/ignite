@@ -17,8 +17,9 @@
 
 package org.apache.ignite.spark.impl
 
+import org.apache.ignite.cluster.ClusterNode
 import org.apache.spark.Partition
 
-class IgnitePartition(idx: Int) extends Partition {
+case class IgnitePartition(idx: Int) extends Partition {
     override def index: Int = idx
 }
