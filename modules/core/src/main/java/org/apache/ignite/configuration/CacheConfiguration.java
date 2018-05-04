@@ -372,6 +372,10 @@ public class CacheConfiguration<K, V> extends MutableConfiguration<K, V> {
 
     /** Events disabled. */
     private boolean evtsDisabled = DFLT_EVENTS_DISABLED;
+    
+    private boolean encrypted;
+    
+    private CipherAlgorythm encryptionAlgorithm;
 
     /** Empty constructor (all values are initialized to their defaults). */
     public CacheConfiguration() {
@@ -2263,6 +2267,26 @@ public class CacheConfiguration<K, V> extends MutableConfiguration<K, V> {
      */
     public CacheConfiguration<K, V> setKeyConfiguration(CacheKeyConfiguration... cacheKeyCfg) {
         this.keyCfg = cacheKeyCfg;
+
+        return this;
+    }
+
+    public boolean isEncrypted() {
+        return encrypted;
+    }
+
+    public CacheConfiguration<K, V> setEncrypted(boolean encrypted) {
+        this.encrypted = encrypted;
+        
+        return this;
+    }
+
+    public CipherAlgorythm getEncryptionAlgorithm() {
+        return encryptionAlgorithm;
+    }
+
+    public CacheConfiguration<K, V> setEncryptionAlgorithm(CipherAlgorythm encryptionAlgorithm) {
+        this.encryptionAlgorithm = encryptionAlgorithm;
 
         return this;
     }

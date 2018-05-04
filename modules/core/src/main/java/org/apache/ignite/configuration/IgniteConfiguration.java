@@ -495,6 +495,8 @@ public class IgniteConfiguration {
 
     /** Communication failure resolver */
     private CommunicationFailureResolver commFailureRslvr;
+    
+    private CipherSPI cipherSPI;
 
     /**
      * Creates valid grid configuration with all default values.
@@ -2998,6 +3000,12 @@ public class IgniteConfiguration {
     public IgniteConfiguration setAuthenticationEnabled(boolean authEnabled) {
         this.authEnabled = authEnabled;
 
+        return this;
+    }
+    
+    public IgniteConfiguration setCipherSPI(CipherSPI cipherSPI) {
+        this.cipherSPI = cipherSPI;
+        
         return this;
     }
 
