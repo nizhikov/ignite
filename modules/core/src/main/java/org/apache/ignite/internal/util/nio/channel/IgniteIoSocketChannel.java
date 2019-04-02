@@ -17,28 +17,30 @@
 
 package org.apache.ignite.internal.util.nio.channel;
 
-import java.io.Closeable;
-import java.nio.channels.SocketChannel;
-import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
+import org.apache.ignite.internal.GridTopic;
+import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 
 /**
  * Communication TCP/IP socket.
  */
-public interface IgniteSocketChannel extends Closeable {
+public interface IgniteIoSocketChannel extends IgniteSocketChannel {
     /**
-     * Todo ConnectionKey is the inner object to CommunicationSpi. Change
+     * @return The type of {@link GridIoPolicy} which defines the processing policy by the communication manager.
      */
-    public ConnectionKey id();
+    public byte policy();
 
-    /** */
-    public SocketChannel channel();
+    /**
+     * @param plc The type of {@link GridIoPolicy} to define the processing policy by the communication manager.
+     */
+    public void policy(byte plc);
 
-    /** */
-    public IgniteSocketChannelConfig config();
+    /**
+     * @return The communication topic of {@link GridTopic} shows the established channel connection from.
+     */
+    public Object topic();
 
-    /** */
-    public boolean ready();
-
-    /** */
-    public void setReady();
+    /**
+     * @param topic The communication topic of {@link GridTopic} to establish channel connection to.
+     */
+    public void topic(Object topic);
 }

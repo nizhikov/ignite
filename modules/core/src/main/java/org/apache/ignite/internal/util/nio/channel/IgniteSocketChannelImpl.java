@@ -28,7 +28,7 @@ import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 /**
  *
  */
-public class IgniteSocketChannelImpl implements IgniteSocketChannel {
+public class IgniteSocketChannelImpl implements IgniteIoSocketChannel {
     /** */
     private final ConnectionKey key;
 

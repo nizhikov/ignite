@@ -27,6 +27,7 @@ import org.apache.ignite.IgniteException;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.managers.communication.GridIoChannelListener;
 import org.apache.ignite.internal.managers.communication.GridIoManager;
+import org.apache.ignite.internal.util.nio.channel.IgniteIoSocketChannel;
 import org.apache.ignite.internal.util.nio.channel.IgniteSocketChannel;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
@@ -82,7 +83,7 @@ public class TcpCommunicationSpiChannelSelfTest extends GridCommonAbstractTest {
         Object topic = TOPIC_CACHE.topic("channel", 0);
 
         grid(1).context().io().addChannelListener(topic, new GridIoChannelListener() {
-            @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
+            @Override public void onChannelCreated(UUID nodeId, IgniteIoSocketChannel channel) {
                 // Created from ignite node with index = 0;
                 if (channel.id().nodeId().equals(grid(0).localNode().id())) {
                     nioCh[0] = channel;
@@ -94,9 +95,8 @@ public class TcpCommunicationSpiChannelSelfTest extends GridCommonAbstractTest {
 
         GridIoManager ioMgr = grid(0).context().io();
 
-        WritableByteChannel writableCh = ioMgr.channelToCustomTopic(grid(1).localNode().id(),
+        WritableByteChannel writableCh = ioMgr.channelToTopic(grid(1).localNode().id(),
             topic,
-            null,
             PUBLIC_POOL)
             .channel();
 

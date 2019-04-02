@@ -4300,8 +4300,10 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
 
     /** {@inheritDoc} */
     @Override public IgniteSocketChannel channel(ClusterNode remote, Message msg) throws IgniteSpiException {
-        if (!nodeSupports(remote, CHANNEL_COMMUNICATION))
-            throw new IgniteSpiException("The remote node doesn't support communication via socket channels");
+        if (!nodeSupports(remote, CHANNEL_COMMUNICATION)) {
+            throw new IgniteSpiException("The remote node doesn't support communication via socket channels " +
+                "[nodeId=" + remote.id() + ']');
+        }
 
         connectGate.enter();
 
@@ -4315,8 +4317,6 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
             if (nioSrvr.getNioSocketChannel(connKey) != null)
                 throw new IgniteCheckedException("Connection key already used: " + connKey);
 
-            // TODO: maybe we can create TcpBlockingCommunication client?
-            // GridNioSession ses = createGridNioSession()
             ses = (GridSelectorNioSession)createNioSession(remote, connKey.connectionIndex());
 
             nioCh = nioSrvr.createNioChannel(ses, connKey);
@@ -4325,6 +4325,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
             ses.send(new ChannelCreateRequestMessage(msg)).get();
 
             // Wait for the reply (channel created on the remote side)
+            // TODO create handshake timeout obj
             long curTime = U.currentTimeMillis();
             long endTime = curTime + 15_000L;
 
