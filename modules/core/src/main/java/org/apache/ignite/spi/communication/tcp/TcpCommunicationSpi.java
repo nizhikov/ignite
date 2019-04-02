@@ -165,6 +165,8 @@ import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
 import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.failure.FailureType.CRITICAL_ERROR;
 import static org.apache.ignite.failure.FailureType.SYSTEM_WORKER_TERMINATION;
+import static org.apache.ignite.internal.IgniteFeatures.CHANNEL_COMMUNICATION;
+import static org.apache.ignite.internal.IgniteFeatures.nodeSupports;
 import static org.apache.ignite.internal.util.nio.GridNioSessionMetaKey.SSL_META;
 import static org.apache.ignite.plugin.extensions.communication.Message.DIRECT_TYPE_SIZE;
 import static org.apache.ignite.spi.communication.tcp.internal.TcpCommunicationConnectionCheckFuture.SES_FUT_META;
@@ -4297,13 +4299,10 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
     }
 
     /** {@inheritDoc} */
-    @Override public boolean channelConnectionSupported() {
-        // TODO: Check for compatibility version and enabled system property
-        return true;
-    }
-
-    /** {@inheritDoc} */
     @Override public IgniteSocketChannel channel(ClusterNode remote, Message msg) throws IgniteSpiException {
+        if (!nodeSupports(remote, CHANNEL_COMMUNICATION))
+            throw new IgniteSpiException("The remote node doesn't support communication via socket channels");
+
         connectGate.enter();
 
         ConnectionKey connKey = new ConnectionKey(remote.id(), sockConnPlc.connectionIndex(), -1);

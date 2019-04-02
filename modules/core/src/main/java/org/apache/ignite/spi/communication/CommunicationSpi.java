@@ -112,13 +112,6 @@ public interface CommunicationSpi<T extends Serializable> extends IgniteSpi {
     public void setListener(@Nullable CommunicationListener<T> lsnr);
 
     /**
-     * @return {@code True} if new type of direct connections supported.
-     */
-    public default boolean channelConnectionSupported() {
-        return false;
-    }
-
-    /**
      * @param remote Destination cluster node to communicate with.
      * @param msg Configuration channel message.
      * @throws IgniteSpiException If fails.

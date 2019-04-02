@@ -971,9 +971,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         if (msg == null)
             return;
 
-        Lock busyLock0 = busyLock.readLock();
-
-        busyLock0.lock();
+        busyLock.readLock().lock();
 
         try {
             if (stopping || !started)
@@ -990,27 +988,12 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
             ch.topic(topic);
             ch.policy(msg.policy());
-
-            // Invoke configure request in the current listener thread.
-            // Only system listeners can handle configuration requests.
-
-            synchronized (sysLsnrsMux) {
-                for (int i = 0; i < sysLsnrs.length; i++) {
-                    GridMessageListener lsrn = sysLsnrs[i];
-
-                    if (lsrn instanceof GridConfigureMessageListener) {
-                        GridConfigureMessageListener rqLsnr = (GridConfigureMessageListener)lsrn;
-
-                        rqLsnr.onChannelConfigure(ch, msg.message());
-                    }
-                }
-            }
         }
         catch (IgniteCheckedException e) {
             U.error(log, "Failed to process message (will ignore): " + msg, e);
         }
         finally {
-            busyLock0.unlock();
+            busyLock.readLock().unlock();
         }
     }
 
