@@ -55,10 +55,4 @@ public interface IgniteSocketChannel extends Closeable {
 
     /** */
     public void topic(Object topic);
-
-    /** */
-    public int groupId();
-
-    /** */
-    public void groupId(int grpId);
 }

@@ -22,7 +22,7 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.util.nio.GridNioFilterChain;
-import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 
 /**
@@ -49,9 +49,6 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
 
     /** */
     private Object topic;
-
-    /** */
-    private int grpId;
 
     /**
      * Create a new NIO socket channel.
@@ -114,16 +111,6 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     }
 
     /** {@inheritDoc} */
-    @Override public int groupId() {
-        return grpId;
-    }
-
-    /** {@inheritDoc} */
-    @Override public void groupId(int grpId) {
-        this.grpId = grpId;
-    }
-
-    /** {@inheritDoc} */
     @Override public void close() throws IOException {
         try {
             filterChain.onChannelClose(this);
@@ -137,6 +124,7 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     @Override public boolean equals(Object o) {
         if (this == o)
             return true;
+
         if (o == null || getClass() != o.getClass())
             return false;
 
@@ -144,25 +132,21 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
 
         if (!key.equals(channel1.key))
             return false;
+
         return channel.equals(channel1.channel);
     }
 
     /** {@inheritDoc} */
     @Override public int hashCode() {
         int result = key.hashCode();
+
         result = 31 * result + channel.hashCode();
+
         return result;
     }
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return "IgniteSocketChannelImpl{" +
-            "key=" + key +
-            ", channel=" + channel +
-            ", config=" + config +
-            ", policy=" + plc +
-            ", topic=" + topic +
-            ", grpId=" + grpId +
-            '}';
+        return S.toString(IgniteSocketChannelImpl.class, this);
     }
 }

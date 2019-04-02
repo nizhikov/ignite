@@ -7,6 +7,7 @@ import java.net.SocketOptions;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.AbstractSelectableChannel;
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  * A channel configuration for the {@link IgniteSocketChannel}.
@@ -19,7 +20,7 @@ public final class IgniteSocketChannelConfig {
     private final Socket socket;
 
     /**
-     *
+     * @param channel The socket channel to create configuration from.
      */
     public IgniteSocketChannelConfig(SocketChannel channel) {
         this.channel = channel;
@@ -36,7 +37,7 @@ public final class IgniteSocketChannelConfig {
     /**
      * Sets channel's blocking mode by {@link AbstractSelectableChannel#configureBlocking(boolean)} .
      */
-    public IgniteSocketChannelConfig setBlocking(boolean blocking) {
+    public IgniteSocketChannelConfig configureBlocking(boolean blocking) {
         try {
             channel.configureBlocking(blocking);
         }
@@ -48,87 +49,9 @@ public final class IgniteSocketChannelConfig {
     }
 
     /**
-     * Gets the {@link SocketOptions#TCP_NODELAY} option.
-     */
-    public boolean isTcpNoDelay() {
-        try {
-            return socket.getTcpNoDelay();
-        }
-        catch (SocketException e) {
-            throw new IgniteException(e);
-        }
-    }
-
-    /**
-     * Sets the {@link SocketOptions#TCP_NODELAY} option.
-     */
-    public IgniteSocketChannelConfig setTcpNoDelay(boolean tcpNoDelay) {
-        try {
-            socket.setTcpNoDelay(tcpNoDelay);
-        }
-        catch (SocketException e) {
-            throw new IgniteException(e);
-        }
-
-        return this;
-    }
-
-    /**
-     * Gets the {@link SocketOptions#SO_SNDBUF} option.
-     */
-    public int getSendBufferSize() {
-        try {
-            return socket.getSendBufferSize();
-        }
-        catch (SocketException e) {
-            throw new IgniteException(e);
-        }
-    }
-
-    /**
-     * Sets the {@link SocketOptions#SO_SNDBUF} option.
-     */
-    public IgniteSocketChannelConfig setSendBufferSize(int sendBufferSize) {
-        try {
-            socket.setSendBufferSize(sendBufferSize);
-        }
-        catch (SocketException e) {
-            throw new IgniteException(e);
-        }
-
-        return this;
-    }
-
-    /**
-     * Gets the {@link SocketOptions#SO_RCVBUF} option.
-     */
-    public int getReceiveBufferSize() {
-        try {
-            return socket.getReceiveBufferSize();
-        }
-        catch (SocketException e) {
-            throw new IgniteException(e);
-        }
-    }
-
-    /**
-     * Sets the {@link SocketOptions#SO_RCVBUF} option.
-     */
-    public IgniteSocketChannelConfig setReceiveBufferSize(int receiveBufferSize) {
-        try {
-            socket.setReceiveBufferSize(receiveBufferSize);
-        }
-        catch (SocketException e) {
-            throw new IgniteException(e);
-        }
-
-        return this;
-    }
-
-    /**
      * Gets the {@link SocketOptions#SO_TIMEOUT} option.
      */
-    public int getConnectTimeoutMillis() {
+    public int getSoTimeout() {
         try {
             return socket.getSoTimeout();
         }
@@ -140,7 +63,7 @@ public final class IgniteSocketChannelConfig {
     /**
      * Sets the {@link SocketOptions#SO_TIMEOUT} option.
      */
-    public IgniteSocketChannelConfig setConnectTimeoutMillis(int connectTimeoutMillis) {
+    public IgniteSocketChannelConfig setSoTimeout(int connectTimeoutMillis) {
         try {
             socket.setSoTimeout(connectTimeoutMillis);
         }
@@ -153,9 +76,6 @@ public final class IgniteSocketChannelConfig {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return "IgniteSocketChannelConfig{" +
-            "channel=" + channel +
-            ", socket=" + socket +
-            '}';
+        return S.toString(IgniteSocketChannelConfig.class, this);
     }
 }
