@@ -21,9 +21,13 @@ import java.io.IOException;
 import java.nio.channels.SocketChannel;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
+import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateRequestMessage;
 
 /**
  *
@@ -74,6 +78,13 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     /** {@inheritDoc} */
     @Override public SocketChannel channel() {
         return channel;
+    }
+
+    /** {@inheritDoc} */
+    @Override public void configure(GridSelectorNioSession ses, Message msg) throws IgniteCheckedException {
+        assert ses.key().channel() == channel;
+
+        ses.send(new ChannelCreateRequestMessage(msg)).get();
     }
 
     /** {@inheritDoc} */

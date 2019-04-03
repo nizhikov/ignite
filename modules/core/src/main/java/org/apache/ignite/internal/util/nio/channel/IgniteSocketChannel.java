@@ -20,8 +20,11 @@ package org.apache.ignite.internal.util.nio.channel;
 import java.io.Closeable;
 import java.nio.channels.SocketChannel;
 import java.util.UUID;
+import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
+import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
+import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 
 /**
@@ -38,16 +41,29 @@ public interface IgniteSocketChannel extends Closeable {
      */
     public int id();
 
-    /** */
+    /**
+     * @return The underlying java nio {@link SocketChannel} used by the current channel.
+     */
     public SocketChannel channel();
+
+    /**
+     * @param ses The nio session to send configure request over it.
+     * @param msg The configuration channel message.
+     * @throws IgniteCheckedException If fails.
+     */
+    public void configure(GridSelectorNioSession ses, Message msg) throws IgniteCheckedException;
 
     /** */
     public IgniteSocketChannelConfig config();
 
-    /** */
+    /**
+     * @return <tt>true</tt> if the channel is configured and ready to use.
+     */
     public boolean ready();
 
-    /** */
+    /**
+     * Make the channel ready for use.
+     */
     public void setReady();
 
     /**

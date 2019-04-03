@@ -758,13 +758,12 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                 }
             }
 
-            /** */
             private void onChannelRequest(
                 GridSelectorNioSession ses,
                 ConnectionKey connKey,
                 ChannelCreateRequestMessage msg
             ) {
-                IgniteSocketChannel ch = createIgniteSocketChannel(ses, connKey);
+                IgniteSocketChannel ch = createIgniteSocketChannel((SocketChannel)ses.key().channel(), connKey);
 
                 if (lsnr != null)
                     lsnr.onChannelConfigure(ch, msg.getMessage());
@@ -4307,18 +4306,15 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
     }
 
     /**
-     * @param ses A nio session to create channel with.
+     * @param ch An underlying nio channel.
      * @param connKey Unique channel connection key.
      * @return Created, but not configured channel.
      */
     private IgniteSocketChannel createIgniteSocketChannel(
-        GridSelectorNioSession ses,
+        SocketChannel ch,
         ConnectionKey connKey
     ) {
-        SelectionKey key = ses.key();
-
-        IgniteSocketChannel sockCh =
-            new IgniteSocketChannelImpl(connKey, (SocketChannel)key.channel(), this);
+        IgniteSocketChannel sockCh = new IgniteSocketChannelImpl(connKey, ch, this);
 
         IgniteSocketChannel ch0 = channels.putIfAbsent(connKey, sockCh);
 
@@ -4339,6 +4335,8 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
     /** {@inheritDoc} */
     @Override public IgniteSocketChannel channel(ClusterNode remote, Message msg) throws IgniteSpiException {
+        assert !remote.isLocal() : remote;
+
         if (!nodeSupports(remote, CHANNEL_COMMUNICATION)) {
             throw new IgniteSpiException("The remote node doesn't support communication via socket channels " +
                 "[nodeId=" + remote.id() + ']');
@@ -4359,10 +4357,10 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
             ses = (GridSelectorNioSession)createNioSession(remote, connKey.connectionIndex());
 
-            sockCh = createIgniteSocketChannel(ses, connKey);
+            sockCh = createIgniteSocketChannel((SocketChannel)ses.key().channel(), connKey);
 
             // Send configuration message new GridIoMessage(msg, ..)
-            ses.send(new ChannelCreateRequestMessage(msg)).get();
+            sockCh.configure(ses, msg);
 
             // Synchronous wait for the reply (channel created and configured on the remote side)
             long curTime = U.currentTimeMillis();
@@ -4378,7 +4376,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                 curTime = U.currentTimeMillis();
 
                 if (curTime >= endTime)
-                    throw new IgniteCheckedException("Failed to perform channel configuration procedure due to timeout");
+                    throw new IgniteCheckedException("Failed to perform channel configuration due to timeout");
             }
 
             assert ses.closed();

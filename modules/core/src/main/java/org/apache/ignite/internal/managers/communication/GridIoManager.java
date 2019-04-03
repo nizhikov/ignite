@@ -138,11 +138,12 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     /** Direct protocol version. */
     public static final byte DIRECT_PROTO_VER = 3;
 
-    /** The default topic for channels without topic property. */
-    private static final Object DFLT_CHANNEL_TOPIC = new Object();
-
     /** Current IO policy. */
     private static final ThreadLocal<Byte> CUR_PLC = new ThreadLocal<>();
+
+    /** Channel listeners by topic. */
+    private final ConcurrentMap<Object, ConcurrentLinkedQueue<GridIoChannelListener>> channelLsnrMap =
+        new ConcurrentHashMap<>();
 
     /** Listeners by topic. */
     private final ConcurrentMap<Object, GridMessageListener> lsnrMap = new ConcurrentHashMap<>();
@@ -155,10 +156,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
     /** Disconnect listeners. */
     private final Collection<GridDisconnectListener> disconnectLsnrs = new ConcurrentLinkedQueue<>();
-
-    /** Channel listeners by topic. */
-    private final ConcurrentMap<Object, ConcurrentLinkedQueue<GridIoChannelListener>> channelLsnrMap =
-        new ConcurrentHashMap<>();
 
     /** Pool processor. */
     private final PoolProcessor pools;
@@ -283,7 +280,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
             @Override public void onChannelConfigure(IgniteSocketChannel ch, Serializable msg) {
                 try {
-                    onChannelConfigure0(ch, (GridIoMessage)msg);
+                    if (msg instanceof GridIoMessage)
+                        onChannelConfigure0(ch, (GridIoMessage)msg);
                 }
                 catch (ClassCastException ignored) {
                     U.error(log, "Unknown type of channel configuration message received (will ignore): " +
@@ -937,11 +935,10 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      */
     private void onChannelCreated0(UUID nodeId, IgniteSocketChannel ch) {
         assert ch != null;
-
-        Object topic = ch.topic() == null ? DFLT_CHANNEL_TOPIC : ch.topic();
+        assert ch.topic() != null;
 
         try {
-            final ConcurrentLinkedQueue<GridIoChannelListener> lsnrQueue = channelLsnrMap.get(topic);
+            final ConcurrentLinkedQueue<GridIoChannelListener> lsnrQueue = channelLsnrMap.get(ch.topic());
 
             if (log.isInfoEnabled())
                 log.info("Notify listeners on channel created [channel=" + ch +
@@ -1692,7 +1689,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     ) throws IgniteCheckedException {
         assert node != null;
         assert topic != null;
-        assert topicOrd >= 0 || !(topic instanceof GridTopic);
+        assert (topicOrd >= 0 && topic instanceof GridTopic) ||
+            (topicOrd < 0 && !(topic instanceof GridTopic));
 
         GridIoMessage cfgMsg = new GridIoMessage(plc, topic, topicOrd, null, false, 0, false);
 
@@ -1716,23 +1714,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     }
 
     /**
-     * @param node Destination node.
-     * @param topic Topic to send the message to.
-     * @param plc Thread policy to execute on.
-     * @return Established {@link IgniteSocketChannel} to use.
-     * @throws IgniteCheckedException If fails.
-     */
-    public IgniteSocketChannel channelToTopic(
-        ClusterNode node,
-        Object topic,
-        byte plc
-    ) throws IgniteCheckedException {
-        return topic instanceof GridTopic ?
-            channel(node, topic, ((Enum<GridTopic>)topic).ordinal(), plc) :
-            channel(node, topic, -1, plc);
-    }
-
-    /**
      * @param nodeId Destination node.
      * @param topic Topic to send the message to.
      * @param plc Thread policy to execute on.
@@ -1749,7 +1730,9 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         if (node == null)
             throw new ClusterTopologyCheckedException("Failed to send message to node (has node left grid?): " + nodeId);
 
-        return channel(node, topic, -1, plc);
+        return topic instanceof GridTopic ?
+            channel(node, topic, ((Enum<GridTopic>)topic).ordinal(), plc) :
+            channel(node, topic, -1, plc);
     }
 
     /**
@@ -2192,33 +2175,18 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     }
 
     /**
-     * @param lsnr Listener to add.
-     */
-    public void addChannelListener(GridIoChannelListener lsnr) {
-        addChannelListener(DFLT_CHANNEL_TOPIC, lsnr);
-    }
-
-    /**
-     * @param lsnr Listener to remote.
-     */
-    public void removeChannelListener(GridIoChannelListener lsnr) {
-        removeChannelListener(DFLT_CHANNEL_TOPIC, lsnr);
-    }
-
-    /**
      * @param topic Topic to add new listen to.
      * @param lsnr Listener to add to specified topic.
      */
     public void addChannelListener(Object topic, GridIoChannelListener lsnr) {
         assert lsnr != null;
-
-        Object topic0 = topic == null ? DFLT_CHANNEL_TOPIC : topic;
+        assert topic != null;
 
         synchronized (channelLsnrMap) {
-            ConcurrentLinkedQueue<GridIoChannelListener> lsnrQueue = channelLsnrMap.get(topic0);
+            ConcurrentLinkedQueue<GridIoChannelListener> lsnrQueue = channelLsnrMap.get(topic);
 
             if (lsnrQueue == null)
-                channelLsnrMap.put(topic0, lsnrQueue = new ConcurrentLinkedQueue<>());
+                channelLsnrMap.put(topic, lsnrQueue = new ConcurrentLinkedQueue<>());
 
             lsnrQueue.add(lsnr);
         }
@@ -2229,13 +2197,13 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @param lsnr The listener instance to remove, or {@code null} to remove all listneres of specified topic.
      */
     public void removeChannelListener(Object topic, GridIoChannelListener lsnr) {
-        Object topic0 = topic == null ? DFLT_CHANNEL_TOPIC : topic;
+        assert topic != null;
 
         synchronized (channelLsnrMap) {
             if (lsnr == null)
-                channelLsnrMap.remove(topic0);
+                channelLsnrMap.remove(topic);
 
-            ConcurrentLinkedQueue<GridIoChannelListener> lsnrQueue = channelLsnrMap.get(topic0);
+            ConcurrentLinkedQueue<GridIoChannelListener> lsnrQueue = channelLsnrMap.get(topic);
 
             if (lsnrQueue != null)
                 lsnrQueue.remove(lsnr);
