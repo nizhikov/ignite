@@ -54,7 +54,7 @@ public interface CommunicationListener<T extends Serializable> extends EventList
      * @param ch Channel to configure.
      * @param msg Configuration message.
      */
-    public default void onChannelConfigure(IgniteSocketChannel ch, @Nullable T msg) {
+    public default void onChannelConfigure(IgniteSocketChannel ch, T msg) {
         // No-op.
     }
 

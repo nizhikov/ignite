@@ -27,7 +27,6 @@ import org.apache.ignite.IgniteException;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.managers.communication.GridIoChannelListener;
 import org.apache.ignite.internal.managers.communication.GridIoManager;
-import org.apache.ignite.internal.util.nio.channel.IgniteIoSocketChannel;
 import org.apache.ignite.internal.util.nio.channel.IgniteSocketChannel;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
@@ -42,14 +41,10 @@ import static org.apache.ignite.internal.managers.communication.GridIoPolicy.PUB
  *
  */
 public class TcpCommunicationSpiChannelSelfTest extends GridCommonAbstractTest {
-    /**
-     *
-     */
+    /** Default IP finder. */
     private static final TcpDiscoveryIpFinder IP_FINDER = new TcpDiscoveryVmIpFinder(true);
 
-    /**
-     *
-     */
+    /** The number of test nodes. */
     private static final int NODES_CNT = 2;
 
     /** {@inheritDoc} */
@@ -83,9 +78,9 @@ public class TcpCommunicationSpiChannelSelfTest extends GridCommonAbstractTest {
         Object topic = TOPIC_CACHE.topic("channel", 0);
 
         grid(1).context().io().addChannelListener(topic, new GridIoChannelListener() {
-            @Override public void onChannelCreated(UUID nodeId, IgniteIoSocketChannel channel) {
+            @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
                 // Created from ignite node with index = 0;
-                if (channel.id().nodeId().equals(grid(0).localNode().id())) {
+                if (channel.remoteNodeId().equals(grid(0).localNode().id())) {
                     nioCh[0] = channel;
 
                     waitChLatch.countDown();

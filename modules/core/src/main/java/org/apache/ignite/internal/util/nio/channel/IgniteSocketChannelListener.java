@@ -17,30 +17,15 @@
 
 package org.apache.ignite.internal.util.nio.channel;
 
-import org.apache.ignite.internal.GridTopic;
-import org.apache.ignite.internal.managers.communication.GridIoPolicy;
+import java.util.EventListener;
+import java.util.UUID;
 
 /**
- * Communication TCP/IP socket.
+ * Listener for the channel events.
  */
-public interface IgniteIoSocketChannel extends IgniteSocketChannel {
+public interface IgniteSocketChannelListener extends EventListener {
     /**
-     * @return The type of {@link GridIoPolicy} which defines the processing policy by the communication manager.
+     * @param channel The channel source of close event.
      */
-    public byte policy();
-
-    /**
-     * @param plc The type of {@link GridIoPolicy} to define the processing policy by the communication manager.
-     */
-    public void policy(byte plc);
-
-    /**
-     * @return The communication topic of {@link GridTopic} shows the established channel connection from.
-     */
-    public Object topic();
-
-    /**
-     * @param topic The communication topic of {@link GridTopic} to establish channel connection to.
-     */
-    public void topic(Object topic);
+    public void onChannelClose(IgniteSocketChannel channel);
 }

@@ -28,6 +28,7 @@ import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.SelectableChannel;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.AbstractInterruptibleChannel;
 import java.util.ArrayList;
@@ -42,11 +43,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLEngine;
@@ -102,6 +103,8 @@ import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
 import org.apache.ignite.internal.util.nio.GridShmemCommunicationClient;
 import org.apache.ignite.internal.util.nio.GridTcpNioCommunicationClient;
 import org.apache.ignite.internal.util.nio.channel.IgniteSocketChannel;
+import org.apache.ignite.internal.util.nio.channel.IgniteSocketChannelImpl;
+import org.apache.ignite.internal.util.nio.channel.IgniteSocketChannelListener;
 import org.apache.ignite.internal.util.nio.ssl.BlockingSslHandler;
 import org.apache.ignite.internal.util.nio.ssl.GridNioSslFilter;
 import org.apache.ignite.internal.util.nio.ssl.GridSslMeta;
@@ -281,7 +284,8 @@ import static org.apache.ignite.spi.communication.tcp.messages.RecoveryLastRecei
  */
 @IgniteSpiMultipleInstancesSupport(true)
 @IgniteSpiConsistencyChecked(optional = false)
-public class TcpCommunicationSpi extends IgniteSpiAdapter implements CommunicationSpi<Message> {
+public class TcpCommunicationSpi extends IgniteSpiAdapter
+    implements CommunicationSpi<Message>, IgniteSocketChannelListener {
     /** Time threshold to log too long connection establish. */
     private static final int CONNECTION_ESTABLISH_THRESHOLD_MS = 100;
 
@@ -383,7 +387,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
     public static final int MAX_CONN_PER_NODE = 1024;
 
     /** Maximum {@link IgniteSocketChannel} connections per node. */
-    public static final int MAX_SOCK_CONN_PER_NODE = 1024;
+    public static final int MAX_CHANNEL_CONN_PER_NODE = 256;
 
     /** No-op runnable. */
     private static final IgniteRunnable NOOP = new IgniteRunnable() {
@@ -411,7 +415,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
     private ConnectionPolicy connPlc = new FirstConnectionPolicy();
 
     /** */
-    private ConnectionPolicy sockConnPlc = new RandomConnectionPolicy();
+    private ConnectionPolicy sockConnPlc = new ChannelRandomConnectionPolicy();
 
     /** */
     private boolean enableForcibleNodeKill = IgniteSystemProperties
@@ -760,33 +764,28 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                 ConnectionKey connKey,
                 ChannelCreateRequestMessage msg
             ) {
-                try {
-                    IgniteSocketChannel ch = nioSrvr.createNioChannel(ses, connKey);
+                IgniteSocketChannel ch = createSocketChannel(ses, connKey);
 
-                    if (lsnr != null)
-                        lsnr.onChannelConfigure(ch, msg.getMessage());
+                if (lsnr != null)
+                    lsnr.onChannelConfigure(ch, msg.getMessage());
 
-                    ses.send(new ChannelCreateResponseMessage(true)).listen(c1 -> {
-                        // Close session and send response.
-                        ses.closeSocketOnSessionClose(false);
+                ses.send(new ChannelCreateResponseMessage(true)).listen(c1 -> {
+                    // Close session and send response.
+                    ses.closeSocketOnSessionClose(false);
 
-                        ses.close().listen(c2 -> {
-                            try {
-                                ch.channel().configureBlocking(true);
+                    ses.close().listen(c2 -> {
+                        try {
+                            ch.channel().configureBlocking(true);
 
-                                ch.setReady();
+                            ch.setReady();
 
-                                onChannelCreated(connKey.nodeId(), ch);
-                            }
-                            catch (IOException e) {
-                                U.error(log, "Unable to configure blocking mode.", e);
-                            }
-                        });
+                            onChannelCreated(connKey.nodeId(), ch);
+                        }
+                        catch (IOException e) {
+                            U.error(log, "Unable to configure blocking mode.", e);
+                        }
                     });
-                }
-                catch (IgniteCheckedException e) {
-                    U.error(log, "Failed to process message (will ignore): " + msg, e);
-                }
+                });
             }
 
             @Override public void onMessage(final GridNioSession ses, Message msg) {
@@ -896,7 +895,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                             c.run();
                     }
                     else if (msg instanceof ChannelCreateResponseMessage) {
-                        IgniteSocketChannel ch = nioSrvr.getNioSocketChannel(connKey);
+                        IgniteSocketChannel ch = socketChannel(connKey);
 
                         assert ch != null : "Channel doesnt' exist for key: " + connKey;
 
@@ -909,7 +908,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                                 ch.setReady();
                             }
                             catch (IOException e) {
-                                U.error(log, "Unable to configure blocking mode.", e);
+                                U.error(log, "Unable to configure blocking mode", e);
                             }
                         });
 
@@ -1263,6 +1262,9 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
 
     /** Clients. */
     private final ConcurrentMap<UUID, GridCommunicationClient[]> clients = GridConcurrentFactory.newMap();
+
+    /** Java NIO channels. */
+    private final ConcurrentMap<ConnectionKey, IgniteSocketChannel> channels = new ConcurrentHashMap<>();
 
     /** SPI listener. */
     private volatile CommunicationListener<Message> lsnr;
@@ -4299,6 +4301,44 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
     }
 
     /** {@inheritDoc} */
+    @Override public void onChannelClose(IgniteSocketChannel channel) {
+        assert channel != null;
+
+        channels.remove(new ConnectionKey(channel.remoteNodeId(), channel.id()));
+    }
+
+    /**
+     * @param ses A nio session to create channel with.
+     * @param connKey Unique channel connection key.
+     * @return Created, but not configured channel.
+     */
+    private IgniteSocketChannel createSocketChannel(
+        GridSelectorNioSession ses,
+        ConnectionKey connKey
+    ) {
+        SelectionKey key = ses.key();
+
+        IgniteSocketChannel sockCh =
+            new IgniteSocketChannelImpl(connKey, (SocketChannel)key.channel(), this);
+
+        IgniteSocketChannel ch0 = channels.putIfAbsent(connKey, sockCh);
+
+        assert ch0 == null : "A connection key already exists: " + connKey;
+
+        U.log(log, "The channel has been successfully created: " + sockCh);
+
+        return sockCh;
+    }
+
+    /**
+     * @param key The unique connection key of socket channel.
+     * @return The corresponding channel.
+     */
+    private IgniteSocketChannel socketChannel(ConnectionKey key) {
+        return channels.get(key);
+    }
+
+    /** {@inheritDoc} */
     @Override public IgniteSocketChannel channel(ClusterNode remote, Message msg) throws IgniteSpiException {
         if (!nodeSupports(remote, CHANNEL_COMMUNICATION)) {
             throw new IgniteSpiException("The remote node doesn't support communication via socket channels " +
@@ -4313,13 +4353,12 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
         GridSelectorNioSession ses = null;
 
         try {
-            // TODO: add retry count for connKey
-            if (nioSrvr.getNioSocketChannel(connKey) != null)
-                throw new IgniteCheckedException("Connection key already used: " + connKey);
+            if (socketChannel(connKey) != null)
+                throw new IgniteCheckedException("Connection key already in use: " + connKey);
 
             ses = (GridSelectorNioSession)createNioSession(remote, connKey.connectionIndex());
 
-            nioCh = nioSrvr.createNioChannel(ses, connKey);
+            nioCh = createSocketChannel(ses, connKey);
 
             // Send configuration message new GridIoMessage(msg, ..)
             ses.send(new ChannelCreateRequestMessage(msg)).get();
@@ -5032,10 +5071,10 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
     }
 
     /** */
-    private static class RandomConnectionPolicy implements ConnectionPolicy {
+    private static class ChannelRandomConnectionPolicy implements ConnectionPolicy {
         /** {@inheritDoc} */
         @Override public int connectionIndex() {
-            return ThreadLocalRandom.current().nextInt(MAX_CONN_PER_NODE + 1, MAX_CONN_PER_NODE + MAX_SOCK_CONN_PER_NODE);
+            return MAX_CONN_PER_NODE + (int)(U.safeAbs(Thread.currentThread().getId() % MAX_CHANNEL_CONN_PER_NODE));
         }
     }
 

@@ -77,7 +77,6 @@ import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.lang.GridTuple3;
 import org.apache.ignite.internal.util.lang.IgnitePair;
-import org.apache.ignite.internal.util.nio.channel.IgniteIoSocketChannel;
 import org.apache.ignite.internal.util.nio.channel.IgniteSocketChannel;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.F;
@@ -284,8 +283,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
             @Override public void onChannelConfigure(IgniteSocketChannel ch, Serializable msg) {
                 try {
-                    if (ch instanceof IgniteIoSocketChannel)
-                        onChannelConfigure0((IgniteIoSocketChannel)ch, (GridIoMessage)msg);
+                    onChannelConfigure0(ch, (GridIoMessage)msg);
                 }
                 catch (ClassCastException ignored) {
                     U.error(log, "Unknown type of channel configuration message received (will ignore): " +
@@ -294,8 +292,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
             }
 
             @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel ch) {
-                if (ch instanceof IgniteIoSocketChannel)
-                    onChannelCreated0(nodeId, (IgniteIoSocketChannel)ch);
+                onChannelCreated0(nodeId, ch);
             }
         });
 
@@ -938,7 +935,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @param nodeId The remote node id.
      * @param ch The channel to notify listeners with.
      */
-    private void onChannelCreated0(UUID nodeId, IgniteIoSocketChannel ch) {
+    private void onChannelCreated0(UUID nodeId, IgniteSocketChannel ch) {
         assert ch != null;
 
         Object topic = ch.topic() == null ? DFLT_CHANNEL_TOPIC : ch.topic();
@@ -967,11 +964,9 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     }
 
     /** */
-    private void onChannelConfigure0(IgniteIoSocketChannel ch, GridIoMessage msg) {
+    private void onChannelConfigure0(IgniteSocketChannel ch, GridIoMessage msg) {
         assert ch != null;
-
-        if (msg == null)
-            return;
+        assert msg != null;
 
         busyLock.readLock().lock();
 
@@ -1686,7 +1681,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @return Established {@link IgniteSocketChannel} to use.
      * @throws IgniteCheckedException If fails.
      */
-    private IgniteIoSocketChannel channel(
+    private IgniteSocketChannel channel(
         ClusterNode node,
         Object topic,
         int topicOrd,
@@ -1702,7 +1697,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
             cfgMsg.topicBytes(U.marshal(marsh, topic));
 
         try {
-            return (IgniteIoSocketChannel)getSpi().channel(node, cfgMsg);
+            return getSpi().channel(node, cfgMsg);
         }
         catch (IgniteSpiException e) {
             if (e.getCause() instanceof ClusterTopologyCheckedException)
@@ -1724,7 +1719,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @return Established {@link IgniteSocketChannel} to use.
      * @throws IgniteCheckedException If fails.
      */
-    public IgniteIoSocketChannel channelToTopic(
+    public IgniteSocketChannel channelToTopic(
         ClusterNode node,
         Object topic,
         byte plc

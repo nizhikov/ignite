@@ -19,6 +19,9 @@ package org.apache.ignite.internal.util.nio.channel;
 
 import java.io.Closeable;
 import java.nio.channels.SocketChannel;
+import java.util.UUID;
+import org.apache.ignite.internal.GridTopic;
+import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 
 /**
@@ -26,9 +29,14 @@ import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
  */
 public interface IgniteSocketChannel extends Closeable {
     /**
-     * Todo ConnectionKey is the inner object to CommunicationSpi. Change
+     * @return The remote node id the channel refers to.
      */
-    public ConnectionKey id();
+    public UUID remoteNodeId();
+
+    /**
+     * @return Connection sequence to remote node.
+     */
+    public int id();
 
     /** */
     public SocketChannel channel();
@@ -41,4 +49,24 @@ public interface IgniteSocketChannel extends Closeable {
 
     /** */
     public void setReady();
+
+    /**
+     * @return The type of {@link GridIoPolicy} which defines the processing policy by the communication manager.
+     */
+    public byte policy();
+
+    /**
+     * @param plc The type of {@link GridIoPolicy} to define the processing policy by the communication manager.
+     */
+    public void policy(byte plc);
+
+    /**
+     * @return The communication topic of {@link GridTopic} shows the established channel connection from.
+     */
+    public Object topic();
+
+    /**
+     * @param topic The communication topic of {@link GridTopic} to establish channel connection to.
+     */
+    public void topic(Object topic);
 }
