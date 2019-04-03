@@ -2683,7 +2683,11 @@ public class GridNioServer<T> {
             }
         }
 
-        /** */
+        /**
+         * @param ses Session to be closed.
+         * @param e Exception to be passed to the listener, if any.
+         * @return {@code True} if this call closed the ses.
+         */
         protected boolean close(final GridSelectorNioSessionImpl ses, @Nullable final IgniteCheckedException e) {
             return close(ses, e, ses.closeSocketOnSessionClose());
         }

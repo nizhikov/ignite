@@ -963,7 +963,10 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         }
     }
 
-    /** */
+    /**
+     * @param ch The channel to configure to.
+     * @param msg The configuration message.
+     */
     private void onChannelConfigure0(IgniteSocketChannel ch, GridIoMessage msg) {
         assert ch != null;
         assert msg != null;
