@@ -764,7 +764,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                 ConnectionKey connKey,
                 ChannelCreateRequestMessage msg
             ) {
-                IgniteSocketChannel ch = createSocketChannel(ses, connKey);
+                IgniteSocketChannel ch = createIgniteSocketChannel(ses, connKey);
 
                 if (lsnr != null)
                     lsnr.onChannelConfigure(ch, msg.getMessage());
@@ -4311,7 +4311,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
      * @param connKey Unique channel connection key.
      * @return Created, but not configured channel.
      */
-    private IgniteSocketChannel createSocketChannel(
+    private IgniteSocketChannel createIgniteSocketChannel(
         GridSelectorNioSession ses,
         ConnectionKey connKey
     ) {
@@ -4346,48 +4346,54 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
         connectGate.enter();
 
-        ConnectionKey connKey = new ConnectionKey(remote.id(), sockConnPlc.connectionIndex(), -1);
+        ConnectionKey connKey = new ConnectionKey(remote.id(), sockConnPlc.connectionIndex());
 
-        IgniteSocketChannel nioCh;
+        IgniteSocketChannel sockCh = null;
         GridSelectorNioSession ses = null;
 
         try {
-            if (socketChannel(connKey) != null)
-                throw new IgniteCheckedException("Connection key already in use: " + connKey);
+            if (socketChannel(connKey) != null) {
+                throw new IgniteSpiException("The channel connection cannot be established to remote node. " +
+                    "Connection key already in use: " + connKey);
+            }
 
             ses = (GridSelectorNioSession)createNioSession(remote, connKey.connectionIndex());
 
-            nioCh = createSocketChannel(ses, connKey);
+            sockCh = createIgniteSocketChannel(ses, connKey);
 
             // Send configuration message new GridIoMessage(msg, ..)
             ses.send(new ChannelCreateRequestMessage(msg)).get();
 
-            // Wait for the reply (channel created on the remote side)
-            // TODO create handshake timeout obj
+            // Synchronous wait for the reply (channel created and configured on the remote side)
             long curTime = U.currentTimeMillis();
-            long endTime = curTime + 15_000L;
 
-            while (curTime < endTime) {
-                if (nioCh.ready())
-                    break;
+            long endTime = curTime + DFLT_CONN_TIMEOUT;
+
+            while (!sockCh.ready()) {
+                if (Thread.currentThread().isInterrupted())
+                    throw new InterruptedException("The thread has been interrupted during waiting channel configure response");
 
                 U.sleep(200);
 
                 curTime = U.currentTimeMillis();
+
+                if (curTime >= endTime)
+                    throw new IgniteCheckedException("Failed to perform channel configuration procedure due to timeout");
             }
 
-            if (!nioCh.ready())
-                throw new IgniteCheckedException("Timeout while getting response message");
+            assert ses.closed();
 
-            return nioCh;
+            return sockCh;
         }
-        catch (IgniteCheckedException e) {
+        catch (IgniteCheckedException | InterruptedException e) {
+            U.closeQuiet(sockCh);
+
+            throw new IgniteSpiException("Unable to create new channel connection to the remote node: " + remote, e);
+        }
+        finally {
             if (ses != null)
                 ses.close();
 
-            throw new IgniteSpiException("Failed to create channel to node: " + remote, e);
-        }
-        finally {
             connectGate.leave();
         }
     }

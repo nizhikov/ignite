@@ -1710,7 +1710,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 throw new ClusterTopologyCheckedException("Failed to create channel, node left: " + node.id(), e);
 
             throw new IgniteCheckedException("Failed to create channel (node may have left the grid or " +
-                "TCP connection cannot be established due to firewall issues) " +
+                "TCP connection cannot be established due to unknown issues) " +
                 "[node=" + node + ", topic=" + topic + ']', e);
         }
     }
