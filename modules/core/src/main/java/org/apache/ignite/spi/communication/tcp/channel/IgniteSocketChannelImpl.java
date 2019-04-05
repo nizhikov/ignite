@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.util.nio.channel;
+package org.apache.ignite.spi.communication.tcp.channel;
 
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
@@ -26,6 +26,7 @@ import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.plugin.extensions.communication.Message;
+import org.apache.ignite.spi.communication.ChannelListener;
 import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateRequestMessage;
 
@@ -40,7 +41,7 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     private final SocketChannel channel;
 
     /** */
-    private final IgniteSocketChannelListener lsnr;
+    private final ChannelListener lsnr;
 
     /** */
     private final IgniteSocketChannelConfig config;
@@ -58,7 +59,7 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
      * @param key Connection key.
      * @param channel The {@link SocketChannel} which will be used.
      */
-    public IgniteSocketChannelImpl(ConnectionKey key, SocketChannel channel, IgniteSocketChannelListener lsnr) {
+    public IgniteSocketChannelImpl(ConnectionKey key, SocketChannel channel, ChannelListener lsnr) {
         this.key = key;
         this.channel = channel;
         this.config = new IgniteSocketChannelConfig(channel);
@@ -66,7 +67,7 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     }
 
     /** {@inheritDoc} */
-    @Override public UUID remoteNodeId() {
+    @Override public UUID nodeId() {
         return key.nodeId();
     }
 

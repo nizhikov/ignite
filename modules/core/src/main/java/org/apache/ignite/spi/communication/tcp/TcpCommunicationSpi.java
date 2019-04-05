@@ -28,7 +28,6 @@ import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.SelectableChannel;
-import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.AbstractInterruptibleChannel;
 import java.util.ArrayList;
@@ -102,9 +101,10 @@ import org.apache.ignite.internal.util.nio.GridNioSessionMetaKey;
 import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
 import org.apache.ignite.internal.util.nio.GridShmemCommunicationClient;
 import org.apache.ignite.internal.util.nio.GridTcpNioCommunicationClient;
-import org.apache.ignite.internal.util.nio.channel.IgniteSocketChannel;
-import org.apache.ignite.internal.util.nio.channel.IgniteSocketChannelImpl;
-import org.apache.ignite.internal.util.nio.channel.IgniteSocketChannelListener;
+import org.apache.ignite.spi.communication.Channel;
+import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
+import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannelImpl;
+import org.apache.ignite.spi.communication.ChannelListener;
 import org.apache.ignite.internal.util.nio.ssl.BlockingSslHandler;
 import org.apache.ignite.internal.util.nio.ssl.GridNioSslFilter;
 import org.apache.ignite.internal.util.nio.ssl.GridSslMeta;
@@ -285,7 +285,7 @@ import static org.apache.ignite.spi.communication.tcp.messages.RecoveryLastRecei
 @IgniteSpiMultipleInstancesSupport(true)
 @IgniteSpiConsistencyChecked(optional = false)
 public class TcpCommunicationSpi extends IgniteSpiAdapter
-    implements CommunicationSpi<Message>, IgniteSocketChannelListener {
+    implements CommunicationSpi<Message>, ChannelListener {
     /** Time threshold to log too long connection establish. */
     private static final int CONNECTION_ESTABLISH_THRESHOLD_MS = 100;
 
@@ -4299,10 +4299,10 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
     }
 
     /** {@inheritDoc} */
-    @Override public void onChannelClose(IgniteSocketChannel channel) {
+    @Override public void onChannelClose(Channel channel) {
         assert channel != null;
 
-        channels.remove(new ConnectionKey(channel.remoteNodeId(), channel.id()));
+        channels.remove(new ConnectionKey(channel.nodeId(), channel.id()));
     }
 
     /**

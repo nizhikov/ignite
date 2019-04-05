@@ -15,17 +15,33 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.util.nio.channel;
+package org.apache.ignite.spi.communication;
 
-import java.util.EventListener;
+import java.io.Closeable;
 import java.util.UUID;
 
 /**
- * Listener for the channel events.
+ * A hub to a network direct communication between components which is capable of I/O
+ * operations such as read, write, connec.
  */
-public interface IgniteSocketChannelListener extends EventListener {
+public interface Channel extends Closeable {
     /**
-     * @param channel The channel source of close event.
+     * @return The remote node id the channel refers to.
      */
-    public void onChannelClose(IgniteSocketChannel channel);
+    public UUID nodeId();
+
+    /**
+     * @return Connection sequence to remote node.
+     */
+    public int id();
+
+    /**
+     * @return The channel's configuration.
+     */
+    public ChannelConfig config();
+
+    /**
+     * @return <tt>true</tt> if the channel is configured and ready to use.
+     */
+    public boolean ready();
 }

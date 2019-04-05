@@ -15,32 +15,20 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.util.nio.channel;
+package org.apache.ignite.spi.communication.tcp.channel;
 
-import java.io.Closeable;
 import java.nio.channels.SocketChannel;
-import java.util.UUID;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
+import org.apache.ignite.spi.communication.Channel;
 import org.apache.ignite.plugin.extensions.communication.Message;
-import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 
 /**
  * Communication TCP/IP socket.
  */
-public interface IgniteSocketChannel extends Closeable {
-    /**
-     * @return The remote node id the channel refers to.
-     */
-    public UUID remoteNodeId();
-
-    /**
-     * @return Connection sequence to remote node.
-     */
-    public int id();
-
+public interface IgniteSocketChannel extends Channel {
     /**
      * @return The underlying java nio {@link SocketChannel} used by the current channel.
      */
@@ -52,14 +40,6 @@ public interface IgniteSocketChannel extends Closeable {
      * @throws IgniteCheckedException If fails.
      */
     public void configure(GridSelectorNioSession ses, Message msg) throws IgniteCheckedException;
-
-    /** */
-    public IgniteSocketChannelConfig config();
-
-    /**
-     * @return <tt>true</tt> if the channel is configured and ready to use.
-     */
-    public boolean ready();
 
     /**
      * Make the channel ready for use.

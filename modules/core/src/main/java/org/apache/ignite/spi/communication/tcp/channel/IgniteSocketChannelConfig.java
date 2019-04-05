@@ -1,18 +1,17 @@
-package org.apache.ignite.internal.util.nio.channel;
+package org.apache.ignite.spi.communication.tcp.channel;
 
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketException;
-import java.net.SocketOptions;
 import java.nio.channels.SocketChannel;
-import java.nio.channels.spi.AbstractSelectableChannel;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.util.typedef.internal.S;
+import org.apache.ignite.spi.communication.ChannelConfig;
 
 /**
  * A channel configuration for the {@link IgniteSocketChannel}.
  */
-public final class IgniteSocketChannelConfig {
+public final class IgniteSocketChannelConfig implements ChannelConfig {
     /** */
     private final SocketChannel channel;
 
@@ -27,17 +26,13 @@ public final class IgniteSocketChannelConfig {
         this.socket = channel.socket();
     }
 
-    /**
-     * Gets the {@link AbstractSelectableChannel#isBlocking()} mode.
-     */
-    public boolean isBlocking() {
+    /** {@inheritDoc} */
+    @Override public boolean blocking() {
         return channel.isBlocking();
     }
 
-    /**
-     * Sets channel's blocking mode by {@link AbstractSelectableChannel#configureBlocking(boolean)} .
-     */
-    public IgniteSocketChannelConfig configureBlocking(boolean blocking) {
+    /** {@inheritDoc} */
+    @Override public ChannelConfig blocking(boolean blocking) {
         try {
             channel.configureBlocking(blocking);
         }
@@ -48,10 +43,8 @@ public final class IgniteSocketChannelConfig {
         return this;
     }
 
-    /**
-     * Gets the {@link SocketOptions#SO_TIMEOUT} option.
-     */
-    public int getSoTimeout() {
+    /** {@inheritDoc} */
+    @Override public int timeout() {
         try {
             return socket.getSoTimeout();
         }
@@ -60,12 +53,10 @@ public final class IgniteSocketChannelConfig {
         }
     }
 
-    /**
-     * Sets the {@link SocketOptions#SO_TIMEOUT} option.
-     */
-    public IgniteSocketChannelConfig setSoTimeout(int connectTimeoutMillis) {
+    /** {@inheritDoc} */
+    @Override public IgniteSocketChannelConfig timeout(int millis) {
         try {
-            socket.setSoTimeout(connectTimeoutMillis);
+            socket.setSoTimeout(millis);
         }
         catch (SocketException e) {
             throw new IgniteException(e);

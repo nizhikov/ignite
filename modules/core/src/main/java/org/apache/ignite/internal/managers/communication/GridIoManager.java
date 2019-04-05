@@ -77,7 +77,6 @@ import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.lang.GridTuple3;
 import org.apache.ignite.internal.util.lang.IgnitePair;
-import org.apache.ignite.internal.util.nio.channel.IgniteSocketChannel;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.X;
@@ -95,9 +94,11 @@ import org.apache.ignite.plugin.extensions.communication.MessageFormatter;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
 import org.apache.ignite.spi.IgniteSpiException;
+import org.apache.ignite.spi.communication.Channel;
 import org.apache.ignite.spi.communication.CommunicationListener;
 import org.apache.ignite.spi.communication.CommunicationSpi;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
+import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
@@ -278,10 +279,10 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     lsnr.onNodeDisconnected(nodeId);
             }
 
-            @Override public void onChannelConfigure(IgniteSocketChannel ch, Serializable msg) {
+            @Override public void onChannelConfigure(Channel ch, Serializable msg) {
                 try {
                     if (msg instanceof GridIoMessage)
-                        onChannelConfigure0(ch, (GridIoMessage)msg);
+                        onChannelConfigure0((IgniteSocketChannel)ch, (GridIoMessage)msg);
                 }
                 catch (ClassCastException ignored) {
                     U.error(log, "Unknown type of channel configuration message received (will ignore): " +
@@ -289,8 +290,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 }
             }
 
-            @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel ch) {
-                onChannelCreated0(nodeId, ch);
+            @Override public void onChannelCreated(UUID nodeId, Channel ch) {
+                onChannelCreated0(nodeId, (IgniteSocketChannel)ch);
             }
         });
 
@@ -1698,7 +1699,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
             cfgMsg.topicBytes(U.marshal(marsh, topic));
 
         try {
-            return getSpi().channel(node, cfgMsg);
+            return (IgniteSocketChannel)getSpi().channel(node, cfgMsg);
         }
         catch (IgniteSpiException e) {
             if (e.getCause() instanceof ClusterTopologyCheckedException)

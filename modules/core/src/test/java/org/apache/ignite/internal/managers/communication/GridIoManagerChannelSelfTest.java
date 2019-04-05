@@ -24,14 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteException;
-import org.apache.ignite.cluster.ClusterNode;
-import org.apache.ignite.configuration.IgniteConfiguration;
-import org.apache.ignite.internal.IgniteEx;
-import org.apache.ignite.internal.TestRecordingCommunicationSpi;
-import org.apache.ignite.internal.util.nio.channel.IgniteSocketChannel;
-import org.apache.ignite.lang.IgniteBiPredicate;
-import org.apache.ignite.plugin.extensions.communication.Message;
-import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateResponseMessage;
+import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.Test;
 
@@ -55,7 +48,7 @@ public class GridIoManagerChannelSelfTest extends GridCommonAbstractTest {
         grid(1).context().io().addChannelListener(topic, new GridIoChannelListener() {
             @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
                 // Created from ignite node with index = 0;
-                if (channel.remoteNodeId().equals(grid(0).localNode().id())) {
+                if (channel.nodeId().equals(grid(0).localNode().id())) {
                     nioCh[0] = channel;
 
                     waitChLatch.countDown();
