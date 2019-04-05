@@ -17,13 +17,12 @@
 
 package org.apache.ignite.spi.communication;
 
-import java.io.Closeable;
 import java.util.UUID;
 
 /**
  * A hub to a direct communication between ignite components which is capable of I/O operations such as read, write.
  */
-public interface Channel extends Closeable {
+public interface Channel extends AutoCloseable {
     /**
      * @return The remote node id the channel refers to.
      */
