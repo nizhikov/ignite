@@ -81,8 +81,12 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
         return channel;
     }
 
-    /** {@inheritDoc} */
-    @Override public void configure(GridSelectorNioSession ses, Message msg) throws IgniteCheckedException {
+    /**
+     * @param ses The nio session to send configure request over it.
+     * @param msg The configuration channel message.
+     * @throws IgniteCheckedException If fails.
+     */
+    public void configure(GridSelectorNioSession ses, Message msg) throws IgniteCheckedException {
         assert ses.key().channel() == channel;
 
         ses.send(new ChannelCreateRequestMessage(msg)).get();

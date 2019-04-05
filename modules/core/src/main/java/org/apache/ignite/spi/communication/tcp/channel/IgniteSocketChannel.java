@@ -35,13 +35,6 @@ public interface IgniteSocketChannel extends Channel {
     public SocketChannel channel();
 
     /**
-     * @param ses The nio session to send configure request over it.
-     * @param msg The configuration channel message.
-     * @throws IgniteCheckedException If fails.
-     */
-    public void configure(GridSelectorNioSession ses, Message msg) throws IgniteCheckedException;
-
-    /**
      * Make the channel ready for use.
      */
     public void setReady();

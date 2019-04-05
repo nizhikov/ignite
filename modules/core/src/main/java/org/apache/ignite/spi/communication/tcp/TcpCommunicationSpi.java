@@ -4310,11 +4310,11 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
      * @param connKey Unique channel connection key.
      * @return Created, but not configured channel.
      */
-    private IgniteSocketChannel createIgniteSocketChannel(
+    private IgniteSocketChannelImpl createIgniteSocketChannel(
         SocketChannel ch,
         ConnectionKey connKey
     ) {
-        IgniteSocketChannel sockCh = new IgniteSocketChannelImpl(connKey, ch, this);
+        IgniteSocketChannelImpl sockCh = new IgniteSocketChannelImpl(connKey, ch, this);
 
         IgniteSocketChannel ch0 = channels.putIfAbsent(connKey, sockCh);
 
@@ -4346,7 +4346,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
         ConnectionKey connKey = new ConnectionKey(remote.id(), sockConnPlc.connectionIndex());
 
-        IgniteSocketChannel sockCh = null;
+        IgniteSocketChannelImpl sockCh = null;
         GridSelectorNioSession ses = null;
 
         try {
