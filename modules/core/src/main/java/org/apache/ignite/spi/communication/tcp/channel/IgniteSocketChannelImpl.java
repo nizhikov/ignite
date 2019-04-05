@@ -47,7 +47,7 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     private final IgniteSocketChannelConfig config;
 
     /** */
-    private final AtomicBoolean ready = new AtomicBoolean();
+    private final AtomicBoolean active = new AtomicBoolean();
 
     /** */
     private byte plc;
@@ -98,13 +98,13 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     }
 
     /** {@inheritDoc} */
-    @Override public boolean ready() {
-        return ready.get();
+    @Override public boolean active() {
+        return active.get();
     }
 
     /** {@inheritDoc} */
-    @Override public void setReady() {
-        boolean res = ready.compareAndSet(false, true);
+    @Override public void activate() {
+        boolean res = active.compareAndSet(false, true);
 
         assert res;
     }

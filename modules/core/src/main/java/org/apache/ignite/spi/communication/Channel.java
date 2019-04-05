@@ -42,5 +42,5 @@ public interface Channel extends Closeable {
     /**
      * @return <tt>true</tt> if the channel is configured and ready to use.
      */
-    public boolean ready();
+    public boolean active();
 }

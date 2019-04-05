@@ -776,7 +776,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                         try {
                             ch.channel().configureBlocking(true);
 
-                            ch.setReady();
+                            ch.activate();
 
                             notifyListener(connKey.nodeId(), ch);
                         }
@@ -904,7 +904,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                             try {
                                 ch.channel().configureBlocking(true);
 
-                                ch.setReady();
+                                ch.activate();
                             }
                             catch (IOException e) {
                                 U.error(log, "Unable to configure blocking mode", e);
@@ -4367,7 +4367,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
             long endTime = curTime + DFLT_CONN_TIMEOUT;
 
-            while (!sockCh.ready()) {
+            while (!sockCh.active()) {
                 if (Thread.currentThread().isInterrupted())
                     throw new InterruptedException("The thread has been interrupted during waiting channel configure response");
 
