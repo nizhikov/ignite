@@ -80,7 +80,7 @@ public class TcpCommunicationSpiChannelSelfTest extends GridCommonAbstractTest {
         grid(1).context().io().addChannelListener(topic, new GridIoChannelListener() {
             @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
                 // Created from ignite node with index = 0;
-                if (channel.nodeId().equals(grid(0).localNode().id())) {
+                if (channel.id().remoteId().equals(grid(0).localNode().id())) {
                     nioCh[0] = channel;
 
                     waitChLatch.countDown();

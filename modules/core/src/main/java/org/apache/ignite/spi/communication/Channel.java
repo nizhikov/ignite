@@ -24,14 +24,9 @@ import java.util.UUID;
  */
 public interface Channel extends AutoCloseable {
     /**
-     * @return The remote node id the channel refers to.
+     * @return Connection id to remote node.
      */
-    public UUID nodeId();
-
-    /**
-     * @return Connection sequence to remote node.
-     */
-    public int id();
+    public ChannelId id();
 
     /**
      * @return The channel's configuration.
@@ -42,4 +37,10 @@ public interface Channel extends AutoCloseable {
      * @return <tt>true</tt> if the channel is configured and ready to use.
      */
     public boolean active();
+
+    /**
+     * Make the channel ready for use.
+     */
+    public void activate();
+
 }

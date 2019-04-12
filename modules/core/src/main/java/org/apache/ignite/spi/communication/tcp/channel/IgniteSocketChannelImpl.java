@@ -19,6 +19,7 @@ package org.apache.ignite.spi.communication.tcp.channel;
 
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteCheckedException;
@@ -26,6 +27,7 @@ import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.plugin.extensions.communication.Message;
+import org.apache.ignite.spi.communication.ChannelId;
 import org.apache.ignite.spi.communication.ChannelListener;
 import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateRequestMessage;
@@ -35,7 +37,7 @@ import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateRequestMess
  */
 public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     /** */
-    private final ConnectionKey key;
+    private final ChannelId id;
 
     /** */
     private final SocketChannel channel;
@@ -56,24 +58,18 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     private Object topic;
 
     /**
-     * @param key Connection key.
      * @param channel The {@link SocketChannel} which will be used.
      */
-    public IgniteSocketChannelImpl(ConnectionKey key, SocketChannel channel, ChannelListener lsnr) {
-        this.key = key;
+    public IgniteSocketChannelImpl(UUID remoteId, int idx, SocketChannel channel, ChannelListener lsnr) {
+        this.id = new ChannelId(remoteId, idx);
         this.channel = channel;
         this.config = new IgniteSocketChannelConfig(channel);
         this.lsnr = lsnr;
     }
 
     /** {@inheritDoc} */
-    @Override public UUID nodeId() {
-        return key.nodeId();
-    }
-
-    /** {@inheritDoc} */
-    @Override public int id() {
-        return key.connectionIndex();
+    @Override public ChannelId id() {
+        return id;
     }
 
     /** {@inheritDoc} */
@@ -144,21 +140,14 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
         if (o == null || getClass() != o.getClass())
             return false;
 
-        IgniteSocketChannelImpl channel1 = (IgniteSocketChannelImpl)o;
+        IgniteSocketChannelImpl channel = (IgniteSocketChannelImpl)o;
 
-        if (!key.equals(channel1.key))
-            return false;
-
-        return channel.equals(channel1.channel);
+        return id.equals(channel.id);
     }
 
     /** {@inheritDoc} */
     @Override public int hashCode() {
-        int result = key.hashCode();
-
-        result = 31 * result + channel.hashCode();
-
-        return result;
+        return Objects.hash(id);
     }
 
     /** {@inheritDoc} */

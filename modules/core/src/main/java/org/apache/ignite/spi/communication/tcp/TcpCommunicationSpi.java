@@ -102,6 +102,7 @@ import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
 import org.apache.ignite.internal.util.nio.GridShmemCommunicationClient;
 import org.apache.ignite.internal.util.nio.GridTcpNioCommunicationClient;
 import org.apache.ignite.spi.communication.Channel;
+import org.apache.ignite.spi.communication.ChannelId;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannelImpl;
 import org.apache.ignite.spi.communication.ChannelListener;
@@ -763,7 +764,9 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                 ConnectionKey connKey,
                 ChannelCreateRequestMessage msg
             ) {
-                IgniteSocketChannel ch = createIgniteSocketChannel((SocketChannel)ses.key().channel(), connKey);
+                IgniteSocketChannel ch = createIgniteSocketChannel(connKey.nodeId(),
+                    connKey.connectionIndex(),
+                    (SocketChannel)ses.key().channel());
 
                 if (lsnr != null)
                     lsnr.onChannelConfigure(ch, msg.getMessage());
@@ -894,7 +897,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                             c.run();
                     }
                     else if (msg instanceof ChannelCreateResponseMessage) {
-                        IgniteSocketChannel ch = socketChannel(connKey);
+                        IgniteSocketChannel ch = socketChannel(connKey.nodeId(), connKey.connectionIndex());
 
                         assert ch != null : "Channel doesnt' exist for key: " + connKey;
 
@@ -1256,7 +1259,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
     private final ConcurrentMap<UUID, GridCommunicationClient[]> clients = GridConcurrentFactory.newMap();
 
     /** Java NIO channels. */
-    private final ConcurrentMap<ConnectionKey, IgniteSocketChannel> channels = new ConcurrentHashMap<>();
+    private final ConcurrentMap<ChannelId, IgniteSocketChannel> channels = new ConcurrentHashMap<>();
 
     /** SPI listener. */
     private volatile CommunicationListener<Message> lsnr;
@@ -4302,23 +4305,25 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
     @Override public void onChannelClose(Channel channel) {
         assert channel != null;
 
-        channels.remove(new ConnectionKey(channel.nodeId(), channel.id()));
+        channels.remove(channel.id());
     }
 
     /**
      * @param ch An underlying nio channel.
-     * @param connKey Unique channel connection key.
+     * @param remoteId The remote node to connect to.
+     * @param idx Unique channel connection key.
      * @return Created, but not configured channel.
      */
     private IgniteSocketChannelImpl createIgniteSocketChannel(
-        SocketChannel ch,
-        ConnectionKey connKey
+        UUID remoteId,
+        int idx,
+        SocketChannel ch
     ) {
-        IgniteSocketChannelImpl sockCh = new IgniteSocketChannelImpl(connKey, ch, this);
+        IgniteSocketChannelImpl sockCh = new IgniteSocketChannelImpl(remoteId, idx, ch, this);
 
-        IgniteSocketChannel ch0 = channels.putIfAbsent(connKey, sockCh);
+        IgniteSocketChannel ch0 = channels.putIfAbsent(sockCh.id(), sockCh);
 
-        assert ch0 == null : "A connection key already exists: " + connKey;
+        assert ch0 == null : "A connection key already exists: " + sockCh.id();
 
         U.log(log, "The channel has been successfully created: " + sockCh);
 
@@ -4326,11 +4331,12 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
     }
 
     /**
-     * @param key The unique connection key of socket channel.
+     * @param remoteId The remote node id.
+     * @param idx The unique connection key of socket channel.
      * @return The corresponding channel.
      */
-    private IgniteSocketChannel socketChannel(ConnectionKey key) {
-        return channels.get(key);
+    private IgniteSocketChannel socketChannel(UUID remoteId, int idx) {
+        return channels.get(new ChannelId(remoteId, idx));
     }
 
     /** {@inheritDoc} */
@@ -4344,20 +4350,20 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
         connectGate.enter();
 
-        ConnectionKey connKey = new ConnectionKey(remote.id(), sockConnPlc.connectionIndex());
+        int newConnId = sockConnPlc.connectionIndex();
 
         IgniteSocketChannelImpl sockCh = null;
         GridSelectorNioSession ses = null;
 
         try {
-            if (socketChannel(connKey) != null) {
+            if (socketChannel(remote.id(), newConnId) != null) {
                 throw new IgniteSpiException("The channel connection cannot be established to remote node. " +
-                    "Connection key already in use: " + connKey);
+                    "Connection key already in use [remoteId=" + remote.id() + ", idx=" + newConnId + ']');
             }
 
-            ses = (GridSelectorNioSession)createNioSession(remote, connKey.connectionIndex());
+            ses = (GridSelectorNioSession)createNioSession(remote, newConnId);
 
-            sockCh = createIgniteSocketChannel((SocketChannel)ses.key().channel(), connKey);
+            sockCh = createIgniteSocketChannel(remote.id(), newConnId, (SocketChannel)ses.key().channel());
 
             // Send configuration message new GridIoMessage(msg, ..)
             sockCh.configure(ses, msg);

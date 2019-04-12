@@ -35,11 +35,6 @@ public interface IgniteSocketChannel extends Channel {
     public SocketChannel channel();
 
     /**
-     * Make the channel ready for use.
-     */
-    public void activate();
-
-    /**
      * @return The type of {@link GridIoPolicy} which defines the processing policy by the communication manager.
      */
     public byte policy();

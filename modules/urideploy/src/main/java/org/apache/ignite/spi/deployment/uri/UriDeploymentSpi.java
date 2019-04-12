@@ -95,7 +95,7 @@ import org.jetbrains.annotations.Nullable;
  * </ul>
  * <h1 class="header">Deployment package</h1>
  * Deployment package can be represented as a regular JAR file with a specific structure similar to WAR format.
- * Package files can have {@code '.jar'} or {@code '.gar'} extension.
+ *  * Package files can have {@code '.jar'} or {@code '.gar'} extension.
  * <p>
  * Package structure:
  *   <pre class="snippet">
