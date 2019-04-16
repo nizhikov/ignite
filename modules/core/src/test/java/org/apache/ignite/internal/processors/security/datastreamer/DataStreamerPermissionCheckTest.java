@@ -61,15 +61,15 @@ public class DataStreamerPermissionCheckTest extends AbstractCacheOperationPermi
                 .appendCachePermissions(FORBIDDEN_CACHE, SecurityPermission.CACHE_READ)
                 .build(), clientMode);
 
-        List<Consumer<IgniteDataStreamer<String, Integer>>> operations = Arrays.asList(
+        List<Consumer<IgniteDataStreamer<String, Integer>>> ops = Arrays.asList(
             s -> s.addData("k", 1),
             s -> s.addData(singletonMap("key", 2)),
             s -> s.addData((Map.Entry<String, Integer>)entry()),
             s -> s.addData(singletonList(entry())));
 
-        //operations.forEach(c -> executeOperation(node, CACHE_NAME, c));
+        ops.forEach(c -> executeOperation(node, CACHE_NAME, c));
 
-        operations.forEach(c ->
+        ops.forEach(c ->
             assertThrowsWithCause(() -> executeOperation(node, FORBIDDEN_CACHE, c), SecurityException.class));
     }
 

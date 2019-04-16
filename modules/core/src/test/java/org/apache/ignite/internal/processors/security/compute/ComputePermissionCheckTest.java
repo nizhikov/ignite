@@ -160,9 +160,9 @@ public class ComputePermissionCheckTest extends AbstractSecurityTest {
             () -> node.executorService().invokeAny(singletonList(TEST_CALLABLE))
         );
 
-        Stream<RunnableX> operations = Arrays.stream(nodes).map(nodeOps).flatMap(identity());
+        Stream<RunnableX> ops = Arrays.stream(nodes).map(nodeOps).flatMap(identity());
 
-        return Stream.concat(operations, asyncOperations(nodes).map(s -> () -> s.get().get()));
+        return Stream.concat(ops, asyncOperations(nodes).map(s -> () -> s.get().get()));
     }
 
     /** */
