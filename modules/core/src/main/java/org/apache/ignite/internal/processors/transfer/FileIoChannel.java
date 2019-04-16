@@ -37,9 +37,6 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
  *
  */
 public class FileIoChannel implements AutoCloseable {
-    /** The message indicates the remote node finishes its transfer. */
-    private static final byte TOMB_STONE = 13;
-
     /** */
     private final IgniteLogger log;
 
@@ -87,8 +84,6 @@ public class FileIoChannel implements AutoCloseable {
      * @throws IOException If fails.
      */
     private void doWriteMeta(IoMeta meta) throws IOException {
-        writeNext((byte)1); // Says the remote to expect the next single file.
-
         meta.writeExternal(dos);
         dos.flush();
     }
@@ -138,12 +133,6 @@ public class FileIoChannel implements AutoCloseable {
      */
     protected boolean doReadMeta(IoMeta meta) throws IgniteCheckedException {
         try {
-            if (!hasNext()) {
-                closeQuiet0();
-
-                return false;
-            }
-
             meta.readExternal(dis);
 
             if (log.isDebugEnabled())
@@ -197,7 +186,7 @@ public class FileIoChannel implements AutoCloseable {
      * @return The number of bytes read, possibly zero, or <tt>-1</tt> if the channel has reached end-of-stream.
      * @throws IgniteCheckedException If fails.
      */
-    public int doReadRaw(ByteBuffer buff) throws IgniteCheckedException {
+    public long doReadRaw(ByteBuffer buff) throws IgniteCheckedException {
         try {
             if (fut.isDone())
                 return -1;
@@ -207,25 +196,6 @@ public class FileIoChannel implements AutoCloseable {
         catch (IOException e) {
             throw new IgniteCheckedException(e);
         }
-    }
-
-    /**
-     * @return {@code true} if all data have been transferred.
-     * @throws IOException If fails.
-     */
-    private boolean hasNext() throws IOException {
-        byte tomb = dis.readByte();
-
-        return tomb != TOMB_STONE;
-    }
-
-    /**
-     * @param stone The mile stone to write.
-     * @throws IOException If fails.
-     */
-    private void writeNext(byte stone) throws IOException {
-        dos.writeByte(stone);
-        dos.flush();
     }
 
     /**
@@ -242,27 +212,9 @@ public class FileIoChannel implements AutoCloseable {
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
         if (stopped.compareAndSet(false, true)) {
-            try {
-                writeNext(TOMB_STONE);
-            }
-            catch (IOException e) {
-                // Ignore.
-
-                if (log.isDebugEnabled())
-                    log.debug("Error writing tombstore to remote: " + e.getMessage());
-            }
-            finally {
-                closeQuiet0();
-            }
+            U.closeQuiet(dos);
+            U.closeQuiet(dis);
+            U.closeQuiet(channel);
         }
-    }
-
-    /**
-     * Perform close channel operation.
-     */
-    private void closeQuiet0() {
-        U.closeQuiet(dos);
-        U.closeQuiet(dis);
-        U.closeQuiet(channel);
     }
 }

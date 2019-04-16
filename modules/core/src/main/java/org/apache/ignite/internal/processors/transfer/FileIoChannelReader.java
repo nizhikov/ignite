@@ -22,11 +22,16 @@ import org.apache.ignite.IgniteCheckedException;
 /**
  *
  */
-public interface FileIoChannelReader<T> {
+public interface FileIoChannelReader<T> extends AutoCloseable {
     /**
      * @param obj The file to read channel into.
      * @return The number of readed bytes.
      * @throws IgniteCheckedException If fails.
      */
     public long doRead(T obj) throws IgniteCheckedException;
+
+    /**
+     * @return {@code true} if and only if there is no data left in the channel and it reached its end.
+     */
+    public boolean endOfRead() throws IgniteCheckedException;
 }

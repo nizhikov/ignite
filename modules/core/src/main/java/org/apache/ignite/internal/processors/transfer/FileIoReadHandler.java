@@ -17,16 +17,38 @@
 
 package org.apache.ignite.internal.processors.transfer;
 
+import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.UUID;
+import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
 /**
  *
  */
-public interface FileIoReadHandler<T extends IoMeta> {
+public interface FileIoReadHandler {
     /**
-     * @param ctx The io channel context.
-     * @param nodeId The remote node id channel request comes from.
-     * @param meta The file meta info.
+     * @param nodeId The remote node id connected from.
+     * @param channel The channel connection to handle.
      */
-    public void onRead(FileIoChannelContext ctx, UUID nodeId, T meta);
+    public void created(UUID nodeId, IgniteSocketChannel channel);
+
+    /**
+     * @param meta The meta file info to handle to.
+     * @return The destination object to transfer data to.
+     * @throws IgniteCheckedException If fails.
+     */
+    public Object accept(IoMeta meta) throws IgniteCheckedException;
+
+    /**
+     * @param file The file to read channel into.
+     * @throws IgniteCheckedException If fails.
+     */
+    public void accept(File file) throws IgniteCheckedException;
+
+    /**
+     * @param buff The buffer to read channel into.
+     * @throws IgniteCheckedException If fails.
+     */
+    public void accept(ByteBuffer buff) throws IgniteCheckedException;
 }

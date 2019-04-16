@@ -20,13 +20,9 @@ package org.apache.ignite.internal.processors.transfer;
 /**
  *
  */
-public class FileIoChannelContext {
+public interface FileIoReadFactory {
     /**
-     * @param type
-     * @param <T>
-     * @return
+     * @return The handler to process new channel creation.
      */
-    public <T> FileIoChannelReader<T> ioReader(Class<T> type) {
-        return null;
-    }
+    public FileIoReadHandler create();
 }

@@ -23,7 +23,7 @@ import org.apache.ignite.IgniteCheckedException;
 /**
  *
  */
-public interface FileIoChannelWriter<T extends IoMeta> extends AutoCloseable {
+public interface FileIoChannelWriter extends AutoCloseable {
     /**
      * @param file The source file to send at.
      * @param meta The additional transfer file meta data.
@@ -31,10 +31,5 @@ public interface FileIoChannelWriter<T extends IoMeta> extends AutoCloseable {
      * @param count The number of bytes to transfer.
      * @throws IgniteCheckedException If fails.
      */
-    public void doWrite(
-        File file,
-        T meta,
-        long offset,
-        long count
-    ) throws IgniteCheckedException;
+    public void write(File file, IoMeta meta, long offset, long count) throws IgniteCheckedException;
 }
