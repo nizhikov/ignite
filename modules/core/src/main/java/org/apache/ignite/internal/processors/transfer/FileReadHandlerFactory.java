@@ -17,20 +17,12 @@
 
 package org.apache.ignite.internal.processors.transfer;
 
-import java.io.File;
-import java.util.Map;
-import org.apache.ignite.IgniteCheckedException;
-
 /**
  *
  */
-public interface FileIoWriter extends AutoCloseable {
+public interface FileReadHandlerFactory {
     /**
-     * @param file The source file to send at.
-     * @param offset The position to start at.
-     * @param count The number of bytes to transfer.
-     * @param params The additional transfer file description keys.
-     * @throws IgniteCheckedException If fails.
+     * @return The handler to process new channel creation.
      */
-    public void write(File file, long offset, long count, Map<String, String> params) throws IgniteCheckedException;
+    public FileReadHandler create();
 }

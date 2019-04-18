@@ -31,13 +31,13 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 /**
  *
  */
-class IoMeta implements Externalizable {
+class ChannelIoMeta implements Externalizable {
     /** Serial version uid. */
     private static final long serialVersionUID = 0L;
 
     /** The tombstone key */
     @GridToStringExclude
-    private static final IoMeta TOMBSTONE = new IoMeta("d2738352-8813-477a-a165-b73249798134", -1, -1, true, null);
+    private static final ChannelIoMeta TOMBSTONE = new ChannelIoMeta("d2738352-8813-477a-a165-b73249798134", -1, -1, true, null);
 
     /**
      * The name to associate particular meta with.
@@ -58,14 +58,14 @@ class IoMeta implements Externalizable {
     private HashMap<String, String> map = new HashMap<>();
 
     /** */
-    public IoMeta() {
+    public ChannelIoMeta() {
         this(null);
     }
 
     /**
      * @param name The name to associate particular meta with.
      */
-    public IoMeta(String name) {
+    public ChannelIoMeta(String name) {
         this(name, -1, -1, false, null);
     }
 
@@ -76,7 +76,7 @@ class IoMeta implements Externalizable {
      * @param initial {@code true} if
      * @param params The additional transfer meta params.
      */
-    public IoMeta(String name, long offset, long count, boolean initial, Map<String, String> params) {
+    public ChannelIoMeta(String name, long offset, long count, boolean initial, Map<String, String> params) {
         this.name = name;
         this.initial = initial;
         this.offset = offset;
@@ -130,7 +130,7 @@ class IoMeta implements Externalizable {
     /**
      * @return The tombstone meta info.
      */
-    public static IoMeta tombstone() {
+    public static ChannelIoMeta tombstone() {
         return TOMBSTONE;
     }
 
@@ -154,6 +154,6 @@ class IoMeta implements Externalizable {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(IoMeta.class, this);
+        return S.toString(ChannelIoMeta.class, this);
     }
 }

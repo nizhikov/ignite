@@ -38,9 +38,9 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 /**
  *
  */
-public class GridIoChannelProcessor extends GridProcessorAdapter {
+public class GridFileTransmitProcessor extends GridProcessorAdapter {
     /** */
-    private final ConcurrentMap<Object, FileIoReadFactory> channelFactoryMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, FileReadHandlerFactory> channelFactoryMap = new ConcurrentHashMap<>();
 
     /** The map of already known channel read contexts by its session id. */
     private final ConcurrentMap<String, FileIoReadContext> sessionContextMap = new ConcurrentHashMap<>();
@@ -51,7 +51,7 @@ public class GridIoChannelProcessor extends GridProcessorAdapter {
     /**
      * @param ctx Kernal context.
      */
-    protected GridIoChannelProcessor(GridKernalContext ctx) {
+    public GridFileTransmitProcessor(GridKernalContext ctx) {
         super(ctx);
     }
 
@@ -59,7 +59,7 @@ public class GridIoChannelProcessor extends GridProcessorAdapter {
      * @param topic The {@link GridTopic} to register handler to.
      * @param factory The factory will create a new handler for each created channel.
      */
-    public void addFileIoChannelHandler(Object topic, FileIoReadFactory factory) {
+    public void addFileIoChannelHandler(Object topic, FileReadHandlerFactory factory) {
         synchronized (mux) {
             if (channelFactoryMap.putIfAbsent(topic, factory) == null) {
                 ctx.io().addChannelListener(topic, new GridIoChannelListener() {
@@ -68,11 +68,11 @@ public class GridIoChannelProcessor extends GridProcessorAdapter {
                             // A new channel established, read the transfer session id first.
                             final FileIoChannel objChannel = new FileIoChannel(ctx, channel);
 
-                            IoMeta sessionMeta;
+                            ChannelIoMeta sessionMeta;
 
-                            objChannel.readMeta(sessionMeta = new IoMeta());
+                            objChannel.readMeta(sessionMeta = new ChannelIoMeta());
 
-                            if (sessionMeta.equals(IoMeta.tombstone()))
+                            if (sessionMeta.equals(ChannelIoMeta.tombstone()))
                                 return;
 
                             assert sessionMeta.initial();
@@ -80,7 +80,7 @@ public class GridIoChannelProcessor extends GridProcessorAdapter {
                             onChannelCreated0(sessionContextMap.computeIfAbsent(sessionMeta.name(),
                                 ses -> {
                                     final AtomicBoolean flag = new AtomicBoolean();
-                                    final FileIoReadHandler hndlr = factory.create();
+                                    final FileReadHandler hndlr = factory.create();
 
                                     hndlr.created(nodeId, ses, flag);
 
@@ -119,13 +119,13 @@ public class GridIoChannelProcessor extends GridProcessorAdapter {
         chnl.stopped(rctx.stopped);
 
         try {
-            IoMeta meta;
+            ChannelIoMeta meta;
             SegmentedIo<?> seg;
 
             while (!Thread.currentThread().isInterrupted() && !rctx.stopped.get()) {
-                chnl.readMeta(meta = new IoMeta());
+                chnl.readMeta(meta = new ChannelIoMeta());
 
-                if (meta.equals(IoMeta.tombstone())) {
+                if (meta.equals(ChannelIoMeta.tombstone())) {
                     rctx.stopped.set(true);
 
                     break;
@@ -191,19 +191,19 @@ public class GridIoChannelProcessor extends GridProcessorAdapter {
      * @param plc The remote prcessing channel policy.
      * @return The channel instance to communicate with remote.
      */
-    public FileIoWriter writableChannel(
+    public FileWriter writableChannel(
         UUID remoteId,
         Object topic,
         byte plc
     ) throws IgniteCheckedException {
-        return new FileIoWriterImpl(remoteId, topic, plc)
+        return new FileWriterImpl(remoteId, topic, plc)
             .connect();
     }
 
     /**
      *
      */
-    private class FileIoWriterImpl implements FileIoWriter {
+    private class FileWriterImpl implements FileWriter {
         /** */
         private final UUID remoteId;
 
@@ -224,7 +224,7 @@ public class GridIoChannelProcessor extends GridProcessorAdapter {
          * @param topic The remote topic to connect to.
          * @param plc The remote prcessing channel policy.
          */
-        public FileIoWriterImpl(
+        public FileWriterImpl(
             UUID remoteId,
             Object topic,
             byte plc
@@ -239,11 +239,11 @@ public class GridIoChannelProcessor extends GridProcessorAdapter {
          * @return The current initialized channel instance.
          * @throws IgniteCheckedException If fails.
          */
-        public FileIoWriter connect() throws IgniteCheckedException {
+        public FileWriter connect() throws IgniteCheckedException {
             try {
                 ch = new FileIoChannel(ctx, ctx.io().channelToTopic(remoteId, topic, plc));
 
-                ch.writeMeta(new IoMeta(sessionId));
+                ch.writeMeta(new ChannelIoMeta(sessionId));
 
                 return this;
             }
@@ -256,7 +256,7 @@ public class GridIoChannelProcessor extends GridProcessorAdapter {
         @Override public void write(File file, long offset, long count, Map<String, String> params) throws IgniteCheckedException {
             // TODO reconnect if need.
             try {
-                ch.writeMeta(new IoMeta(file.getName(), offset, count, true, params));
+                ch.writeMeta(new ChannelIoMeta(file.getName(), offset, count, true, params));
 
                 SegmentedFileIo segFile = new SegmentedFileIo(file, file.getName(), offset, count);
 
@@ -271,7 +271,7 @@ public class GridIoChannelProcessor extends GridProcessorAdapter {
         /** {@inheritDoc} */
         @Override public void close() throws Exception {
             try {
-                ch.writeMeta(IoMeta.tombstone());
+                ch.writeMeta(ChannelIoMeta.tombstone());
             }
             finally {
                 U.closeQuiet(ch);
@@ -290,7 +290,7 @@ public class GridIoChannelProcessor extends GridProcessorAdapter {
         private final String sessionId;
 
         /** */
-        private final FileIoReadHandler handler;
+        private final FileReadHandler handler;
 
         /** */
         private final AtomicBoolean stopped;
@@ -304,7 +304,7 @@ public class GridIoChannelProcessor extends GridProcessorAdapter {
          * @param handler The channel handler.
          * @param stopped The stop flag to interrupt reads.
          */
-        public FileIoReadContext(UUID nodeId, String sessionId, FileIoReadHandler handler, AtomicBoolean stopped) {
+        public FileIoReadContext(UUID nodeId, String sessionId, FileReadHandler handler, AtomicBoolean stopped) {
             this.nodeId = nodeId;
             this.sessionId = sessionId;
             this.handler = handler;

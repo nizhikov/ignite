@@ -22,14 +22,12 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.IgniteInternalFuture;
 
 /**
  *
  */
-public interface FileIoReadHandler {
+public interface FileReadHandler {
     /**
      * @param nodeId The remote node id connected from.
      * @param sessionId The unique session id.

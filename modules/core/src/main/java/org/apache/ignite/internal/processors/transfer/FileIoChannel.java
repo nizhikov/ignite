@@ -81,7 +81,7 @@ class FileIoChannel implements AutoCloseable {
      * @param meta The file meta to write from.
      * @throws IOException If fails.
      */
-    void writeMeta(IoMeta meta) throws IOException {
+    void writeMeta(ChannelIoMeta meta) throws IOException {
         if (stopped.get())
             throw new IOException("Channel is stopped. Writing meta is not allowed.");
 
@@ -98,7 +98,7 @@ class FileIoChannel implements AutoCloseable {
      * @param meta The meta to read to.
      * @throws IOException If fails.
      */
-    void readMeta(IoMeta meta) throws IOException {
+    void readMeta(ChannelIoMeta meta) throws IOException {
         try {
             if (stopped.get())
                 throw new IOException("Channel is stopped. Reading meta is not allowed.");
