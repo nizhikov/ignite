@@ -90,7 +90,7 @@ abstract class SegmentedAbstractIo<T> implements SegmentedIo<T> {
     }
 
     /** {@inheritDoc} */
-    @Override public boolean endOfTransfer() {
+    @Override public boolean endOfTransmit() {
         return transferred == count;
     }
 

@@ -40,7 +40,7 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
  */
 public class GridFileTransmitProcessor extends GridProcessorAdapter {
     /** */
-    private final ConcurrentMap<Object, FileReadHandlerFactory> channelFactoryMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, FileReadHandlerFactory> topicFactoryMap = new ConcurrentHashMap<>();
 
     /** The map of already known channel read contexts by its session id. */
     private final ConcurrentMap<String, FileIoReadContext> sessionContextMap = new ConcurrentHashMap<>();
@@ -61,7 +61,7 @@ public class GridFileTransmitProcessor extends GridProcessorAdapter {
      */
     public void addFileIoChannelHandler(Object topic, FileReadHandlerFactory factory) {
         synchronized (mux) {
-            if (channelFactoryMap.putIfAbsent(topic, factory) == null) {
+            if (topicFactoryMap.putIfAbsent(topic, factory) == null) {
                 ctx.io().addChannelListener(topic, new GridIoChannelListener() {
                     @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
                         try {
@@ -104,7 +104,7 @@ public class GridFileTransmitProcessor extends GridProcessorAdapter {
      */
     public void remoteFileIoChannelHandler(Object topic) {
         synchronized (mux) {
-            channelFactoryMap.remove(topic);
+            topicFactoryMap.remove(topic);
 
             ctx.io().removeChannelListener(topic);
         }
@@ -161,7 +161,7 @@ public class GridFileTransmitProcessor extends GridProcessorAdapter {
                 Object objReaded = null;
 
                 // Read data from the input.
-                while (!seg.endOfTransfer() && !rctx.stopped.get() && !Thread.currentThread().isInterrupted()) {
+                while (!seg.endOfTransmit() && !rctx.stopped.get() && !Thread.currentThread().isInterrupted()) {
                     if (objReaded instanceof ByteBuffer)
                         rctx.handler.accept((ByteBuffer)objReaded);
 
@@ -182,6 +182,9 @@ public class GridFileTransmitProcessor extends GridProcessorAdapter {
             rctx.handler.exceptionCaught(e);
 
             log.error("Error handling download [ctx=" + rctx + ", channel=" + chnl + ']');
+        }
+        finally {
+            U.closeQuiet(chnl);
         }
     }
 
@@ -260,7 +263,7 @@ public class GridFileTransmitProcessor extends GridProcessorAdapter {
 
                 SegmentedFileIo segFile = new SegmentedFileIo(file, file.getName(), offset, count);
 
-                while (!segFile.endOfTransfer() && !Thread.currentThread().isInterrupted())
+                while (!segFile.endOfTransmit() && !Thread.currentThread().isInterrupted())
                     segFile.writeInto(ch);
             }
             catch (IOException e) {

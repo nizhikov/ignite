@@ -22,7 +22,7 @@ import java.io.IOException;
 /**
  * @param <T>
  */
-public interface SegmentedIo<T> extends AutoCloseable {
+interface SegmentedIo<T> extends AutoCloseable {
     /**
      * @return The offset in the file where the transfer began.
      */
@@ -54,5 +54,5 @@ public interface SegmentedIo<T> extends AutoCloseable {
     /**
      * @return {@code true} if and only if there is no data left in the channel and it reached its end.
      */
-    public boolean endOfTransfer();
+    public boolean endOfTransmit();
 }
