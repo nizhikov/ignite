@@ -17,21 +17,42 @@
 
 package org.apache.ignite.internal.processors.transfer;
 
-import org.apache.ignite.IgniteCheckedException;
+import java.io.IOException;
 
 /**
- *
+ * @param <T>
  */
-public interface FileIoChannelReader<T> extends AutoCloseable {
+public interface SegmentedIo<T> extends AutoCloseable {
     /**
-     * @param obj The file to read channel into.
-     * @return The number of readed bytes.
-     * @throws IgniteCheckedException If fails.
+     * @return The offset in the file where the transfer began.
      */
-    public long doRead(T obj) throws IgniteCheckedException;
+    public long postition();
+
+    /**
+     * @return The bytes which was transfered already.
+     */
+    public long transferred();
+
+    /**
+     * @return The number of bytes to transfer.
+     */
+    public long count();
+
+    /**
+     * @param channel The channel to read data from.
+     * @return The destination obj to read data into.
+     * @throws IOException If fails.
+     */
+    public T readFrom(FileIoChannel channel) throws IOException;
+
+    /**
+     * @param channel The channel to write data into.
+     * @throws IOException If fails.
+     */
+    public void writeInto(FileIoChannel channel) throws IOException;
 
     /**
      * @return {@code true} if and only if there is no data left in the channel and it reached its end.
      */
-    public boolean endOfRead() throws IgniteCheckedException;
+    public boolean endOfTransfer();
 }

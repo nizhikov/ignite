@@ -18,18 +18,19 @@
 package org.apache.ignite.internal.processors.transfer;
 
 import java.io.File;
+import java.util.Map;
 import org.apache.ignite.IgniteCheckedException;
 
 /**
  *
  */
-public interface FileIoChannelWriter extends AutoCloseable {
+public interface FileIoWriter extends AutoCloseable {
     /**
      * @param file The source file to send at.
-     * @param meta The additional transfer file meta data.
      * @param offset The position to start at.
      * @param count The number of bytes to transfer.
+     * @param params The additional transfer file description keys.
      * @throws IgniteCheckedException If fails.
      */
-    public void write(File file, IoMeta meta, long offset, long count) throws IgniteCheckedException;
+    public void write(File file, long offset, long count, Map<String, String> params) throws IgniteCheckedException;
 }

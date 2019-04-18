@@ -24,19 +24,20 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
-import org.apache.ignite.internal.IgniteInternalFuture;
+import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
 /**
  *
  */
-public class FileIoChannel implements AutoCloseable {
+class FileIoChannel implements AutoCloseable {
     /** */
     private final IgniteLogger log;
 
@@ -49,172 +50,139 @@ public class FileIoChannel implements AutoCloseable {
     /** */
     private final ObjectOutput dos;
 
-    /** */
-    private final IgniteInternalFuture<?> fut;
-
     /** If the channel is not been used anymore. */
-    private final AtomicBoolean stopped = new AtomicBoolean();
+    private AtomicBoolean stopped = new AtomicBoolean();
 
     /**
      * @param ktx Kernal context.
      * @param channel Socket channel to upload files to.
-     * @throws IgniteCheckedException If fails.
+     * @throws IOException If fails.
      */
     public FileIoChannel(
         GridKernalContext ktx,
-        IgniteSocketChannel channel,
-        IgniteInternalFuture<?> fut
-    ) throws IgniteCheckedException {
+        IgniteSocketChannel channel
+    ) throws IOException {
         assert channel.config().blocking();
 
-        try {
-            this.channel = channel.channel();
-            this.dis = new ObjectInputStream(this.channel.socket().getInputStream());
-            this.dos = new ObjectOutputStream(this.channel.socket().getOutputStream());
-            this.log = ktx.log(getClass());
-            this.fut = fut;
-        }
-        catch (IOException e) {
-            throw new IgniteCheckedException("Error with IO channel initialization", e);
-        }
+        this.channel = channel.channel();
+        this.dis = new ObjectInputStream(this.channel.socket().getInputStream());
+        this.dos = new ObjectOutputStream(this.channel.socket().getOutputStream());
+        this.log = ktx.log(getClass());
+    }
+
+    /**
+     * @param stopped The flag to set to.
+     */
+    void stopped(AtomicBoolean stopped) {
+        this.stopped = stopped;
     }
 
     /**
      * @param meta The file meta to write from.
      * @throws IOException If fails.
      */
-    private void doWriteMeta(IoMeta meta) throws IOException {
+    void writeMeta(IoMeta meta) throws IOException {
+        if (stopped.get())
+            throw new IOException("Channel is stopped. Writing meta is not allowed.");
+
         meta.writeExternal(dos);
+
         dos.flush();
-    }
 
-    /**
-     * @param file The region file object to write to.
-     * @throws IgniteCheckedException If fails.
-     */
-    public void doWrite(IoMeta meta, FileSegment file) throws IgniteCheckedException {
-        if (file.count() == 0)
-            return; // Nothing to send.
+        if (log.isDebugEnabled())
+            log.debug("The file meta info have been written:" + meta + ']');
 
-        try {
-            doWriteMeta(meta);
-
-            if (log.isDebugEnabled())
-                log.debug("The file meta info have been written [file=" + file + ']');
-
-            // Send the whole file to channel.
-            // Todo limit thransfer speed online
-            long sent;
-
-            file.open();
-
-            while (file.transferred() < file.count() && !fut.isDone()) {
-                sent = file.transferTo(channel);
-
-                if (sent == -1)
-                    checkFileEOF(file);
-            }
-
-            //Waiting for the writing response.
-//            readAck();
-        }
-        catch (IOException e) {
-            throw new IgniteCheckedException("The file write error: " + file, e);
-        }
-        finally {
-            U.closeQuiet(file);
-        }
     }
 
     /**
      * @param meta The meta to read to.
-     * @return {@code true} if the data read successfully.
-     * @throws IgniteCheckedException If fails.
+     * @throws IOException If fails.
      */
-    protected boolean doReadMeta(IoMeta meta) throws IgniteCheckedException {
+    void readMeta(IoMeta meta) throws IOException {
         try {
+            if (stopped.get())
+                throw new IOException("Channel is stopped. Reading meta is not allowed.");
+
             meta.readExternal(dis);
 
             if (log.isDebugEnabled())
                 log.debug("The file meta info have been received [meta=" + meta + ']');
-
-            return true;
         }
         catch (EOFException e) {
-            throw new IgniteCheckedException("Input connection closed unexpectedly", e);
+            throw new IOException("Input connection closed unexpectedly", e);
         }
-        catch (IOException | ClassNotFoundException e) {
-            throw new IgniteCheckedException("Read file meta error", e);
+        catch (ClassNotFoundException e) {
+            throw new IOException("Read file meta error", e);
         }
     }
 
     /**
-     * @param file The region file object to read to.
-     * @param offset The position to start current iteration at.
+     * @param fileIO The I\O file
+     * @param position The position to start from.
      * @param count The number of bytes to read.
-     * @throws IgniteCheckedException If fails.
+     * @return The number of readed bytes.
+     * @throws IOException If fails.
      */
-    public void doRead(FileSegment file, long offset, long count) throws IgniteCheckedException {
-        if (file.count() <= 0)
-            return; // Nothing to read.
+    long readInto(FileIO fileIO, long position, long count) throws IOException {
+        if (stopped.get())
+            return -1;
 
-        assert offset == file.position() + file.transferred();
-        assert count == file.count() - offset;
+        return fileIO.transferFrom((ReadableByteChannel)channel, position, count);
+    }
 
-        try {
-            file.open();
+    /**
+     * @param position The position to start from.
+     * @param count The number of bytes to write.
+     * @param fileIO The I\O file
+     * @return The number of writed bytes.
+     * @throws IOException If fails.
+     */
+    long writeFrom(long position, long count, FileIO fileIO) throws IOException {
+        if (stopped.get())
+            return -1;
 
-            long readed;
-
-            while (file.transferred() < file.count() && !fut.isDone()) {
-                readed = file.transferFrom(channel);
-
-                if (readed == -1)
-                    checkFileEOF(file);
-            }
-        }
-        catch (IOException e) {
-            throw new IgniteCheckedException("The file read error: " + file, e);
-        }
-        finally {
-            U.closeQuiet(file);
-        }
+        return fileIO.transferTo(position, count, (WritableByteChannel)channel);
     }
 
     /**
      * @param buff Buffer to read data into.
      * @return The number of bytes read, possibly zero, or <tt>-1</tt> if the channel has reached end-of-stream.
-     * @throws IgniteCheckedException If fails.
+     * @throws IOException If fails.
      */
-    public long doReadRaw(ByteBuffer buff) throws IgniteCheckedException {
-        try {
-            if (fut.isDone())
-                return -1;
+    long readInto(ByteBuffer buff) throws IOException {
+        if (stopped.get())
+            return -1;
 
-            return channel.read(buff);
-        }
-        catch (IOException e) {
-            throw new IgniteCheckedException(e);
-        }
+        return channel.read(buff);
+    }
+
+    /**
+     * @param buff Buffer to write data from.
+     * @return The number of bytes written, possibly zero, or <tt>-1</tt> if the channel has reached end-of-stream.
+     * @throws IOException If fails.
+     */
+    long writeFrom(ByteBuffer buff) throws IOException {
+        if (stopped.get())
+            return -1;
+
+        return channel.write(buff);
     }
 
     /**
      * @param file The file object to check.
      * @throws EOFException If the check fails.
      */
-    private static void checkFileEOF(FileSegment file) throws EOFException {
+    public static void checkFileEOF(SegmentedFileIo file) throws EOFException {
         if (file.transferred() < file.count()) {
-            throw new EOFException("The file expected to be fully transferred [count=" + file.count() +
+            throw new EOFException("The file expected to be fully transferred but didn't [count=" + file.count() +
                 ", transferred=" + file.transferred() + ']');
         }
     }
 
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
-        if (stopped.compareAndSet(false, true)) {
-            U.closeQuiet(dos);
-            U.closeQuiet(dis);
-            U.closeQuiet(channel);
-        }
+        U.closeQuiet(dos);
+        U.closeQuiet(dis);
+        U.closeQuiet(channel);
     }
 }

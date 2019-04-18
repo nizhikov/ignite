@@ -25,21 +25,28 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import javax.print.DocFlavor;
+import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  *
  */
-public class IoMeta implements Externalizable {
+class IoMeta implements Externalizable {
     /** Serial version uid. */
     private static final long serialVersionUID = 0L;
 
     /** The tombstone key */
-    private static final IoMeta TOMBSTONE = new IoMeta("f093hf90-234fh298-23ry9887dfs", -1, -1, null);
+    @GridToStringExclude
+    private static final IoMeta TOMBSTONE = new IoMeta("d2738352-8813-477a-a165-b73249798134", -1, -1, true, null);
 
-    /** */
+    /**
+     * The name to associate particular meta with.
+     * Can be the particular file name, or an a transfer session identifier.
+     */
     private String name;
+
+    /** The initial meta info for the file transferred the first time. */
+    private boolean initial;
 
     /** */
     private long offset;
@@ -52,21 +59,31 @@ public class IoMeta implements Externalizable {
 
     /** */
     public IoMeta() {
-        this(null, -1, -1, null);
+        this(null);
     }
 
     /**
-     * @param name The file name string representation.
+     * @param name The name to associate particular meta with.
+     */
+    public IoMeta(String name) {
+        this(name, -1, -1, false, null);
+    }
+
+    /**
+     * @param name The string name representation to assoticate particular meta with.
      * @param offset The start position of file.
      * @param count The amount of bytes to receive.
+     * @param initial {@code true} if
+     * @param params The additional transfer meta params.
      */
-    public IoMeta(String name, long offset, long count, Map<String, String> keys) {
+    public IoMeta(String name, long offset, long count, boolean initial, Map<String, String> params) {
         this.name = name;
+        this.initial = initial;
         this.offset = offset;
         this.count = count;
 
-        if (keys != null) {
-            for (Map.Entry<String, String> key : keys.entrySet())
+        if (params != null) {
+            for (Map.Entry<String, String> key : params.entrySet())
                 map.put(key.getKey(), key.getValue());
         }
     }
@@ -79,9 +96,18 @@ public class IoMeta implements Externalizable {
     }
 
     /**
+     * @return {@code true} if the file is transferred the first time.
+     */
+    public boolean initial() {
+        return initial;
+    }
+
+    /**
      * @return The position to start channel transfer at.
      */
     public long offset() {
+        assert offset >=0;
+
         return offset;
     }
 
@@ -89,6 +115,8 @@ public class IoMeta implements Externalizable {
      * @return The number of bytes expect to transfer.
      */
     public long count() {
+        assert count >= 0;
+
         return count;
     }
 
@@ -108,10 +136,8 @@ public class IoMeta implements Externalizable {
 
     /** {@inheritDoc} */
     @Override public void writeExternal(ObjectOutput out) throws IOException {
-        if (name == null || offset < 0 || count < 0)
-            throw new IOException("File meta information incorrect: " + this);
-
-        out.writeUTF(name);
+        out.writeUTF(name());
+        out.writeBoolean(initial);
         out.writeLong(offset);
         out.writeLong(count);
         out.writeObject(map);
@@ -119,13 +145,11 @@ public class IoMeta implements Externalizable {
 
     /** {@inheritDoc} */
     @Override public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-        name = in.readUTF();
+        name = Objects.requireNonNull(in.readUTF());
+        initial = in.readBoolean();
         offset = in.readLong();
         count = in.readLong();
         map = (HashMap) in.readObject();
-
-        if (name == null || offset < 0 || count < 0)
-            throw new IOException("File meta information incorrect: " + this);
     }
 
     /** {@inheritDoc} */

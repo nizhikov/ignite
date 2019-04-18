@@ -2183,14 +2183,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         assert lsnr != null;
         assert topic != null;
 
-        synchronized (channelLsnrMap) {
-            ConcurrentLinkedQueue<GridIoChannelListener> lsnrQueue = channelLsnrMap.get(topic);
-
-            if (lsnrQueue == null)
-                channelLsnrMap.put(topic, lsnrQueue = new ConcurrentLinkedQueue<>());
-
-            lsnrQueue.add(lsnr);
-        }
+        channelLsnrMap.computeIfAbsent(topic, k -> new ConcurrentLinkedQueue<>())
+            .add(lsnr);
     }
 
     /**
@@ -2198,17 +2192,20 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @param lsnr The listener instance to remove, or {@code null} to remove all listneres of specified topic.
      */
     public void removeChannelListener(Object topic, GridIoChannelListener lsnr) {
+        assert lsnr != null;
         assert topic != null;
 
-        synchronized (channelLsnrMap) {
-            if (lsnr == null)
-                channelLsnrMap.remove(topic);
+        channelLsnrMap.computeIfAbsent(topic, t -> new ConcurrentLinkedQueue<>())
+            .remove(lsnr);
+    }
 
-            ConcurrentLinkedQueue<GridIoChannelListener> lsnrQueue = channelLsnrMap.get(topic);
+    /**
+     * @param topic Topic to remove all listeners from.
+     */
+    public void removeChannelListener(Object topic) {
+        assert topic != null;
 
-            if (lsnrQueue != null)
-                lsnrQueue.remove(lsnr);
-        }
+        channelLsnrMap.remove(topic);
     }
 
     /**

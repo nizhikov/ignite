@@ -19,9 +19,12 @@ package org.apache.ignite.internal.processors.transfer;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
+import org.apache.ignite.internal.IgniteInternalFuture;
 
 /**
  *
@@ -29,26 +32,31 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 public interface FileIoReadHandler {
     /**
      * @param nodeId The remote node id connected from.
-     * @param channel The channel connection to handle.
+     * @param sessionId The unique session id.
+     * @param stop The flag to stop the stream processing.
      */
-    public void created(UUID nodeId, IgniteSocketChannel channel);
+    public void created(UUID nodeId, String sessionId, AtomicBoolean stop);
 
     /**
-     * @param meta The meta file info to handle to.
-     * @return The destination object to transfer data to.
+     * @param name The file name transfer from.
+     * @param keys The additional transfer file description keys.
+     * @return The destination object to transfer data to. Can be the {@link File} or {@link ByteBuffer}.
      * @throws IgniteCheckedException If fails.
      */
-    public Object accept(IoMeta meta) throws IgniteCheckedException;
+    public Object acceptFileMeta(String name, Map<String, String> keys) throws IgniteCheckedException;
 
     /**
      * @param file The file to read channel into.
-     * @throws IgniteCheckedException If fails.
      */
-    public void accept(File file) throws IgniteCheckedException;
+    public void accept(File file);
 
     /**
      * @param buff The buffer to read channel into.
-     * @throws IgniteCheckedException If fails.
      */
-    public void accept(ByteBuffer buff) throws IgniteCheckedException;
+    public void accept(ByteBuffer buff);
+
+    /**
+     * @param cause The case of fail handling process.
+     */
+    public void exceptionCaught(Throwable cause);
 }
