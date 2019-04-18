@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transfer;
+package org.apache.ignite.internal.processors.transmit.stream;
 
 import java.io.Externalizable;
 import java.io.IOException;
@@ -31,13 +31,13 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 /**
  *
  */
-class ChannelIoMeta implements Externalizable {
+public class TransmitMeta implements Externalizable {
     /** Serial version uid. */
     private static final long serialVersionUID = 0L;
 
     /** The tombstone key */
     @GridToStringExclude
-    private static final ChannelIoMeta TOMBSTONE = new ChannelIoMeta("d2738352-8813-477a-a165-b73249798134", -1, -1, true, null);
+    private static final TransmitMeta TOMBSTONE = new TransmitMeta("d2738352-8813-477a-a165-b73249798134", -1, -1, true, null);
 
     /**
      * The name to associate particular meta with.
@@ -58,14 +58,14 @@ class ChannelIoMeta implements Externalizable {
     private HashMap<String, String> map = new HashMap<>();
 
     /** */
-    public ChannelIoMeta() {
+    public TransmitMeta() {
         this(null);
     }
 
     /**
      * @param name The name to associate particular meta with.
      */
-    public ChannelIoMeta(String name) {
+    public TransmitMeta(String name) {
         this(name, -1, -1, true, null);
     }
 
@@ -76,7 +76,7 @@ class ChannelIoMeta implements Externalizable {
      * @param initial {@code true} if
      * @param params The additional transfer meta params.
      */
-    public ChannelIoMeta(String name, long offset, long count, boolean initial, Map<String, String> params) {
+    public TransmitMeta(String name, long offset, long count, boolean initial, Map<String, String> params) {
         this.name = name;
         this.initial = initial;
         this.offset = offset;
@@ -130,7 +130,7 @@ class ChannelIoMeta implements Externalizable {
     /**
      * @return The tombstone meta info.
      */
-    public static ChannelIoMeta tombstone() {
+    public static TransmitMeta tombstone() {
         return TOMBSTONE;
     }
 
@@ -154,6 +154,6 @@ class ChannelIoMeta implements Externalizable {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(ChannelIoMeta.class, this);
+        return S.toString(TransmitMeta.class, this);
     }
 }

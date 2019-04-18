@@ -15,8 +15,14 @@
  * limitations under the License.
  */
 
+package org.apache.ignite.internal.processors.transmit;
+
 /**
- * <!-- Package description. -->
- * The internal file transfer processor.
+ *
  */
-package org.apache.ignite.internal.processors.transfer;
+public interface FileReadHandlerFactory {
+    /**
+     * @return The handler to process new channel creation.
+     */
+    public FileReadHandler create();
+}

@@ -1,4 +1,4 @@
-package org.apache.ignite.internal.processors.transfer;
+package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.EOFException;
 import java.util.Objects;
@@ -7,7 +7,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 /**
  *
  */
-abstract class SegmentedAbstractIo<T> implements SegmentedIo<T> {
+abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
     /** The default region size to transfer data. */
     public static final int DFLT_SEGMENT_SIZE = 1024 * 1024;
 
@@ -36,7 +36,7 @@ abstract class SegmentedAbstractIo<T> implements SegmentedIo<T> {
      * @param count The number of bytes to expect of transfer.
      * @param segmentSize The size of segmented the read.
      */
-    protected SegmentedAbstractIo(T obj, String name, long position, long count, int segmentSize) {
+    protected AbstractChunkedIo(T obj, String name, long position, long count, int segmentSize) {
         assert position >= 0 : "The file position must be non-negative";
         assert count >= 0 : "The number of bytes to sent must be positive";
 
@@ -53,7 +53,7 @@ abstract class SegmentedAbstractIo<T> implements SegmentedIo<T> {
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      */
-    protected SegmentedAbstractIo(T obj, String name, long position, long count) {
+    protected AbstractChunkedIo(T obj, String name, long position, long count) {
         this(obj, name, position, count, DFLT_SEGMENT_SIZE);
     }
 
@@ -96,6 +96,6 @@ abstract class SegmentedAbstractIo<T> implements SegmentedIo<T> {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(SegmentedAbstractIo.class, this);
+        return S.toString(AbstractChunkedIo.class, this);
     }
 }

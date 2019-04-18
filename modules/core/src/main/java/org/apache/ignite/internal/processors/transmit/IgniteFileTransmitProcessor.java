@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transfer;
+package org.apache.ignite.internal.processors.transmit;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,6 +31,12 @@ import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.managers.communication.GridIoChannelListener;
 import org.apache.ignite.internal.processors.GridProcessorAdapter;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedBufferIo;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileIo;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedIo;
+import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
+import org.apache.ignite.internal.processors.transmit.stream.TransmitMeta;
+import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
@@ -66,13 +72,13 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
                         try {
                             // A new channel established, read the transfer session id first.
-                            final FileInputChannel objChannel = new FileInputChannel(ctx, channel);
+                            final TransmitInputChannel objChannel = new TransmitInputChannel(ctx, channel);
 
-                            ChannelIoMeta sessionMeta;
+                            TransmitMeta sessionMeta;
 
-                            objChannel.readMeta(sessionMeta = new ChannelIoMeta());
+                            objChannel.readMeta(sessionMeta = new TransmitMeta());
 
-                            if (sessionMeta.equals(ChannelIoMeta.tombstone()))
+                            if (sessionMeta.equals(TransmitMeta.tombstone()))
                                 return;
 
                             assert sessionMeta.initial();
@@ -114,18 +120,18 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @param rctx The handler read context.
      * @param chnl The connection channel instance.
      */
-    private void onChannelCreated0(FileIoReadContext rctx, FileInputChannel chnl) {
+    private void onChannelCreated0(FileIoReadContext rctx, TransmitInputChannel chnl) {
         // Set the channel flag to stop.
         chnl.stopped(rctx.stopped);
 
         try {
-            ChannelIoMeta meta;
-            SegmentedIo<?> seg;
+            TransmitMeta meta;
+            ChunkedIo<?> seg;
 
             while (!Thread.currentThread().isInterrupted() && !rctx.stopped.get()) {
-                chnl.readMeta(meta = new ChannelIoMeta());
+                chnl.readMeta(meta = new TransmitMeta());
 
-                if (meta.equals(ChannelIoMeta.tombstone())) {
+                if (meta.equals(TransmitMeta.tombstone())) {
                     rctx.stopped.set(true);
 
                     break;
@@ -140,9 +146,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     Object intoObj = rctx.handler.acceptFileMeta(meta.name(), meta.keys());
 
                     if (intoObj instanceof ByteBuffer)
-                        seg = new SegmentedBufferIo((ByteBuffer)intoObj, meta.name(), meta.offset(), meta.count());
+                        seg = new ChunkedBufferIo((ByteBuffer)intoObj, meta.name(), meta.offset(), meta.count());
                     else if (intoObj instanceof File)
-                        seg = new SegmentedFileIo((File)intoObj, meta.name(), meta.offset(), meta.count());
+                        seg = new ChunkedFileIo((File)intoObj, meta.name(), meta.offset(), meta.count());
                     else
                         throw new IgniteCheckedException("The object to write to is unknown type: " + intoObj.getClass());
 
@@ -220,7 +226,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         private String sessionId;
 
         /** */
-        private FileOutputChannel ch;
+        private TransmitOutputChannel ch;
 
         /**
          * @param remoteId The remote note to connect to.
@@ -246,9 +252,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
             try {
                 IgniteSocketChannel sock = ctx.io().channelToTopic(remoteId, topic, plc);
 
-                ch = new FileOutputChannel(ctx, sock);
+                ch = new TransmitOutputChannel(ctx, sock);
 
-                ch.writeMeta(new ChannelIoMeta(sessionId));
+                ch.writeMeta(new TransmitMeta(sessionId));
 
                 return this;
             }
@@ -261,9 +267,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         @Override public void write(File file, long offset, long count, Map<String, String> params) throws IgniteCheckedException {
             // TODO reconnect if need.
             try {
-                ch.writeMeta(new ChannelIoMeta(file.getName(), offset, count, true, params));
+                ch.writeMeta(new TransmitMeta(file.getName(), offset, count, true, params));
 
-                SegmentedFileIo segFile = new SegmentedFileIo(file, file.getName(), offset, count);
+                ChunkedFileIo segFile = new ChunkedFileIo(file, file.getName(), offset, count);
 
                 while (!segFile.endOfTransmit() && !Thread.currentThread().isInterrupted())
                     segFile.writeInto(ch);
@@ -276,7 +282,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         /** {@inheritDoc} */
         @Override public void close() throws Exception {
             try {
-                ch.writeMeta(ChannelIoMeta.tombstone());
+                ch.writeMeta(TransmitMeta.tombstone());
             }
             catch (IOException e) {
                 U.warn(log, "Ignore excpetion of writing tombstone on channel close", e);
@@ -304,7 +310,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         private final AtomicBoolean stopped;
 
         /** The map of infinished downloads indexed by file name. */
-        private final Map<String, SegmentedIo<?>> unfinished = new HashMap<>();
+        private final Map<String, ChunkedIo<?>> unfinished = new HashMap<>();
 
         /**
          * @param nodeId The remote node id.

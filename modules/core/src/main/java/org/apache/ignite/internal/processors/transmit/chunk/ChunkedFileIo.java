@@ -1,10 +1,12 @@
-package org.apache.ignite.internal.processors.transfer;
+package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.File;
 import java.io.IOException;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
+import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
+import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -12,7 +14,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 /**
  *
  */
-class SegmentedFileIo extends SegmentedAbstractIo<File> {
+public class ChunkedFileIo extends AbstractChunkedIo<File> {
     /** The default factory to provide IO oprations over underlying file. */
     @GridToStringExclude
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
@@ -27,7 +29,7 @@ class SegmentedFileIo extends SegmentedAbstractIo<File> {
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      */
-    public SegmentedFileIo(File fileCfg, String name, long position, long count) {
+    public ChunkedFileIo(File fileCfg, String name, long position, long count) {
         super(fileCfg, name, position, count);
     }
 
@@ -40,7 +42,7 @@ class SegmentedFileIo extends SegmentedAbstractIo<File> {
     }
 
     /** {@inheritDoc} */
-    @Override public File readFrom(FileInputChannel channel) throws IOException {
+    @Override public File readFrom(TransmitInputChannel channel) throws IOException {
         open();
 
         long batchSize = Math.min(segmentSize, count - transferred);
@@ -56,7 +58,7 @@ class SegmentedFileIo extends SegmentedAbstractIo<File> {
     }
 
     /** {@inheritDoc} */
-    @Override public void writeInto(FileOutputChannel channel) throws IOException {
+    @Override public void writeInto(TransmitOutputChannel channel) throws IOException {
         open();
 
         long batchSize = Math.min(segmentSize, count - transferred);
@@ -76,6 +78,6 @@ class SegmentedFileIo extends SegmentedAbstractIo<File> {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(SegmentedFileIo.class, this);
+        return S.toString(ChunkedFileIo.class, this);
     }
 }

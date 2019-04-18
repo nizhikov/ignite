@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transfer;
+package org.apache.ignite.internal.processors.transmit.stream;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -32,7 +32,7 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 /**
  *
  */
-class FileInputChannel extends FileAbstractChannel {
+public class TransmitInputChannel extends TransmitAbstractChannel {
     /** */
     private final ObjectInput dis;
 
@@ -44,7 +44,7 @@ class FileInputChannel extends FileAbstractChannel {
      * @param channel Socket channel to upload files to.
      * @throws IOException If fails.
      */
-    public FileInputChannel(
+    public TransmitInputChannel(
         GridKernalContext ktx,
         IgniteSocketChannel channel
     ) throws IOException {
@@ -58,7 +58,7 @@ class FileInputChannel extends FileAbstractChannel {
      * @param meta The meta to read to.
      * @throws IOException If fails.
      */
-    void readMeta(ChannelIoMeta meta) throws IOException {
+    public void readMeta(TransmitMeta meta) throws IOException {
         try {
             if (stopped.get())
                 throw new IOException("Channel is stopped. Reading meta is not allowed.");
@@ -83,7 +83,7 @@ class FileInputChannel extends FileAbstractChannel {
      * @return The number of readed bytes.
      * @throws IOException If fails.
      */
-    long readInto(FileIO fileIO, long position, long count) throws IOException {
+    public long readInto(FileIO fileIO, long position, long count) throws IOException {
         if (stopped.get())
             return -1;
 
@@ -95,7 +95,7 @@ class FileInputChannel extends FileAbstractChannel {
      * @return The number of bytes read, possibly zero, or <tt>-1</tt> if the channel has reached end-of-stream.
      * @throws IOException If fails.
      */
-    long readInto(ByteBuffer buff) throws IOException {
+    public long readInto(ByteBuffer buff) throws IOException {
         if (stopped.get())
             return -1;
 

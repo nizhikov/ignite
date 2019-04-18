@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transfer;
+package org.apache.ignite.internal.processors.transmit.stream;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -23,13 +23,14 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedIo;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
 /**
  *
  */
-abstract class FileAbstractChannel implements AutoCloseable {
+public abstract class TransmitAbstractChannel implements AutoCloseable {
     /** */
     protected final IgniteLogger log;
 
@@ -42,12 +43,11 @@ abstract class FileAbstractChannel implements AutoCloseable {
     /**
      * @param ktx Kernal context.
      * @param channel Socket channel to upload files to.
-     * @throws IOException If fails.
      */
-    protected FileAbstractChannel(
+    protected TransmitAbstractChannel(
         GridKernalContext ktx,
         IgniteSocketChannel channel
-    ) throws IOException {
+    ) {
         assert channel.config().blocking();
 
         this.channel = channel.channel();
@@ -57,18 +57,18 @@ abstract class FileAbstractChannel implements AutoCloseable {
     /**
      * @param stopped The flag to set to.
      */
-    void stopped(AtomicBoolean stopped) {
+    public void stopped(AtomicBoolean stopped) {
         this.stopped = stopped;
     }
 
     /**
-     * @param file The file object to check.
+     * @param io The file object to check.
      * @throws EOFException If the check fails.
      */
-    public static void checkFileEOF(SegmentedFileIo file) throws EOFException {
-        if (file.transferred() < file.count()) {
-            throw new EOFException("The file expected to be fully transferred but didn't [count=" + file.count() +
-                ", transferred=" + file.transferred() + ']');
+    public static void checkFileEOF(ChunkedIo<?> io) throws EOFException {
+        if (io.transferred() < io.count()) {
+            throw new EOFException("The file expected to be fully transferred but didn't [count=" + io.count() +
+                ", transferred=" + io.transferred() + ']');
         }
     }
 

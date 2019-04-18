@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transfer;
+package org.apache.ignite.internal.processors.transmit.stream;
 
 import java.io.IOException;
 import java.io.ObjectOutput;
@@ -30,7 +30,7 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 /**
  *
  */
-class FileOutputChannel extends FileAbstractChannel {
+public class TransmitOutputChannel extends TransmitAbstractChannel {
     /** */
     private final ObjectOutput dos;
 
@@ -39,7 +39,7 @@ class FileOutputChannel extends FileAbstractChannel {
      * @param channel Socket channel to upload files to.
      * @throws IOException If fails.
      */
-    public FileOutputChannel(
+    public TransmitOutputChannel(
         GridKernalContext ktx,
         IgniteSocketChannel channel
     ) throws IOException {
@@ -52,7 +52,7 @@ class FileOutputChannel extends FileAbstractChannel {
      * @param meta The file meta to write from.
      * @throws IOException If fails.
      */
-    void writeMeta(ChannelIoMeta meta) throws IOException {
+    public void writeMeta(TransmitMeta meta) throws IOException {
         if (stopped.get())
             throw new IOException("Channel is stopped. Writing meta is not allowed.");
 
@@ -72,7 +72,7 @@ class FileOutputChannel extends FileAbstractChannel {
      * @return The number of writed bytes.
      * @throws IOException If fails.
      */
-    long writeFrom(long position, long count, FileIO fileIO) throws IOException {
+    public long writeFrom(long position, long count, FileIO fileIO) throws IOException {
         if (stopped.get())
             return -1;
 
@@ -84,7 +84,7 @@ class FileOutputChannel extends FileAbstractChannel {
      * @return The number of bytes written, possibly zero, or <tt>-1</tt> if the channel has reached end-of-stream.
      * @throws IOException If fails.
      */
-    long writeFrom(ByteBuffer buff) throws IOException {
+    public long writeFrom(ByteBuffer buff) throws IOException {
         if (stopped.get())
             return -1;
 

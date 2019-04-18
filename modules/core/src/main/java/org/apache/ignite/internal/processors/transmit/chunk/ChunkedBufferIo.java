@@ -1,25 +1,27 @@
-package org.apache.ignite.internal.processors.transfer;
+package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
+import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  *
  */
-class SegmentedBufferIo extends SegmentedAbstractIo<ByteBuffer> {
+public class ChunkedBufferIo extends AbstractChunkedIo<ByteBuffer> {
     /**
      * @param buff The buff to read into.
      * @param name The unique file name within transfer process.
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      */
-    public SegmentedBufferIo(ByteBuffer buff, String name, long position, long count) {
+    public ChunkedBufferIo(ByteBuffer buff, String name, long position, long count) {
         super(buff, name, position, count);
     }
 
     /** {@inheritDoc} */
-    @Override public ByteBuffer readFrom(FileInputChannel channel) throws IOException {
+    @Override public ByteBuffer readFrom(TransmitInputChannel channel) throws IOException {
         long readed = channel.readInto(obj);
 
         if (readed > 0)
@@ -31,7 +33,7 @@ class SegmentedBufferIo extends SegmentedAbstractIo<ByteBuffer> {
     }
 
     /** {@inheritDoc} */
-    @Override public void writeInto(FileOutputChannel channel) throws IOException {
+    @Override public void writeInto(TransmitOutputChannel channel) throws IOException {
         long written = channel.writeFrom(obj);
 
         if (written > 0)
@@ -47,6 +49,6 @@ class SegmentedBufferIo extends SegmentedAbstractIo<ByteBuffer> {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(SegmentedBufferIo.class, this);
+        return S.toString(ChunkedBufferIo.class, this);
     }
 }

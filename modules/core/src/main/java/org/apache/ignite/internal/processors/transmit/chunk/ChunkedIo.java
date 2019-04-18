@@ -15,14 +15,16 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transfer;
+package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.IOException;
+import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
+import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
 
 /**
  * @param <T>
  */
-interface SegmentedIo<T> extends AutoCloseable {
+public interface ChunkedIo<T> extends AutoCloseable {
     /**
      * @return The offset in the file where the transfer began.
      */
@@ -43,13 +45,13 @@ interface SegmentedIo<T> extends AutoCloseable {
      * @return The destination obj to read data into.
      * @throws IOException If fails.
      */
-    public T readFrom(FileInputChannel channel) throws IOException;
+    public T readFrom(TransmitInputChannel channel) throws IOException;
 
     /**
      * @param channel The channel to write data into.
      * @throws IOException If fails.
      */
-    public void writeInto(FileOutputChannel channel) throws IOException;
+    public void writeInto(TransmitOutputChannel channel) throws IOException;
 
     /**
      * @return {@code true} if and only if there is no data left in the channel and it reached its end.
