@@ -66,7 +66,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
                         try {
                             // A new channel established, read the transfer session id first.
-                            final FileIoChannel objChannel = new FileIoChannel(ctx, channel);
+                            final FileInputChannel objChannel = new FileInputChannel(ctx, channel);
 
                             ChannelIoMeta sessionMeta;
 
@@ -114,7 +114,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @param rctx The handler read context.
      * @param chnl The connection channel instance.
      */
-    private void onChannelCreated0(FileIoReadContext rctx, FileIoChannel chnl) {
+    private void onChannelCreated0(FileIoReadContext rctx, FileInputChannel chnl) {
         // Set the channel flag to stop.
         chnl.stopped(rctx.stopped);
 
@@ -220,7 +220,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         private String sessionId;
 
         /** */
-        private FileIoChannel ch;
+        private FileOutputChannel ch;
 
         /**
          * @param remoteId The remote note to connect to.
@@ -244,7 +244,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
          */
         public FileWriter connect() throws IgniteCheckedException {
             try {
-                ch = new FileIoChannel(ctx, ctx.io().channelToTopic(remoteId, topic, plc));
+                IgniteSocketChannel sock = ctx.io().channelToTopic(remoteId, topic, plc);
+
+                ch = new FileOutputChannel(ctx, sock);
 
                 ch.writeMeta(new ChannelIoMeta(sessionId));
 

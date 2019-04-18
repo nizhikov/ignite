@@ -21,14 +21,9 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectInputStream;
-import java.io.ObjectOutput;
-import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.SocketChannel;
-import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -37,18 +32,9 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 /**
  *
  */
-class FileIoChannel implements AutoCloseable {
-    /** */
-    private final IgniteLogger log;
-
-    /** */
-    private final SocketChannel channel;
-
+class FileInputChannel extends FileAbstractChannel {
     /** */
     private final ObjectInput dis;
-
-    /** */
-    private final ObjectOutput dos;
 
     /** If the channel is not been used anymore. */
     private AtomicBoolean stopped = new AtomicBoolean();
@@ -58,39 +44,13 @@ class FileIoChannel implements AutoCloseable {
      * @param channel Socket channel to upload files to.
      * @throws IOException If fails.
      */
-    public FileIoChannel(
+    public FileInputChannel(
         GridKernalContext ktx,
         IgniteSocketChannel channel
     ) throws IOException {
-        assert channel.config().blocking();
+        super(ktx, channel);
 
-        this.channel = channel.channel();
         this.dis = new ObjectInputStream(this.channel.socket().getInputStream());
-        this.dos = new ObjectOutputStream(this.channel.socket().getOutputStream());
-        this.log = ktx.log(getClass());
-    }
-
-    /**
-     * @param stopped The flag to set to.
-     */
-    void stopped(AtomicBoolean stopped) {
-        this.stopped = stopped;
-    }
-
-    /**
-     * @param meta The file meta to write from.
-     * @throws IOException If fails.
-     */
-    void writeMeta(ChannelIoMeta meta) throws IOException {
-        if (stopped.get())
-            throw new IOException("Channel is stopped. Writing meta is not allowed.");
-
-        meta.writeExternal(dos);
-
-        dos.flush();
-
-        if (log.isDebugEnabled())
-            log.debug("The file meta info have been written:" + meta + ']');
 
     }
 
@@ -131,20 +91,6 @@ class FileIoChannel implements AutoCloseable {
     }
 
     /**
-     * @param position The position to start from.
-     * @param count The number of bytes to write.
-     * @param fileIO The I\O file
-     * @return The number of writed bytes.
-     * @throws IOException If fails.
-     */
-    long writeFrom(long position, long count, FileIO fileIO) throws IOException {
-        if (stopped.get())
-            return -1;
-
-        return fileIO.transferTo(position, count, (WritableByteChannel)channel);
-    }
-
-    /**
      * @param buff Buffer to read data into.
      * @return The number of bytes read, possibly zero, or <tt>-1</tt> if the channel has reached end-of-stream.
      * @throws IOException If fails.
@@ -156,33 +102,10 @@ class FileIoChannel implements AutoCloseable {
         return channel.read(buff);
     }
 
-    /**
-     * @param buff Buffer to write data from.
-     * @return The number of bytes written, possibly zero, or <tt>-1</tt> if the channel has reached end-of-stream.
-     * @throws IOException If fails.
-     */
-    long writeFrom(ByteBuffer buff) throws IOException {
-        if (stopped.get())
-            return -1;
-
-        return channel.write(buff);
-    }
-
-    /**
-     * @param file The file object to check.
-     * @throws EOFException If the check fails.
-     */
-    public static void checkFileEOF(SegmentedFileIo file) throws EOFException {
-        if (file.transferred() < file.count()) {
-            throw new EOFException("The file expected to be fully transferred but didn't [count=" + file.count() +
-                ", transferred=" + file.transferred() + ']');
-        }
-    }
-
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
-        U.closeQuiet(dos);
+        super.close();
+
         U.closeQuiet(dis);
-        U.closeQuiet(channel);
     }
 }

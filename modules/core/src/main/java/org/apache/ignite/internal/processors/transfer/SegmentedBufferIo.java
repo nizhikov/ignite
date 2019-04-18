@@ -19,7 +19,7 @@ class SegmentedBufferIo extends SegmentedAbstractIo<ByteBuffer> {
     }
 
     /** {@inheritDoc} */
-    @Override public ByteBuffer readFrom(FileIoChannel channel) throws IOException {
+    @Override public ByteBuffer readFrom(FileInputChannel channel) throws IOException {
         long readed = channel.readInto(obj);
 
         if (readed > 0)
@@ -31,7 +31,7 @@ class SegmentedBufferIo extends SegmentedAbstractIo<ByteBuffer> {
     }
 
     /** {@inheritDoc} */
-    @Override public void writeInto(FileIoChannel channel) throws IOException {
+    @Override public void writeInto(FileOutputChannel channel) throws IOException {
         long written = channel.writeFrom(obj);
 
         if (written > 0)

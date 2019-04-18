@@ -40,7 +40,7 @@ class SegmentedFileIo extends SegmentedAbstractIo<File> {
     }
 
     /** {@inheritDoc} */
-    @Override public File readFrom(FileIoChannel channel) throws IOException {
+    @Override public File readFrom(FileInputChannel channel) throws IOException {
         open();
 
         long batchSize = Math.min(segmentSize, count - transferred);
@@ -56,7 +56,7 @@ class SegmentedFileIo extends SegmentedAbstractIo<File> {
     }
 
     /** {@inheritDoc} */
-    @Override public void writeInto(FileIoChannel channel) throws IOException {
+    @Override public void writeInto(FileOutputChannel channel) throws IOException {
         open();
 
         long batchSize = Math.min(segmentSize, count - transferred);
