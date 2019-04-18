@@ -71,8 +71,6 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
     @After
     public void after() throws Exception {
         stopAllGrids();
-
-        cleanPersistenceDir();
     }
 
     /** {@inheritDoc} */

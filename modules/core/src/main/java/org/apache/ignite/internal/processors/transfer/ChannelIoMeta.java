@@ -66,7 +66,7 @@ class ChannelIoMeta implements Externalizable {
      * @param name The name to associate particular meta with.
      */
     public ChannelIoMeta(String name) {
-        this(name, -1, -1, false, null);
+        this(name, -1, -1, true, null);
     }
 
     /**
