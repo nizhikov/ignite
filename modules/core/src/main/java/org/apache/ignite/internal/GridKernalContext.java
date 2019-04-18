@@ -72,7 +72,7 @@ import org.apache.ignite.internal.processors.session.GridTaskSessionProcessor;
 import org.apache.ignite.internal.processors.subscription.GridInternalSubscriptionProcessor;
 import org.apache.ignite.internal.processors.task.GridTaskProcessor;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutProcessor;
-import org.apache.ignite.internal.processors.transfer.GridFileTransmitProcessor;
+import org.apache.ignite.internal.processors.transfer.IgniteFileTransmitProcessor;
 import org.apache.ignite.internal.stat.IoStatisticsManager;
 import org.apache.ignite.internal.suggestions.GridPerformanceSuggestions;
 import org.apache.ignite.internal.util.IgniteExceptionRegistry;
@@ -311,7 +311,7 @@ public interface GridKernalContext extends Iterable<GridComponent> {
      *
      * @return The file transmit processor.
      */
-    public GridFileTransmitProcessor fileTransmit();
+    public IgniteFileTransmitProcessor fileTransmit();
 
     /**
      * Gets Hadoop processor.

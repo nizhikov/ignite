@@ -38,7 +38,7 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 /**
  *
  */
-public class GridFileTransmitProcessor extends GridProcessorAdapter {
+public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     /** */
     private final ConcurrentMap<Object, FileReadHandlerFactory> topicFactoryMap = new ConcurrentHashMap<>();
 
@@ -51,7 +51,7 @@ public class GridFileTransmitProcessor extends GridProcessorAdapter {
     /**
      * @param ctx Kernal context.
      */
-    public GridFileTransmitProcessor(GridKernalContext ctx) {
+    public IgniteFileTransmitProcessor(GridKernalContext ctx) {
         super(ctx);
     }
 
@@ -194,7 +194,7 @@ public class GridFileTransmitProcessor extends GridProcessorAdapter {
      * @param plc The remote prcessing channel policy.
      * @return The channel instance to communicate with remote.
      */
-    public FileWriter writableChannel(
+    public FileWriter fileWriter(
         UUID remoteId,
         Object topic,
         byte plc
@@ -275,6 +275,9 @@ public class GridFileTransmitProcessor extends GridProcessorAdapter {
         @Override public void close() throws Exception {
             try {
                 ch.writeMeta(ChannelIoMeta.tombstone());
+            }
+            catch (IOException e) {
+                U.warn(log, "Ignore excpetion of writing tombstone on channel close", e);
             }
             finally {
                 U.closeQuiet(ch);

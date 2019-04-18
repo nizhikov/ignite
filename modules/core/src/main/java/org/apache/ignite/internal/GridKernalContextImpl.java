@@ -91,7 +91,7 @@ import org.apache.ignite.internal.processors.session.GridTaskSessionProcessor;
 import org.apache.ignite.internal.processors.subscription.GridInternalSubscriptionProcessor;
 import org.apache.ignite.internal.processors.task.GridTaskProcessor;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutProcessor;
-import org.apache.ignite.internal.processors.transfer.GridFileTransmitProcessor;
+import org.apache.ignite.internal.processors.transfer.IgniteFileTransmitProcessor;
 import org.apache.ignite.internal.stat.IoStatisticsManager;
 import org.apache.ignite.internal.suggestions.GridPerformanceSuggestions;
 import org.apache.ignite.internal.util.IgniteExceptionRegistry;
@@ -275,7 +275,7 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
 
     /** */
     @GridToStringExclude
-    private GridFileTransmitProcessor fileTransmitProc;
+    private IgniteFileTransmitProcessor fileTransmitProc;
 
     /** */
     @GridToStringExclude
@@ -648,8 +648,8 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
             igfsProc = (IgfsProcessorAdapter)comp;
         else if (comp instanceof GridContinuousProcessor)
             contProc = (GridContinuousProcessor)comp;
-        else if (comp instanceof GridFileTransmitProcessor)
-            fileTransmitProc = (GridFileTransmitProcessor)comp;
+        else if (comp instanceof IgniteFileTransmitProcessor)
+            fileTransmitProc = (IgniteFileTransmitProcessor)comp;
         else if (comp instanceof HadoopProcessorAdapter)
             hadoopProc = (HadoopProcessorAdapter)comp;
         else if (comp instanceof IgniteCacheObjectProcessor)
@@ -913,7 +913,7 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
     }
 
     /** {@inheritDoc} */
-    @Override public GridFileTransmitProcessor fileTransmit() {
+    @Override public IgniteFileTransmitProcessor fileTransmit() {
         return fileTransmitProc;
     }
 
