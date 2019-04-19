@@ -316,7 +316,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
             int reconnects = 0;
 
             try {
-                while (reconnects <= DFLT_RECONNECT_CNT && !Thread.currentThread().isInterrupted()) {
+                while (!Thread.currentThread().isInterrupted()) {
+                    if (reconnects > DFLT_RECONNECT_CNT)
+                        throw new IOException("The number of reconnect attempts exceeded the limit: " + DFLT_RECONNECT_CNT);
+
                     if (ch == null)
                         connect();
 
@@ -332,20 +335,21 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     }
                     catch (RemoteTransmitException e) {
                         // Re-establish the new connection to continue upload.
-                        log.warning("The connection lost. Connection will be re-established, reconnects left: " +
-                            (DFLT_RECONNECT_CNT - reconnects) + ". [remoteId=" + remoteId + ", file=" + file.getName() + ']');
+                        U.warn(log, "The connection lost. Connection will be re-established, reconnects left: " +
+                            (DFLT_RECONNECT_CNT - reconnects) + ". [remoteId=" + remoteId + ", file=" + file.getName() +
+                            ", sessionId=" + sessionId + ']');
 
-                        U.closeQuiet(ch);
-
-                        ch = null;
+                        closeChannelQuiet();
 
                         reconnects++;
                     }
                 }
             }
-            catch (IOException e) {
-                throw new IgniteCheckedException("Exception while uploading file to the remote node " +
-                    "[remoteId=" + remoteId + ", file=" + file.getName() + ']', e);
+            catch (Exception e) {
+                closeChannelQuiet();
+
+                throw new IgniteCheckedException("Exception while uploading file to the remote node. The process stopped " +
+                    "[remoteId=" + remoteId + ", file=" + file.getName() + ", sessionId=" + sessionId + ']', e);
             }
         }
 
@@ -359,10 +363,17 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 U.warn(log, "The excpetion of writing 'tombstone' on channel close operation has been ignored", e);
             }
             finally {
-                U.closeQuiet(ch);
-
-                ch = null;
+                closeChannelQuiet();
             }
+        }
+
+        /**
+         * Close channel and relese resources.
+         */
+        private void closeChannelQuiet() {
+            U.closeQuiet(ch);
+
+            ch = null;
         }
     }
 
