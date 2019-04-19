@@ -26,6 +26,11 @@ import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChann
  */
 public interface ChunkedIo<T> extends AutoCloseable {
     /**
+     * @return The string representation file name.
+     */
+    public String name();
+
+    /**
      * @return The offset in the file where the transfer began.
      */
     public long postition();

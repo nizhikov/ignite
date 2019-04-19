@@ -20,7 +20,6 @@ package org.apache.ignite.internal.processors.transmit;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -180,9 +179,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                 // Loading the file the first time.
                 if (meta.initial()) {
-                    if (rctx.unfinished.containsKey(meta.name()))
-                        throw new IgniteCheckedException("Receive the offer to download a new file which exists " +
-                            "in `unfinished` session list [file=" + meta.name() + ", unfinished=" + rctx.unfinished + ']');
+                    if (rctx.unfinished != null && !rctx.unfinished.name().equals(meta.name()))
+                        throw new IgniteCheckedException("Receive the offer to download a new file which was " +
+                            "previously not been fully loaded [file=" + meta.name() + ", unfinished=" + rctx.unfinished + ']');
 
                     Object intoObj = rctx.handler.acceptFileMeta(meta.name(), meta.keys());
 
@@ -193,17 +192,20 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     else
                         throw new IgniteCheckedException("The object to write to is unknown type: " + intoObj.getClass());
 
-                    rctx.unfinished.put(meta.name(), seg);
+                    rctx.unfinished = seg;
                 }
-                else
-                    seg = rctx.unfinished.get(meta.name());
+                else {
+                    seg = rctx.unfinished;
 
-                assert seg.postition() + seg.transferred() == meta.offset() :
-                    "The next segmented input is incorrect [postition=" + seg.postition() +
-                        ", transferred=" + seg.transferred() + ", offset=" + meta.offset() + ']';
-                assert seg.count() - seg.transferred() == meta.count() :
-                    " The count of bytes to transfer fot the next segment is incorrect [size=" + seg.count() +
-                        ", transferred=" + seg.transferred() + ", count=" + meta.count() + ']';
+                    assert seg.name().equals(meta.name()) : "Attempt to load different file name [name=" + seg.name() +
+                        ", meta=" + meta.name() + ']';
+                    assert seg.postition() + seg.transferred() == meta.offset() :
+                        "The next segmented input is incorrect [postition=" + seg.postition() +
+                            ", transferred=" + seg.transferred() + ", offset=" + meta.offset() + ']';
+                    assert seg.count() - seg.transferred() == meta.count() :
+                        " The count of bytes to transfer fot the next segment is incorrect [size=" + seg.count() +
+                            ", transferred=" + seg.transferred() + ", count=" + meta.count() + ']';
+                }
 
                 Object objReaded = null;
 
@@ -223,11 +225,23 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     throw new IOException("The file has not been fully received: " + meta);
                 else
                     throw new IgniteCheckedException("The destination object is unknown type: " + objReaded.getClass());
+
+                rctx.unfinished = null;
             }
         }
         catch (RemoteTransmitException e) {
             // Waiting for re-establishing connection.
             log.warning("The connection lost. Waiting for the new one to continue load", e);
+
+            rctx.reconnects--;
+
+            if (rctx.reconnects == 0) {
+                IOException ex = new IOException("The number of reconnect attempts exceeded the limit. " +
+                    "Max attempts: " + DFLT_RECONNECT_CNT);
+
+                rctx.handler.exceptionCaught(ex);
+                rctx.fut.onDone(ex);
+            }
         }
         catch (Throwable t) {
             rctx.handler.exceptionCaught(t);
@@ -393,8 +407,11 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         /** */
         private final GridFutureAdapter<?> fut;
 
-        /** The map of infinished downloads indexed by file name. */
-        private final Map<String, ChunkedIo<?>> unfinished = new HashMap<>();
+        /** The number of reconnect attempts of current session. */
+        private int reconnects = DFLT_RECONNECT_CNT;
+
+        /** The last infinished download. */
+        private ChunkedIo<?> unfinished;
 
         /**
          * @param nodeId The remote node id.

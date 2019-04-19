@@ -75,10 +75,8 @@ abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
         return count;
     }
 
-    /**
-     * @return The string representation file name.
-     */
-    public String name() {
+    /** {@inheritDoc} */
+    @Override public String name() {
         return name;
     }
 
