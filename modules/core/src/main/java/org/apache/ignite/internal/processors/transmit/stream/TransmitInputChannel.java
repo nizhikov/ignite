@@ -23,7 +23,6 @@ import java.io.ObjectInput;
 import java.io.ObjectInputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -35,9 +34,6 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 public class TransmitInputChannel extends TransmitAbstractChannel {
     /** */
     private final ObjectInput dis;
-
-    /** If the channel is not been used anymore. */
-    private AtomicBoolean stopped = new AtomicBoolean();
 
     /**
      * @param ktx Kernal context.
@@ -60,19 +56,16 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      */
     public void readMeta(TransmitMeta meta) throws IOException {
         try {
-            if (stopped.get())
-                throw new IOException("Channel is stopped. Reading meta is not allowed.");
-
             meta.readExternal(dis);
 
             if (log.isDebugEnabled())
                 log.debug("The file meta info have been received [meta=" + meta + ']');
         }
         catch (EOFException e) {
-            throw new IOException("Input connection closed unexpectedly", e);
+            throw transformExceptionIfNeed(e);
         }
         catch (ClassNotFoundException e) {
-            throw new IOException("Read file meta error", e);
+            throw new IOException("The required transmit meta class information not found", e);
         }
     }
 
@@ -84,10 +77,12 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      * @throws IOException If fails.
      */
     public long readInto(FileIO fileIO, long position, long count) throws IOException {
-        if (stopped.get())
-            return -1;
-
-        return fileIO.transferFrom((ReadableByteChannel)channel, position, count);
+        try {
+            return fileIO.transferFrom((ReadableByteChannel)channel, position, count);
+        }
+        catch (IOException e) {
+            throw transformExceptionIfNeed(e);
+        }
     }
 
     /**
@@ -96,9 +91,6 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      * @throws IOException If fails.
      */
     public long readInto(ByteBuffer buff) throws IOException {
-        if (stopped.get())
-            return -1;
-
         return channel.read(buff);
     }
 

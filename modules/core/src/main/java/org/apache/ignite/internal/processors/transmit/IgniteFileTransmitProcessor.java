@@ -25,21 +25,27 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.GridTopic;
+import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.GridIoChannelListener;
+import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
 import org.apache.ignite.internal.processors.GridProcessorAdapter;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedBufferIo;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileIo;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedIo;
+import org.apache.ignite.internal.processors.transmit.stream.RemoteTransmitException;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitMeta;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
+import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
+
+import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
+import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 
 /**
  *
@@ -52,6 +58,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     private final ConcurrentMap<String, FileIoReadContext> sessionContextMap = new ConcurrentHashMap<>();
 
     /** */
+    private DiscoveryEventListener discoLsnr;
+
+    /** */
     private final Object mux = new Object();
 
     /**
@@ -59,6 +68,38 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      */
     public IgniteFileTransmitProcessor(GridKernalContext ctx) {
         super(ctx);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void start() throws IgniteCheckedException {
+        ctx.event().addDiscoveryEventListener(discoLsnr = (evt, disco) -> {
+            UUID leftNodeId = evt.eventNode().id();
+
+            // Clear the context on the uploader node left.
+            for (Map.Entry<String, FileIoReadContext> sesEntry : sessionContextMap.entrySet()) {
+                FileIoReadContext ioctx = sesEntry.getValue();
+
+                if (ioctx.nodeId.equals(leftNodeId)) {
+                    ClusterTopologyCheckedException ex;
+
+                    ioctx.handler.exceptionCaught(ex = new ClusterTopologyCheckedException("Failed to proceed download. " +
+                        "The remote node node left the grid: " + leftNodeId));
+                    ioctx.fut.onDone(ex);
+
+                    sessionContextMap.remove(sesEntry.getKey());
+                }
+            }
+        }, EVT_NODE_LEFT, EVT_NODE_FAILED);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void stop(boolean cancel) throws IgniteCheckedException {
+        ctx.event().removeDiscoveryEventListener(discoLsnr, EVT_NODE_LEFT, EVT_NODE_FAILED);
+
+        synchronized (mux) {
+            for (Object topic : topicFactoryMap.keySet())
+                remoteFileIoChannelHandler(topic);
+        }
     }
 
     /**
@@ -85,12 +126,12 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                             onChannelCreated0(sessionContextMap.computeIfAbsent(sessionMeta.name(),
                                 ses -> {
-                                    final AtomicBoolean flag = new AtomicBoolean();
                                     final FileReadHandler hndlr = factory.create();
+                                    final GridFutureAdapter<?> fut = new GridFutureAdapter<>();
 
-                                    hndlr.created(nodeId, ses, flag);
+                                    hndlr.created(nodeId, ses, fut);
 
-                                    return new FileIoReadContext(nodeId, ses, hndlr, flag);
+                                    return new FileIoReadContext(nodeId, ses, hndlr, fut);
                                 }),
                                 objChannel);
                         } catch (IOException e) {
@@ -121,18 +162,15 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @param chnl The connection channel instance.
      */
     private void onChannelCreated0(FileIoReadContext rctx, TransmitInputChannel chnl) {
-        // Set the channel flag to stop.
-        chnl.stopped(rctx.stopped);
-
         try {
             TransmitMeta meta;
             ChunkedIo<?> seg;
 
-            while (!Thread.currentThread().isInterrupted() && !rctx.stopped.get()) {
+            while (!Thread.currentThread().isInterrupted() && !rctx.fut.isDone()) {
                 chnl.readMeta(meta = new TransmitMeta());
 
                 if (meta.equals(TransmitMeta.tombstone())) {
-                    rctx.stopped.set(true);
+                    rctx.fut.onDone();
 
                     break;
                 }
@@ -167,7 +205,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 Object objReaded = null;
 
                 // Read data from the input.
-                while (!seg.endOfTransmit() && !rctx.stopped.get() && !Thread.currentThread().isInterrupted()) {
+                while (!seg.endOfTransmit() && !rctx.fut.isDone() && !Thread.currentThread().isInterrupted()) {
                     if (objReaded instanceof ByteBuffer)
                         rctx.handler.accept((ByteBuffer)objReaded);
 
@@ -184,10 +222,16 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     throw new IgniteCheckedException("The destination object is unknown type: " + objReaded.getClass());
             }
         }
-        catch (Exception e) {
-            rctx.handler.exceptionCaught(e);
+        catch (RemoteTransmitException e) {
+            // Waiting for re-establishing connection.
+            log.warning("The connection lost. Waiting for the new one to continue load", e);
+        }
+        catch (Throwable t) {
+            rctx.handler.exceptionCaught(t);
+            rctx.fut.onDone(t);
 
-            log.error("Error handling download [ctx=" + rctx + ", channel=" + chnl + ']');
+            log.error("The download session cannot be finished due to unhandled error [ctx=" + rctx +
+                ", channel=" + chnl + ']', t);
         }
         finally {
             U.closeQuiet(chnl);
@@ -259,7 +303,8 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 return this;
             }
             catch (IOException e) {
-                throw new IgniteCheckedException(e);
+                throw new IgniteCheckedException("The connection cannot be established [remoteId=" + remoteId +
+                    ", topic=" + topic + ", plc=" + plc + ']', e);
             }
         }
 
@@ -274,8 +319,15 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 while (!segFile.endOfTransmit() && !Thread.currentThread().isInterrupted())
                     segFile.writeInto(ch);
             }
+            catch (RemoteTransmitException e) {
+                // Re-establish the new connection to continue load.
+            }
             catch (IOException e) {
-                throw new IgniteCheckedException("Error sending file to remote: " + file.getName(), e);
+                throw new IgniteCheckedException("Exception while uploading file to the remote node " +
+                    "[remoteId=" + remoteId + ", file=" + file.getName() + ']', e);
+            }
+            finally {
+                U.closeQuiet(ch);
             }
         }
 
@@ -285,7 +337,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 ch.writeMeta(TransmitMeta.tombstone());
             }
             catch (IOException e) {
-                U.warn(log, "Ignore excpetion of writing tombstone on channel close", e);
+                U.warn(log, "The excpetion of writing 'tombstone' on channel close operation has been ignored", e);
             }
             finally {
                 U.closeQuiet(ch);
@@ -307,7 +359,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         private final FileReadHandler handler;
 
         /** */
-        private final AtomicBoolean stopped;
+        private final GridFutureAdapter<?> fut;
 
         /** The map of infinished downloads indexed by file name. */
         private final Map<String, ChunkedIo<?>> unfinished = new HashMap<>();
@@ -316,13 +368,13 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
          * @param nodeId The remote node id.
          * @param sessionId The unique session id.
          * @param handler The channel handler.
-         * @param stopped The stop flag to interrupt reads.
+         * @param fut The stop flag to interrupt reads.
          */
-        public FileIoReadContext(UUID nodeId, String sessionId, FileReadHandler handler, AtomicBoolean stopped) {
+        public FileIoReadContext(UUID nodeId, String sessionId, FileReadHandler handler, GridFutureAdapter<?> fut) {
             this.nodeId = nodeId;
             this.sessionId = sessionId;
             this.handler = handler;
-            this.stopped = stopped;
+            this.fut = fut;
         }
 
         /** {@inheritDoc} */

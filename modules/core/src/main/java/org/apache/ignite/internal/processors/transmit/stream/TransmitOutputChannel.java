@@ -53,15 +53,16 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      * @throws IOException If fails.
      */
     public void writeMeta(TransmitMeta meta) throws IOException {
-        if (stopped.get())
-            throw new IOException("Channel is stopped. Writing meta is not allowed.");
+        try {
+            meta.writeExternal(dos);
 
-        meta.writeExternal(dos);
+            dos.flush();
 
-        dos.flush();
-
-        if (log.isDebugEnabled())
-            log.debug("The file meta info have been written:" + meta + ']');
+            if (log.isDebugEnabled())
+                log.debug("The file meta info have been written:" + meta + ']');
+        } catch (IOException e) {
+            throw transformExceptionIfNeed(e);
+        }
 
     }
 
@@ -73,10 +74,12 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      * @throws IOException If fails.
      */
     public long writeFrom(long position, long count, FileIO fileIO) throws IOException {
-        if (stopped.get())
-            return -1;
-
-        return fileIO.transferTo(position, count, (WritableByteChannel)channel);
+        try {
+            return fileIO.transferTo(position, count, (WritableByteChannel)channel);
+        }
+        catch (IOException e) {
+            throw transformExceptionIfNeed(e);
+        }
     }
 
     /**
@@ -85,10 +88,12 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      * @throws IOException If fails.
      */
     public long writeFrom(ByteBuffer buff) throws IOException {
-        if (stopped.get())
-            return -1;
-
-        return channel.write(buff);
+        try {
+            return channel.write(buff);
+        }
+        catch (IOException e) {
+            throw transformExceptionIfNeed(e);
+        }
     }
 
     /** {@inheritDoc} */

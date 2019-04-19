@@ -34,6 +34,7 @@ import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
+import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -137,7 +138,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
         ig1.context().fileTransmit().addFileIoChannelHandler(topic, new FileReadHandlerFactory() {
             @Override public FileReadHandler create() {
                 return new FileReadHandler() {
-                    @Override public void created(UUID nodeId, String sessionId, AtomicBoolean stop) {
+                    @Override public void created(UUID nodeId, String sessionId, IgniteInternalFuture<?> fut) {
 
                     }
 

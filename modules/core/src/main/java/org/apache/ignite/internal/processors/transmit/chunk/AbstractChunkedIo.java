@@ -1,7 +1,10 @@
 package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.EOFException;
+import java.io.IOException;
 import java.util.Objects;
+import org.apache.ignite.internal.processors.transmit.stream.RemoteTransmitException;
+import org.apache.ignite.internal.processors.transmit.stream.TransmitAbstractChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
@@ -80,12 +83,14 @@ abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
     }
 
     /**
-     * @throws EOFException If the check fails.
+     * @param io The file object to check.
+     * @throws IOException If the check fails.
      */
-    public void checkTransferEOF() throws EOFException {
-        if (transferred < count) {
-            throw new EOFException("The file expected to be fully transferred but don't [count=" + count +
-                ", transferred=" + transferred + ']');
+    public void checkChunkedIoEOF(ChunkedIo<?> io, TransmitAbstractChannel ch) throws IOException {
+        if (io.transferred() < io.count()) {
+            throw new RemoteTransmitException("The connection is lost. The file expected to be fully transferred, " +
+                "but didn't [count=" + io.count() + ", transferred=" + io.transferred() +
+                ", remoteId=" + ch.igniteSocket().id().remoteId() + ", index=" + ch.igniteSocket().id().idx() + ']');
         }
     }
 

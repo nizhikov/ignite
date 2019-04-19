@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.internal.IgniteInternalFuture;
 
 /**
  *
@@ -31,9 +32,9 @@ public interface FileReadHandler {
     /**
      * @param nodeId The remote node id connected from.
      * @param sessionId The unique session id.
-     * @param stop The flag to stop the stream processing.
+     * @param fut The future will be compelted when all files are uploaded.
      */
-    public void created(UUID nodeId, String sessionId, AtomicBoolean stop);
+    public void created(UUID nodeId, String sessionId, IgniteInternalFuture<?> fut);
 
     /**
      * @param name The file name transfer from.

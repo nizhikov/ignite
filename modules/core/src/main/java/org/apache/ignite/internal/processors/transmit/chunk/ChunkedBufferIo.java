@@ -27,7 +27,7 @@ public class ChunkedBufferIo extends AbstractChunkedIo<ByteBuffer> {
         if (readed > 0)
             transferred += readed;
         else if (readed < 0)
-            checkTransferEOF();
+            checkChunkedIoEOF(this, channel);
 
         return obj;
     }
@@ -38,8 +38,6 @@ public class ChunkedBufferIo extends AbstractChunkedIo<ByteBuffer> {
 
         if (written > 0)
             transferred += written;
-        else if (written < 0)
-            checkTransferEOF();
     }
 
     /** {@inheritDoc} */

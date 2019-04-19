@@ -51,8 +51,6 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
 
         if (readed > 0)
             transferred += readed;
-        else if (readed < 0)
-            checkTransferEOF();
 
         return obj;
     }
@@ -67,8 +65,6 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
 
         if (sent > 0)
             transferred += sent;
-        else if (sent < 0)
-            checkTransferEOF();
     }
 
     /** {@inheritDoc} */

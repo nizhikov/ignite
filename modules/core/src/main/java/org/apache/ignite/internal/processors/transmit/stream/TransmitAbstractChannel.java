@@ -19,8 +19,10 @@ package org.apache.ignite.internal.processors.transmit.stream;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.channels.AsynchronousCloseException;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedIo;
@@ -28,17 +30,26 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
 /**
+ * If the peer has closed the connection in an orderly way
  *
+ * read() returns -1
+ * readLine() returns null
+ * readXXX() throws EOFException for any other XXX.
+ *
+ * A write will throw an IOException: 'connection reset by peer', eventually, subject to buffering delays.
  */
 public abstract class TransmitAbstractChannel implements AutoCloseable {
+    /** */
+    private static final String RESET_BY_PEER_MSG = "Connection reset by peer";
+
+    /** */
+    private final IgniteSocketChannel igniteSock;
+
     /** */
     protected final IgniteLogger log;
 
     /** */
     protected final SocketChannel channel;
-
-    /** If the channel is not been used anymore. */
-    protected AtomicBoolean stopped = new AtomicBoolean();
 
     /**
      * @param ktx Kernal context.
@@ -50,26 +61,37 @@ public abstract class TransmitAbstractChannel implements AutoCloseable {
     ) {
         assert channel.config().blocking();
 
+        this.igniteSock = channel;
         this.channel = channel.channel();
         this.log = ktx.log(getClass());
     }
 
     /**
-     * @param stopped The flag to set to.
+     * @param cause The original cause to throw.
+     * @return The new cause or the old one.
      */
-    public void stopped(AtomicBoolean stopped) {
-        this.stopped = stopped;
+    public IOException transformExceptionIfNeed(IOException cause) {
+        // Transform the connection reset by peer error message.
+        if (cause instanceof IOException && cause.getMessage().contains(RESET_BY_PEER_MSG) ||
+            cause instanceof EOFException ||
+            cause instanceof ClosedChannelException ||
+            cause instanceof AsynchronousCloseException ||
+            cause instanceof ClosedByInterruptException) {
+            // Return the new one with detailed message.
+            return new RemoteTransmitException(
+                "Lost connection to the remote node. The connection will be re-established according " +
+                    "to manager's configuration [remoteId=" + igniteSock.id().remoteId() +
+                    ", index=" + igniteSock.id().idx() + ']', cause);
+        }
+
+        return cause;
     }
 
     /**
-     * @param io The file object to check.
-     * @throws EOFException If the check fails.
+     * @return The corresponding ignite channel.
      */
-    public static void checkFileEOF(ChunkedIo<?> io) throws EOFException {
-        if (io.transferred() < io.count()) {
-            throw new EOFException("The file expected to be fully transferred but didn't [count=" + io.count() +
-                ", transferred=" + io.transferred() + ']');
-        }
+    public IgniteSocketChannel igniteSocket() {
+        return igniteSock;
     }
 
     /** {@inheritDoc} */
