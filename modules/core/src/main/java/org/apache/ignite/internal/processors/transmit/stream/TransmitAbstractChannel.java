@@ -25,7 +25,6 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
-import org.apache.ignite.internal.processors.transmit.chunk.ChunkedIo;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
@@ -72,7 +71,7 @@ public abstract class TransmitAbstractChannel implements AutoCloseable {
      */
     public IOException transformExceptionIfNeed(IOException cause) {
         // Transform the connection reset by peer error message.
-        if (cause instanceof IOException && cause.getMessage().contains(RESET_BY_PEER_MSG) ||
+        if ((cause instanceof IOException && RESET_BY_PEER_MSG.equals(cause.getMessage())) ||
             cause instanceof EOFException ||
             cause instanceof ClosedChannelException ||
             cause instanceof AsynchronousCloseException ||

@@ -51,6 +51,9 @@ import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
  *
  */
 public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
+    /** Reconnect attempts count to send single file. */
+    private static final int DFLT_RECONNECT_CNT = 5;
+
     /** */
     private final ConcurrentMap<Object, FileReadHandlerFactory> topicFactoryMap = new ConcurrentHashMap<>();
 
@@ -310,37 +313,55 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
         /** {@inheritDoc} */
         @Override public void write(File file, long offset, long count, Map<String, String> params) throws IgniteCheckedException {
-            // TODO reconnect if need.
+            int reconnects = 0;
+
             try {
-                ch.writeMeta(new TransmitMeta(file.getName(), offset, count, true, params));
+                while (reconnects <= DFLT_RECONNECT_CNT && !Thread.currentThread().isInterrupted()) {
+                    if (ch == null)
+                        connect();
 
-                ChunkedFileIo segFile = new ChunkedFileIo(file, file.getName(), offset, count);
+                    try {
+                        ch.writeMeta(new TransmitMeta(file.getName(), offset, count, true, params));
 
-                while (!segFile.endOfTransmit() && !Thread.currentThread().isInterrupted())
-                    segFile.writeInto(ch);
-            }
-            catch (RemoteTransmitException e) {
-                // Re-establish the new connection to continue load.
+                        ChunkedFileIo segFile = new ChunkedFileIo(file, file.getName(), offset, count);
+
+                        while (!segFile.endOfTransmit() && !Thread.currentThread().isInterrupted())
+                            segFile.writeInto(ch);
+
+                        break;
+                    }
+                    catch (RemoteTransmitException e) {
+                        // Re-establish the new connection to continue upload.
+                        log.warning("The connection lost. Connection will be re-established, reconnects left: " +
+                            (DFLT_RECONNECT_CNT - reconnects) + ". [remoteId=" + remoteId + ", file=" + file.getName() + ']');
+
+                        U.closeQuiet(ch);
+
+                        ch = null;
+
+                        reconnects++;
+                    }
+                }
             }
             catch (IOException e) {
                 throw new IgniteCheckedException("Exception while uploading file to the remote node " +
                     "[remoteId=" + remoteId + ", file=" + file.getName() + ']', e);
-            }
-            finally {
-                U.closeQuiet(ch);
             }
         }
 
         /** {@inheritDoc} */
         @Override public void close() throws Exception {
             try {
-                ch.writeMeta(TransmitMeta.tombstone());
+                if (ch != null)
+                    ch.writeMeta(TransmitMeta.tombstone());
             }
             catch (IOException e) {
                 U.warn(log, "The excpetion of writing 'tombstone' on channel close operation has been ignored", e);
             }
             finally {
                 U.closeQuiet(ch);
+
+                ch = null;
             }
         }
     }
