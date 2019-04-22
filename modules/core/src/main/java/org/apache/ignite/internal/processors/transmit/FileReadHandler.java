@@ -46,10 +46,10 @@ public interface FileReadHandler {
 
     /**
      * @param piece The piece of data readed from source.
-     * @param position The position particular piece in the original source.
-     * @param count The number of bytes readed from source.
+     * @param piecePos The position particular piece in the original source.
+     * @param pieceSize The number of bytes readed from source.
      */
-    public void acceptPiece(Object piece, long position, long count);
+    public void acceptPiece(Object piece, long piecePos, long pieceSize);
 
     /**
      * @param position The start position pointer of download object in original source.

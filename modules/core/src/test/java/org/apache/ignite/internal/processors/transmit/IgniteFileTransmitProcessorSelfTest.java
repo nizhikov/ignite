@@ -144,7 +144,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                         return new File(tempStore, name);
                     }
 
-                    @Override public void acceptPiece(Object piece, long position, long count) {
+                    @Override public void acceptPiece(Object piece, long piecePos, long pieceSize) {
 
                     }
 
