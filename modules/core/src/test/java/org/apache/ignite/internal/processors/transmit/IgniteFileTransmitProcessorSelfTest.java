@@ -19,11 +19,9 @@ package org.apache.ignite.internal.processors.transmit;
 
 import java.io.File;
 import java.io.FilenameFilter;
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteDataStreamer;
@@ -138,20 +136,20 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
         ig1.context().fileTransmit().addFileIoChannelHandler(topic, new FileReadHandlerFactory() {
             @Override public FileReadHandler create() {
                 return new FileReadHandler() {
-                    @Override public void created(UUID nodeId, String sessionId, IgniteInternalFuture<?> fut) {
+                    @Override public void init(UUID nodeId, String sessionId, IgniteInternalFuture<?> fut) {
 
                     }
 
-                    @Override public Object acceptFileMeta(String name, Map<String, String> keys) throws IgniteCheckedException {
+                    @Override public Object begin(String name, Map<String, String> keys) throws IgniteCheckedException {
                         return new File(tempStore, name);
                     }
 
-                    @Override public void accept(File file) {
+                    @Override public void acceptPiece(Object piece, long position, long count) {
 
                     }
 
-                    @Override public void accept(ByteBuffer buff) {
-                        // No-op.
+                    @Override public void end(long begin, long end) {
+
                     }
 
                     @Override public void exceptionCaught(Throwable cause) {

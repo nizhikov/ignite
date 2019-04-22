@@ -26,7 +26,7 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.IgniteInternalFuture;
 
 /**
- *
+ * The statefull read file handler from the remote channel.
  */
 public interface FileReadHandler {
     /**
@@ -34,7 +34,7 @@ public interface FileReadHandler {
      * @param sessionId The unique session id.
      * @param fut The future will be compelted when all files are uploaded.
      */
-    public void created(UUID nodeId, String sessionId, IgniteInternalFuture<?> fut);
+    public void init(UUID nodeId, String sessionId, IgniteInternalFuture<?> fut);
 
     /**
      * @param name The file name transfer from.
@@ -42,17 +42,20 @@ public interface FileReadHandler {
      * @return The destination object to transfer data to. Can be the {@link File} or {@link ByteBuffer}.
      * @throws IgniteCheckedException If fails.
      */
-    public Object acceptFileMeta(String name, Map<String, String> keys) throws IgniteCheckedException;
+    public Object begin(String name, Map<String, String> keys) throws IgniteCheckedException;
 
     /**
-     * @param file The file to read channel into.
+     * @param piece The piece of data readed from source.
+     * @param position The position particular piece in the original source.
+     * @param count The number of bytes readed from source.
      */
-    public void accept(File file);
+    public void acceptPiece(Object piece, long position, long count);
 
     /**
-     * @param buff The buffer to read channel into.
+     * @param position The start position pointer of download object in original source.
+     * @param count Total count of bytes readed from the original source.
      */
-    public void accept(ByteBuffer buff);
+    public void end(long position, long count);
 
     /**
      * @param cause The case of fail handling process.

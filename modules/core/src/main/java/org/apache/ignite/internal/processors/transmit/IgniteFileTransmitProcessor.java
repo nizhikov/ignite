@@ -131,7 +131,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                                     final FileReadHandler hndlr = factory.create();
                                     final GridFutureAdapter<?> fut = new GridFutureAdapter<>();
 
-                                    hndlr.created(nodeId, ses, fut);
+                                    hndlr.init(nodeId, ses, fut);
 
                                     return new FileIoReadContext(nodeId, ses, hndlr, fut);
                                 }),
@@ -183,7 +183,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         throw new IgniteCheckedException("Receive the offer to download a new file which was " +
                             "previously not been fully loaded [file=" + meta.name() + ", unfinished=" + rctx.unfinished + ']');
 
-                    Object intoObj = rctx.handler.acceptFileMeta(meta.name(), meta.keys());
+                    Object intoObj = rctx.handler.begin(meta.name(), meta.keys());
 
                     if (intoObj instanceof ByteBuffer)
                         seg = new ChunkedBufferIo((ByteBuffer)intoObj, meta.name(), meta.offset(), meta.count());
@@ -211,20 +211,19 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                 // Read data from the input.
                 while (!seg.endOfTransmit() && !rctx.fut.isDone() && !Thread.currentThread().isInterrupted()) {
-                    if (objReaded instanceof ByteBuffer)
-                        rctx.handler.accept((ByteBuffer)objReaded);
+                    long bytesBeforeRead = seg.transferred();
 
                     objReaded = seg.readFrom(chnl);
+
+                    if (objReaded == null)
+                        throw new IOException("The file has not been fully received: " + meta);
+
+                    rctx.handler.acceptPiece(objReaded,
+                        seg.postition() + seg.transferred(),
+                        seg.transferred() - bytesBeforeRead);
                 }
 
-                if (objReaded instanceof File)
-                    rctx.handler.accept((File)objReaded);
-                else if (objReaded instanceof  ByteBuffer)
-                    rctx.handler.accept((ByteBuffer)objReaded);
-                else if (objReaded == null)
-                    throw new IOException("The file has not been fully received: " + meta);
-                else
-                    throw new IgniteCheckedException("The destination object is unknown type: " + objReaded.getClass());
+                rctx.handler.end(seg.postition(), seg.count());
 
                 rctx.unfinished = null;
             }
