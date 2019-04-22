@@ -3,6 +3,7 @@ package org.apache.ignite.internal.processors.transmit.chunk;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.Objects;
+import org.apache.ignite.internal.processors.transmit.FileTarget;
 import org.apache.ignite.internal.processors.transmit.stream.RemoteTransmitException;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitAbstractChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -15,7 +16,7 @@ abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
     public static final int DFLT_SEGMENT_SIZE = 1024 * 1024;
 
     /** The destination object to transfer data into. */
-    protected final T obj;
+    protected final FileTarget<T> obj;
 
     /** The unique input name to identify particular transfer part.*/
     protected final String name;
@@ -39,7 +40,7 @@ abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
      * @param count The number of bytes to expect of transfer.
      * @param segmentSize The size of segmented the read.
      */
-    protected AbstractChunkedIo(T obj, String name, long position, long count, int segmentSize) {
+    protected AbstractChunkedIo(FileTarget<T> obj, String name, long position, long count, int segmentSize) {
         assert position >= 0 : "The file position must be non-negative";
         assert count >= 0 : "The number of bytes to sent must be positive";
 
@@ -56,7 +57,7 @@ abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      */
-    protected AbstractChunkedIo(T obj, String name, long position, long count) {
+    protected AbstractChunkedIo(FileTarget<T> obj, String name, long position, long count) {
         this(obj, name, position, count, DFLT_SEGMENT_SIZE);
     }
 

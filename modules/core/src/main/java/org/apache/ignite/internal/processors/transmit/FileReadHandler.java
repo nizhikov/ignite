@@ -21,9 +21,9 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.IgniteInternalFuture;
+import org.apache.ignite.lang.IgniteBiTuple;
 
 /**
  * The statefull read file handler from the remote channel.
@@ -42,14 +42,14 @@ public interface FileReadHandler {
      * @return The destination object to transfer data to. Can be the {@link File} or {@link ByteBuffer}.
      * @throws IgniteCheckedException If fails.
      */
-    public Object begin(String name, Map<String, String> keys) throws IgniteCheckedException;
+    public FileTarget<?> begin(String name, Map<String, String> keys) throws IgniteCheckedException;
 
     /**
      * @param piece The piece of data readed from source.
      * @param piecePos The start position of particular piece in the original source.
      * @param pieceSize The number of bytes readed from source.
      */
-    public void acceptPiece(Object piece, long piecePos, long pieceSize);
+    public void acceptPiece(FileTarget<?> piece, long piecePos, long pieceSize);
 
     /**
      * @param position The start position pointer of download object in original source.

@@ -140,11 +140,11 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
                     }
 
-                    @Override public Object begin(String name, Map<String, String> keys) throws IgniteCheckedException {
-                        return new File(tempStore, name);
+                    @Override public FileTarget begin(String name, Map<String, String> keys) throws IgniteCheckedException {
+                        return FileTarget.fileTarget(new File(tempStore, name));
                     }
 
-                    @Override public void acceptPiece(Object piece, long piecePos, long pieceSize) {
+                    @Override public void acceptPiece(FileTarget piece, long piecePos, long pieceSize) {
 
                     }
 

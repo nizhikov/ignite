@@ -2,6 +2,7 @@ package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import org.apache.ignite.internal.processors.transmit.FileTarget;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -16,13 +17,13 @@ public class ChunkedBufferIo extends AbstractChunkedIo<ByteBuffer> {
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      */
-    public ChunkedBufferIo(ByteBuffer buff, String name, long position, long count) {
+    public ChunkedBufferIo(FileTarget<ByteBuffer> buff, String name, long position, long count) {
         super(buff, name, position, count);
     }
 
     /** {@inheritDoc} */
-    @Override public ByteBuffer readFrom(TransmitInputChannel channel) throws IOException {
-        long readed = channel.readInto(obj);
+    @Override public FileTarget<ByteBuffer> readFrom(TransmitInputChannel channel) throws IOException {
+        long readed = channel.readInto(obj.target());
 
         if (readed > 0)
             transferred += readed;
@@ -34,7 +35,7 @@ public class ChunkedBufferIo extends AbstractChunkedIo<ByteBuffer> {
 
     /** {@inheritDoc} */
     @Override public void writeInto(TransmitOutputChannel channel) throws IOException {
-        long written = channel.writeFrom(obj);
+        long written = channel.writeFrom(obj.target());
 
         if (written > 0)
             transferred += written;

@@ -5,6 +5,7 @@ import java.io.IOException;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
+import org.apache.ignite.internal.processors.transmit.FileTarget;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -29,7 +30,7 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      */
-    public ChunkedFileIo(File fileCfg, String name, long position, long count) {
+    public ChunkedFileIo(FileTarget<File> fileCfg, String name, long position, long count) {
         super(fileCfg, name, position, count);
     }
 
@@ -38,11 +39,11 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
      */
     public void open() throws IOException {
         if (fileIo == null)
-            fileIo = dfltIoFactory.create(obj);
+            fileIo = dfltIoFactory.create(obj.target());
     }
 
     /** {@inheritDoc} */
-    @Override public File readFrom(TransmitInputChannel channel) throws IOException {
+    @Override public FileTarget<File> readFrom(TransmitInputChannel channel) throws IOException {
         open();
 
         long batchSize = Math.min(segmentSize, count - transferred);

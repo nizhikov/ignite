@@ -183,14 +183,16 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         throw new IgniteCheckedException("Receive the offer to download a new file which was " +
                             "previously not been fully loaded [file=" + meta.name() + ", unfinished=" + rctx.unfinished + ']');
 
-                    Object intoObj = rctx.handler.begin(meta.name(), meta.keys());
+                    FileTarget<?> target = rctx.handler.begin(meta.name(), meta.keys());
 
-                    if (intoObj instanceof ByteBuffer)
-                        seg = new ChunkedBufferIo((ByteBuffer)intoObj, meta.name(), meta.offset(), meta.count());
-                    else if (intoObj instanceof File)
-                        seg = new ChunkedFileIo((File)intoObj, meta.name(), meta.offset(), meta.count());
+                    Object targetObj = target.target();
+
+                    if (targetObj instanceof ByteBuffer)
+                        seg = new ChunkedBufferIo((FileTarget<ByteBuffer>)target, meta.name(), meta.offset(), meta.count());
+                    else if (targetObj instanceof File)
+                        seg = new ChunkedFileIo((FileTarget<File>)target, meta.name(), meta.offset(), meta.count());
                     else
-                        throw new IgniteCheckedException("The object to write to is unknown type: " + intoObj.getClass());
+                        throw new IgniteCheckedException("The object to write to is unknown type: " + targetObj.getClass());
 
                     rctx.unfinished = seg;
                 }
@@ -207,7 +209,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                             ", transferred=" + seg.transferred() + ", count=" + meta.count() + ']';
                 }
 
-                Object objReaded = null;
+                FileTarget<?> objReaded = null;
 
                 // Read data from the input.
                 while (!seg.endOfTransmit() && !rctx.fut.isDone() && !Thread.currentThread().isInterrupted()) {
@@ -339,7 +341,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     try {
                         ch.writeMeta(new TransmitMeta(file.getName(), offset, count, true, params));
 
-                        ChunkedFileIo segFile = new ChunkedFileIo(file, file.getName(), offset, count);
+                        ChunkedFileIo segFile = new ChunkedFileIo(FileTarget.fileTarget(file), file.getName(), offset, count);
 
                         while (!segFile.endOfTransmit() && !Thread.currentThread().isInterrupted())
                             segFile.writeInto(ch);
