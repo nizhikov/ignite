@@ -226,7 +226,6 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 }
 
                 rctx.handler.end(seg.postition(), seg.count());
-
                 rctx.unfinished = null;
             }
         }

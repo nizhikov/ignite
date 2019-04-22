@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
  */
 public class FileTarget<T> {
     /** */
-    private T target;
+    private final T target;
 
     /**
      * @param target The target object to read source into.
