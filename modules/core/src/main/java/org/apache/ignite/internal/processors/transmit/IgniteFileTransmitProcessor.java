@@ -217,7 +217,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                     objReaded = seg.readFrom(chnl);
 
-                    if (objReaded == null)
+                    if (objReaded.target() == null)
                         throw new IOException("The file has not been fully received: " + meta);
 
                     rctx.handler.acceptPiece(objReaded,
