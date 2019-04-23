@@ -3,6 +3,7 @@ package org.apache.ignite.internal.processors.transmit.chunk;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.atomic.LongAdder;
 import org.apache.ignite.internal.processors.transmit.FileTarget;
 import org.apache.ignite.internal.processors.transmit.stream.RemoteTransmitException;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitAbstractChannel;
@@ -31,7 +32,7 @@ abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
     protected final int segmentSize;
 
     /** The number of bytes successfully transferred druring iteration. */
-    protected long transferred;
+    protected final LongAdder transferred = new LongAdder();
 
     /**
      * @param obj The destination object to transfer into.
@@ -68,7 +69,7 @@ abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
 
     /** {@inheritDoc} */
     @Override public long transferred() {
-        return transferred;
+        return transferred.longValue();
     }
 
     /** {@inheritDoc} */
@@ -95,7 +96,7 @@ abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
 
     /** {@inheritDoc} */
     @Override public boolean endOfTransmit() {
-        return transferred == count;
+        return transferred.longValue() == count;
     }
 
     /** {@inheritDoc} */

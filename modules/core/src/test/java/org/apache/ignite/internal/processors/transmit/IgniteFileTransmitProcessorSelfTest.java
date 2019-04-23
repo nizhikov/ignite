@@ -175,4 +175,10 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                 writer.write(file, 0, file.length(), new HashMap<>());
         }
     }
+
+    /** */
+    @Test
+    public void testReconnectWhenChannelClosed() throws Exception {
+
+    }
 }

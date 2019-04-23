@@ -26,7 +26,7 @@ public class ChunkedBufferIo extends AbstractChunkedIo<ByteBuffer> {
         long readed = channel.readInto(obj.target());
 
         if (readed > 0)
-            transferred += readed;
+            transferred.add(readed);
         else if (readed < 0)
             checkChunkedIoEOF(this, channel);
 
@@ -38,7 +38,7 @@ public class ChunkedBufferIo extends AbstractChunkedIo<ByteBuffer> {
         long written = channel.writeFrom(obj.target());
 
         if (written > 0)
-            transferred += written;
+            transferred.add(written);
     }
 
     /** {@inheritDoc} */

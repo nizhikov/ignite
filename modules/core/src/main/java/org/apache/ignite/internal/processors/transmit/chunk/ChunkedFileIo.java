@@ -46,12 +46,12 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
     @Override public FileTarget<File> readFrom(TransmitInputChannel channel) throws IOException {
         open();
 
-        long batchSize = Math.min(segmentSize, count - transferred);
+        long batchSize = Math.min(segmentSize, count - transferred.longValue());
 
-        long readed = channel.readInto(fileIo, position + transferred, batchSize);
+        long readed = channel.readInto(fileIo, position + transferred.longValue(), batchSize);
 
         if (readed > 0)
-            transferred += readed;
+            transferred.add(readed);
 
         return obj;
     }
@@ -60,12 +60,12 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
     @Override public void writeInto(TransmitOutputChannel channel) throws IOException {
         open();
 
-        long batchSize = Math.min(segmentSize, count - transferred);
+        long batchSize = Math.min(segmentSize, count - transferred.longValue());
 
-        long sent = channel.writeFrom(position + transferred, batchSize, fileIo);
+        long sent = channel.writeFrom(position + transferred.longValue(), batchSize, fileIo);
 
         if (sent > 0)
-            transferred += sent;
+            transferred.add(sent);
     }
 
     /** {@inheritDoc} */
