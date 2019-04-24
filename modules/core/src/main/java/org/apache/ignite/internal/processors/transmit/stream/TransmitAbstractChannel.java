@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.ClosedChannelException;
-import java.nio.channels.SocketChannel;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -42,13 +41,10 @@ public abstract class TransmitAbstractChannel implements AutoCloseable {
     private static final String RESET_BY_PEER_MSG = "Connection reset by peer";
 
     /** */
-    private final IgniteSocketChannel igniteSock;
+    private final IgniteSocketChannel igniteChannel;
 
     /** */
     protected final IgniteLogger log;
-
-    /** */
-    protected final SocketChannel channel;
 
     /**
      * @param ktx Kernal context.
@@ -60,8 +56,7 @@ public abstract class TransmitAbstractChannel implements AutoCloseable {
     ) {
         assert channel.config().blocking();
 
-        this.igniteSock = channel;
-        this.channel = channel.channel();
+        this.igniteChannel = channel;
         this.log = ktx.log(getClass());
     }
 
@@ -79,8 +74,8 @@ public abstract class TransmitAbstractChannel implements AutoCloseable {
             // Return the new one with detailed message.
             return new RemoteTransmitException(
                 "Lost connection to the remote node. The connection will be re-established according " +
-                    "to manager's configuration [remoteId=" + igniteSock.id().remoteId() +
-                    ", index=" + igniteSock.id().idx() + ']', cause);
+                    "to the manager's transmission configuration [remoteId=" + igniteChannel.id().remoteId() +
+                    ", index=" + igniteChannel.id().idx() + ']', cause);
         }
 
         return cause;
@@ -90,11 +85,11 @@ public abstract class TransmitAbstractChannel implements AutoCloseable {
      * @return The corresponding ignite channel.
      */
     public IgniteSocketChannel igniteSocket() {
-        return igniteSock;
+        return igniteChannel;
     }
 
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
-        U.closeQuiet(channel);
+        U.closeQuiet(igniteChannel);
     }
 }

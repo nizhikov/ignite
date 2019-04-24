@@ -36,16 +36,16 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
 
     /**
      * @param ktx Kernal context.
-     * @param channel Socket channel to upload files to.
+     * @param igniteChannel Ignite channel to upload files to.
      * @throws IOException If fails.
      */
     public TransmitOutputChannel(
         GridKernalContext ktx,
-        IgniteSocketChannel channel
+        IgniteSocketChannel igniteChannel
     ) throws IOException {
-        super(ktx, channel);
+        super(ktx, igniteChannel);
 
-        this.dos = new ObjectOutputStream(this.channel.socket().getOutputStream());
+        this.dos = new ObjectOutputStream(igniteChannel.channel().socket().getOutputStream());
     }
 
     /**
@@ -75,7 +75,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public long writeFrom(long position, long count, FileIO fileIO) throws IOException {
         try {
-            return fileIO.transferTo(position, count, (WritableByteChannel)channel);
+            return fileIO.transferTo(position, count, (WritableByteChannel)igniteSocket().channel());
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);
@@ -89,7 +89,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public long writeFrom(ByteBuffer buff) throws IOException {
         try {
-            return channel.write(buff);
+            return igniteSocket().channel().write(buff);
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);

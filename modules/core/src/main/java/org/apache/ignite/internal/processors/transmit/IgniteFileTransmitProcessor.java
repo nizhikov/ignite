@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -191,7 +192,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                     switch (rctx.currPlc) {
                         case FILE:
-                            rctx.fileHndlr = rctx.sesHndlr.fileHandler();
+                            rctx.fileHndlr = Objects.requireNonNull(rctx.sesHndlr.fileHandler());
 
                             String absPath = rctx.fileHndlr.begin(meta.name(), meta.offset(), meta.count(), rctx.currIoParams);
 
@@ -200,7 +201,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                             break;
 
                         case BUFF:
-                            rctx.chunkHndlr = rctx.sesHndlr.chunkHandler();
+                            rctx.chunkHndlr = Objects.requireNonNull(rctx.sesHndlr.chunkHandler());
 
                             int buffSize = rctx.chunkHndlr.begin(meta.name(), meta.offset(), meta.count(), rctx.currIoParams);
 
@@ -218,6 +219,8 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 else {
                     seg = rctx.currIo;
 
+                    assert meta.policy() == rctx.currPlc :
+                        "Attempt to process the same input with the different read policy: " + meta.policy();
                     assert seg.name().equals(meta.name()) : "Attempt to load different file name [name=" + seg.name() +
                         ", meta=" + meta.name() + ']';
                     assert seg.postition() + seg.transferred() == meta.offset() :
@@ -228,26 +231,24 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                             ", transferred=" + seg.transferred() + ", count=" + meta.count() + ']';
                 }
 
-                Object objReaded = null;
-
                 // Read data from the input.
                 while (!seg.endOfTransmit() && !Thread.currentThread().isInterrupted()) {
-                    objReaded = seg.readFrom(chnl);
-
-                    if (objReaded == null)
-                        throw new IOException("The file has not been fully received: " + meta);
+                    seg.readChunk(chnl);
 
                     if (rctx.currPlc == ReadPolicy.BUFF)
-                        rctx.chunkHndlr.chunk((ByteBuffer)objReaded);
+                        rctx.chunkHndlr.chunk((ByteBuffer)seg.chunk());
                 }
 
                 switch (rctx.currPlc) {
                     case FILE:
-                        rctx.fileHndlr.end((File)objReaded, rctx.currIoParams);
+                        rctx.fileHndlr.end((File)seg.chunk(), rctx.currIoParams);
+
                         break;
 
                     case BUFF:
                         rctx.chunkHndlr.end(rctx.currIoParams);
+
+                        break;
 
                     default:
                         assert false : "The read policy is undefined: " + rctx.currPlc;
@@ -272,7 +273,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         catch (Throwable t) {
             rctx.sesHndlr.onException(t);
 
-            log.error("The download session cannot be finished due to unhandled error [ctx=" + rctx +
+            log.error("The download session cannot be finished due to unexpected error [ctx=" + rctx +
                 ", channel=" + chnl + ']', t);
         }
         finally {
@@ -371,22 +372,22 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     try {
                         ch.writeMeta(new TransmitMeta(file.getName(), offset, count, true, plc, params));
 
-                        ChunkedFileIo segFile = new ChunkedFileIo(file, file.getName(), offset, count);
+                        ChunkedFileIo chunked = new ChunkedFileIo(file, file.getName(), offset, count);
 
-                        while (!segFile.endOfTransmit() && !Thread.currentThread().isInterrupted())
-                            segFile.writeInto(ch);
+                        while (!chunked.endOfTransmit() && !Thread.currentThread().isInterrupted())
+                            chunked.writeChunk(ch);
 
                         break;
                     }
                     catch (RemoteTransmitException e) {
-                        // Re-establish the new connection to continue upload.
-                        U.warn(log, "The connection lost. Connection will be re-established, reconnects left: " +
-                            (DFLT_RECONNECT_CNT - reconnects) + ". [remoteId=" + remoteId + ", file=" + file.getName() +
-                            ", sessionId=" + sessionId + ']');
-
                         closeChannelQuiet();
 
                         reconnects++;
+
+                        // Re-establish the new connection to continue upload.
+                        U.warn(log, "An exception occured during file transmission. Re-establishing connection " +
+                            " [remoteId=" + remoteId + ", file=" + file.getName() + ", sessionId=" + sessionId +
+                            ", reconnects=" + reconnects + ']', e);
                     }
                 }
             }

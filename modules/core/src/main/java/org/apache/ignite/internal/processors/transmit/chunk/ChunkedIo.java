@@ -18,7 +18,6 @@
 package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.IOException;
-import org.apache.ignite.internal.processors.transmit.ReadPolicy;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
 
@@ -26,6 +25,11 @@ import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChann
  * @param <T>
  */
 public interface ChunkedIo<T> extends AutoCloseable {
+    /**
+     * @return The chunk of data to interact as io.
+     */
+    public T chunk();
+
     /**
      * @return The string representation file name.
      */
@@ -47,17 +51,16 @@ public interface ChunkedIo<T> extends AutoCloseable {
     public long count();
 
     /**
-     * @param channel The channel to read data from.
-     * @return The destination obj to read data into.
+     * @param ch The channel to read data from.
      * @throws IOException If fails.
      */
-    public T readFrom(TransmitInputChannel channel) throws IOException;
+    public void readChunk(TransmitInputChannel ch) throws IOException;
 
     /**
-     * @param channel The channel to write data into.
+     * @param ch The channel to write data into.
      * @throws IOException If fails.
      */
-    public void writeInto(TransmitOutputChannel channel) throws IOException;
+    public void writeChunk(TransmitOutputChannel ch) throws IOException;
 
     /**
      * @return {@code true} if and only if there is no data left in the channel and it reached its end.

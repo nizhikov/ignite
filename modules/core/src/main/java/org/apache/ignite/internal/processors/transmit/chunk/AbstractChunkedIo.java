@@ -78,6 +78,11 @@ abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
     }
 
     /** {@inheritDoc} */
+    @Override public T chunk() {
+        return obj;
+    }
+
+    /** {@inheritDoc} */
     @Override public long postition() {
         return position;
     }
@@ -101,11 +106,10 @@ abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
      * @param io The file object to check.
      * @throws IOException If the check fails.
      */
-    public void checkChunkedIoEOF(ChunkedIo<?> io, TransmitAbstractChannel ch) throws IOException {
+    public void checkChunkedIoEOF(ChunkedIo<?> io) throws IOException {
         if (io.transferred() < io.count()) {
-            throw new RemoteTransmitException("The connection is lost. The file expected to be fully transferred, " +
-                "but didn't [count=" + io.count() + ", transferred=" + io.transferred() +
-                ", remoteId=" + ch.igniteSocket().id().remoteId() + ", index=" + ch.igniteSocket().id().idx() + ']');
+            throw new RemoteTransmitException("Socket channel EOF received, but the file is not fully transferred " +
+                "[count=" + io.count() + ", transferred=" + io.transferred() + ']');
         }
     }
 

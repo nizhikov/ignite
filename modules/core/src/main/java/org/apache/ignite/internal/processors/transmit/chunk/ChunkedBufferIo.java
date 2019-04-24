@@ -38,19 +38,17 @@ public class ChunkedBufferIo extends AbstractChunkedIo<ByteBuffer> {
     }
 
     /** {@inheritDoc} */
-    @Override public ByteBuffer readFrom(TransmitInputChannel channel) throws IOException {
+    @Override public void readChunk(TransmitInputChannel channel) throws IOException {
         long readed = channel.readInto(obj);
 
         if (readed > 0)
             transferred.add(readed);
         else if (readed < 0)
-            checkChunkedIoEOF(this, channel);
-
-        return obj;
+            checkChunkedIoEOF(this);
     }
 
     /** {@inheritDoc} */
-    @Override public void writeInto(TransmitOutputChannel channel) throws IOException {
+    @Override public void writeChunk(TransmitOutputChannel channel) throws IOException {
         long written = channel.writeFrom(obj);
 
         if (written > 0)

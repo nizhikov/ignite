@@ -59,7 +59,7 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
     }
 
     /** {@inheritDoc} */
-    @Override public File readFrom(TransmitInputChannel channel) throws IOException {
+    @Override public void readChunk(TransmitInputChannel channel) throws IOException {
         open();
 
         long batchSize = Math.min(segmentSize, count - transferred.longValue());
@@ -68,12 +68,10 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
 
         if (readed > 0)
             transferred.add(readed);
-
-        return obj;
     }
 
     /** {@inheritDoc} */
-    @Override public void writeInto(TransmitOutputChannel channel) throws IOException {
+    @Override public void writeChunk(TransmitOutputChannel channel) throws IOException {
         open();
 
         long batchSize = Math.min(segmentSize, count - transferred.longValue());
