@@ -21,6 +21,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -54,7 +56,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     private static final int DFLT_RECONNECT_CNT = 5;
 
     /** */
-    private final ConcurrentMap<Object, TransmitSessionHandlerFactory> topicFactoryMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, TransmitSessionFactory> topicFactoryMap = new ConcurrentHashMap<>();
 
     /** The map of already known channel read contexts by its session id. */
     private final ConcurrentMap<String, FileIoReadContext> sessionContextMap = new ConcurrentHashMap<>();
@@ -107,7 +109,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @param topic The {@link GridTopic} to register handler to.
      * @param factory The factory will create a new handler for each created channel.
      */
-    public void addFileIoChannelHandler(Object topic, TransmitSessionHandlerFactory factory) {
+    public void addFileIoChannelHandler(Object topic, TransmitSessionFactory factory) {
         synchronized (mux) {
             if (topicFactoryMap.putIfAbsent(topic, factory) == null) {
                 ctx.io().addChannelListener(topic, new GridIoChannelListener() {
@@ -127,7 +129,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                             onChannelCreated0(sessionContextMap.computeIfAbsent(sessionMeta.name(),
                                 ses -> {
-                                    final TransmitSessionHandler sesHndlr = factory.create();
+                                    final TransmitSession sesHndlr = factory.create();
 
                                     sesHndlr.begin(nodeId, ses);
 
@@ -177,20 +179,21 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 }
 
                 rctx.currPlc = meta.policy();
+                rctx.currIoParams = meta.params();
 
                 // Loading the file the first time.
                 if (meta.initial()) {
-                    if (rctx.unfinished != null) {
+                    if (rctx.currIo != null) {
                         throw new IgniteCheckedException("Receive the offer to download a new file which was " +
                             "previously not been fully loaded [file=" + meta.name() +
-                            ", unfinished=" + rctx.unfinished.name() + ']');
+                            ", unfinished=" + rctx.currIo.name() + ']');
                     }
 
                     switch (rctx.currPlc) {
                         case FILE:
                             rctx.fileHndlr = rctx.sesHndlr.fileHandler();
 
-                            String absPath = rctx.fileHndlr.begin(meta.name(), meta.offset(), meta.count(), meta.keys());
+                            String absPath = rctx.fileHndlr.begin(meta.name(), meta.offset(), meta.count(), rctx.currIoParams);
 
                             seg = new ChunkedFileIo(new File(absPath), meta.name(), meta.offset(), meta.count());
 
@@ -199,9 +202,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         case BUFF:
                             rctx.chunkHndlr = rctx.sesHndlr.chunkHandler();
 
-                            ByteBuffer buff = rctx.chunkHndlr.begin(meta.name(), meta.offset(), meta.count(), meta.keys());
+                            int buffSize = rctx.chunkHndlr.begin(meta.name(), meta.offset(), meta.count(), rctx.currIoParams);
 
-                            seg = new ChunkedBufferIo(buff, meta.name(), meta.offset(), meta.count());
+                            seg = new ChunkedBufferIo(ByteBuffer.allocate(buffSize), meta.name(), meta.offset(), meta.count());
 
                             break;
 
@@ -210,10 +213,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                                 "required: " + rctx.currPlc);
                     }
 
-                    rctx.unfinished = seg;
+                    rctx.currIo = seg;
                 }
                 else {
-                    seg = rctx.unfinished;
+                    seg = rctx.currIo;
 
                     assert seg.name().equals(meta.name()) : "Attempt to load different file name [name=" + seg.name() +
                         ", meta=" + meta.name() + ']';
@@ -240,17 +243,17 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                 switch (rctx.currPlc) {
                     case FILE:
-                        rctx.fileHndlr.end((File)objReaded);
+                        rctx.fileHndlr.end((File)objReaded, rctx.currIoParams);
                         break;
 
                     case BUFF:
-                        rctx.chunkHndlr.end();
+                        rctx.chunkHndlr.end(rctx.currIoParams);
 
                     default:
                         assert false : "The read policy is undefined: " + rctx.currPlc;
                 }
 
-                rctx.unfinished = null;
+                rctx.currIo = null;
             }
         }
         catch (RemoteTransmitException e) {
@@ -430,32 +433,42 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         private final String sessionId;
 
         /** */
-        private final TransmitSessionHandler sesHndlr;
+        private final TransmitSession sesHndlr;
 
         /** */
-        private ChunkedReadHandler chunkHndlr;
+        private ChunkHandler chunkHndlr;
 
         /** */
-        private FileReadHandler fileHndlr;
-
-        /** */
-        private ReadPolicy currPlc;
+        private FileHandler fileHndlr;
 
         /** The number of reconnect attempts of current session. */
         private int reconnects = DFLT_RECONNECT_CNT;
 
+        /** */
+        private ReadPolicy currPlc;
+
         /** The last infinished download. */
-        private ChunkedIo<?> unfinished;
+        private ChunkedIo<?> currIo;
+
+        /** */
+        private Map<String, Serializable> currIoParams;
 
         /**
          * @param nodeId The remote node id.
          * @param sessionId The unique session id.
          * @param sesHndlr The channel handler.
          */
-        public FileIoReadContext(UUID nodeId, String sessionId, TransmitSessionHandler sesHndlr) {
+        public FileIoReadContext(UUID nodeId, String sessionId, TransmitSession sesHndlr) {
             this.nodeId = nodeId;
             this.sessionId = sessionId;
             this.sesHndlr = sesHndlr;
+        }
+
+        /**
+         * @param params The input params to copy to context.
+         */
+        public void lastIoParams(Map<String, Serializable> params) {
+            currIoParams = Collections.unmodifiableMap(new HashMap<>(params)); ;
         }
 
         /** {@inheritDoc} */

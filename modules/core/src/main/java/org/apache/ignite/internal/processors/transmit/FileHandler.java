@@ -17,12 +17,26 @@
 
 package org.apache.ignite.internal.processors.transmit;
 
+import java.io.File;
+import java.io.Serializable;
+import java.util.Map;
+
 /**
  *
  */
-public interface TransmitSessionHandlerFactory {
+public interface FileHandler {
     /**
-     * @return The handler to process new channel creation.
+     * @param name The file name transfer from.
+     * @param position The start position pointer of download file in original source.
+     * @param count Total count of bytes readed from the original source.
+     * @param params The additional transfer file description params.
+     * @return The absolute pathname string denoting the file or {@code null} if there is no sense.
      */
-    public TransmitSessionHandler create();
+    public String begin(String name, long position, long count, Map<String, Serializable> params);
+
+    /**
+     * @param file The file with fully downloaded data into.
+     * @param params The additional transfer file description params.
+     */
+    public void end(File file, Map<String, Serializable> params);
 }

@@ -132,25 +132,25 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         File tempStore = U.resolveWorkDirectory(U.defaultWorkDirectory(), TEMP_FILES_DIR, true);
 
-        ig1.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionHandlerFactory() {
-            @Override public TransmitSessionHandler create() {
-                return new TransmitSessionHandler() {
+        ig1.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
+            @Override public TransmitSession create() {
+                return new TransmitSession() {
                     @Override public void begin(UUID nodeId, String sessionId) {
 
                     }
 
-                    @Override public ChunkedReadHandler chunkHandler() {
+                    @Override public ChunkHandler chunkHandler() {
                         return null;
                     }
 
-                    @Override public FileReadHandler fileHandler() {
-                        return new FileReadHandler() {
+                    @Override public FileHandler fileHandler() {
+                        return new FileHandler() {
                             @Override public String begin(String name, long position, long count,
                                 Map<String, Serializable> params) {
                                 return new File(tempStore, name).getAbsolutePath();
                             }
 
-                            @Override public void end(File file) {
+                            @Override public void end(File file, Map<String, Serializable> params) {
 
                             }
                         };

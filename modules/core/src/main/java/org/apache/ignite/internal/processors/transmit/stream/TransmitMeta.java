@@ -139,7 +139,7 @@ public class TransmitMeta implements Externalizable {
     /**
      * @return The map of additional keys.
      */
-    public Map<String, Serializable> keys() {
+    public Map<String, Serializable> params() {
         return Collections.unmodifiableMap(map);
     }
 

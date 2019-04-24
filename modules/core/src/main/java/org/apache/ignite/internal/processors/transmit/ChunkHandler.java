@@ -25,15 +25,15 @@ import org.apache.ignite.IgniteCheckedException;
 /**
  *
  */
-public interface ChunkedReadHandler {
+public interface ChunkHandler {
     /**
      * @param name The file name on remote.
      * @param position The start position pointer of downloading file in original source.
      * @param count Total count of bytes to read from the original source.
      * @param params The additional transfer file description params.
-     * @return The instance of {@link ByteBuffer} to read the input channel into.
+     * @return The size of of {@link ByteBuffer} to read the input channel into.
      */
-    public ByteBuffer begin(String name, long position, long count, Map<String, Serializable> params);
+    public int begin(String name, long position, long count, Map<String, Serializable> params);
 
     /**
      * @param buff The data filled buffer.
@@ -43,7 +43,7 @@ public interface ChunkedReadHandler {
     public boolean chunk(ByteBuffer buff) throws IgniteCheckedException;
 
     /**
-     * Handling ends. The all chunks of data have been received.
+     * @param params The additional handling channel description params.
      */
-    public void end();
+    public void end(Map<String, Serializable> params);
 }

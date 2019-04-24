@@ -23,7 +23,7 @@ import java.util.UUID;
 /**
  *
  */
-public interface TransmitSessionHandler {
+public interface TransmitSession {
     /**
      * @param nodeId The remote node id connected from.
      * @param sessionId The unique session id.
@@ -33,12 +33,12 @@ public interface TransmitSessionHandler {
     /**
      * @return The instance of read handler to process incoming data by chunks.
      */
-    public ChunkedReadHandler chunkHandler();
+    public ChunkHandler chunkHandler();
 
     /**
      * @return The intance of read handler to process incoming data like the {@link FileChannel} manner.
      */
-    public FileReadHandler fileHandler();
+    public FileHandler fileHandler();
 
     /**
      * The end of session transmission process.
