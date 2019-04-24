@@ -18,27 +18,43 @@
 package org.apache.ignite.internal.processors.transmit;
 
 import java.io.File;
-import java.io.Serializable;
-import java.util.Map;
-import org.apache.ignite.IgniteCheckedException;
+import java.nio.ByteBuffer;
 
 /**
  *
  */
-public interface FileWriter extends AutoCloseable {
+public enum ReadPolicy {
+    /** Read the source direcly info the FileChannel. */
+    FILE(0, File.class),
+
+    /** Read the source into the appropriate ByteBuffer. */
+    BUFF(1, ByteBuffer.class);
+
+    /** The type of handler to read source. */
+    private int type;
+
+    /** */
+    private Class<?> clazz;
+
     /**
-     * @param file The source file to send at.
-     * @param offset The position to start at.
-     * @param count The number of bytes to transfer.
-     * @param params The additional transfer file description keys.
-     * @param plc The policy of handling data on remote.
-     * @throws IgniteCheckedException If fails.
+     * @param type The type of read handler.
      */
-    public void write(
-        File file,
-        long offset,
-        long count,
-        Map<String, Serializable> params,
-        ReadPolicy plc
-    ) throws IgniteCheckedException;
+    ReadPolicy(int type, Class<?> clazz) {
+        this.type = type;
+        this.clazz = clazz;
+    }
+
+    /**
+     * @return The type of read handler.
+     */
+    public int type() {
+        return type;
+    }
+
+    /**
+     * @return The type of particualr handler.
+     */
+    public Class<?> clazz() {
+        return clazz;
+    }
 }

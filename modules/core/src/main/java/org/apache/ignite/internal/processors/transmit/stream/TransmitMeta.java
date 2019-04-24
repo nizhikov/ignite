@@ -21,6 +21,7 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -55,7 +56,7 @@ public class TransmitMeta implements Externalizable {
     private long count;
 
     /** */
-    private HashMap<String, String> map = new HashMap<>();
+    private HashMap<String, Serializable> map = new HashMap<>();
 
     /** */
     public TransmitMeta() {
@@ -76,14 +77,14 @@ public class TransmitMeta implements Externalizable {
      * @param initial {@code true} if
      * @param params The additional transfer meta params.
      */
-    public TransmitMeta(String name, long offset, long count, boolean initial, Map<String, String> params) {
+    public TransmitMeta(String name, long offset, long count, boolean initial, Map<String, Serializable> params) {
         this.name = name;
         this.initial = initial;
         this.offset = offset;
         this.count = count;
 
         if (params != null) {
-            for (Map.Entry<String, String> key : params.entrySet())
+            for (Map.Entry<String, Serializable> key : params.entrySet())
                 map.put(key.getKey(), key.getValue());
         }
     }
@@ -123,7 +124,7 @@ public class TransmitMeta implements Externalizable {
     /**
      * @return The map of additional keys.
      */
-    public Map<String, String> keys() {
+    public Map<String, Serializable> keys() {
         return Collections.unmodifiableMap(map);
     }
 

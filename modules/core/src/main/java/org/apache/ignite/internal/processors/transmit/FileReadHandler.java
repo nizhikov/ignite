@@ -18,12 +18,11 @@
 package org.apache.ignite.internal.processors.transmit;
 
 import java.io.File;
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.IgniteInternalFuture;
-import org.apache.ignite.lang.IgniteBiTuple;
 
 /**
  * The statefull read file handler from the remote channel.
@@ -32,27 +31,36 @@ public interface FileReadHandler {
     /**
      * @param nodeId The remote node id connected from.
      * @param sessionId The unique session id.
-     * @param fut The future will be compelted when all files are uploaded.
      */
-    public void init(UUID nodeId, String sessionId, IgniteInternalFuture<?> fut);
+    public void init(UUID nodeId, String sessionId);
 
     /**
      * @param name The file name transfer from.
+     * @param plc The type of policy to handle source data.
      * @param keys The additional transfer file description keys.
-     * @return The destination object to transfer data to. Can be the {@link File} or {@link ByteBuffer}.
+     * @return The absolute pathname string denoting the file or {@code null} if there is no sense.
      * @throws IgniteCheckedException If fails.
      */
-    public FileTarget<?> begin(String name, Map<String, String> keys) throws IgniteCheckedException;
+    public String begin(String name, ReadPolicy plc, Map<String, Serializable> keys) throws IgniteCheckedException;
 
     /**
-     * @param piece The piece of data readed from source.
-     * @param piecePos The start position of particular piece in the original source.
-     * @param pieceSize The number of bytes readed from source.
+     * @param file The destination file to read data into.
+     * @param chunkPos The start position of particular chunk in the original source.
+     * @param chunkSize The size of particular chunk in the original source.
+     * @return {@code true} if the chunk of data have been successfully accepted.
      */
-    public void acceptPiece(FileTarget<?> piece, long piecePos, long pieceSize);
+    public boolean acceptChunk(File file, long chunkPos, long chunkSize);
 
     /**
-     * @param position The start position pointer of download object in original source.
+     * @param buff The destination buffer to read data into.
+     * @param chunkPos The start position of particular chunk in the original source.
+     * @param chunkSize The size of particular chunk in the original source.
+     * @return {@code true} if the chunk of data have been successfully accepted.
+     */
+    public boolean acceptChunk(ByteBuffer buff, long chunkPos, long chunkSize);
+
+    /**
+     * @param position The start position pointer of download file in original source.
      * @param count Total count of bytes readed from the original source.
      */
     public void end(long position, long count);
@@ -60,5 +68,5 @@ public interface FileReadHandler {
     /**
      * @param cause The case of fail handling process.
      */
-    public void exceptionCaught(Throwable cause);
+    public void onException(Throwable cause);
 }
