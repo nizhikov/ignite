@@ -17,25 +17,36 @@
 
 package org.apache.ignite.internal.processors.transmit;
 
-import java.io.File;
-import java.io.Serializable;
-import java.util.Map;
+import java.nio.channels.FileChannel;
+import java.util.UUID;
 
 /**
  *
  */
-public interface FileReadHandler {
+public interface TransmitSessionHandler {
     /**
-     * @param name The file name transfer from.
-     * @param position The start position pointer of download file in original source.
-     * @param count Total count of bytes readed from the original source.
-     * @param params The additional transfer file description keys.
-     * @return The absolute pathname string denoting the file or {@code null} if there is no sense.
+     * @param nodeId The remote node id connected from.
+     * @param sessionId The unique session id.
      */
-    public String begin(String name, long position, long count, Map<String, Serializable> params);
+    public void begin(UUID nodeId, String sessionId);
 
     /**
-     * @param file The file with fully downloaded data into.
+     * @return The instance of read handler to process incoming data by chunks.
      */
-    public void end(File file);
+    public ChunkedReadHandler chunkHandler();
+
+    /**
+     * @return The intance of read handler to process incoming data in the {@link FileChannel} manner.
+     */
+    public FileReadHandler fileHandler();
+
+    /**
+     * The end of session transmission process.
+     */
+    public void end();
+
+    /**
+     * @param cause The cause of fail handling process.
+     */
+    public void onException(Throwable cause);
 }

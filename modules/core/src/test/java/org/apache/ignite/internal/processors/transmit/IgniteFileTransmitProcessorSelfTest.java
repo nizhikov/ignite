@@ -19,11 +19,11 @@ package org.apache.ignite.internal.processors.transmit;
 
 import java.io.File;
 import java.io.FilenameFilter;
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.ignite.Ignite;
-import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
 import org.apache.ignite.configuration.CacheConfiguration;
@@ -32,7 +32,6 @@ import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
-import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -133,26 +132,35 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         File tempStore = U.resolveWorkDirectory(U.defaultWorkDirectory(), TEMP_FILES_DIR, true);
 
-        ig1.context().fileTransmit().addFileIoChannelHandler(topic, new FileReadHandlerFactory() {
-            @Override public FileReadHandler create() {
-                return new FileReadHandler() {
-                    @Override public void init(UUID nodeId, String sessionId, IgniteInternalFuture<?> fut) {
+        ig1.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionHandlerFactory() {
+            @Override public TransmitSessionHandler create() {
+                return new TransmitSessionHandler() {
+                    @Override public void begin(UUID nodeId, String sessionId) {
 
                     }
 
-                    @Override public FileTarget begin(String name, Map<String, String> keys) throws IgniteCheckedException {
-                        return FileTarget.fileTarget(new File(tempStore, name));
+                    @Override public ChunkedReadHandler chunkHandler() {
+                        return null;
                     }
 
-                    @Override public void acceptPiece(FileTarget piece, long piecePos, long pieceSize) {
+                    @Override public FileReadHandler fileHandler() {
+                        return new FileReadHandler() {
+                            @Override public String begin(String name, long position, long count,
+                                Map<String, Serializable> params) {
+                                return new File(tempStore, name).getAbsolutePath();
+                            }
+
+                            @Override public void end(File file) {
+
+                            }
+                        };
+                    }
+
+                    @Override public void end() {
 
                     }
 
-                    @Override public void end(long begin, long end) {
-
-                    }
-
-                    @Override public void exceptionCaught(Throwable cause) {
+                    @Override public void onException(Throwable cause) {
 
                     }
                 };
@@ -172,7 +180,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
             });
 
             for (File file : files)
-                writer.write(file, 0, file.length(), new HashMap<>());
+                writer.write(file, 0, file.length(), new HashMap<>(), ReadPolicy.FILE);
         }
     }
 

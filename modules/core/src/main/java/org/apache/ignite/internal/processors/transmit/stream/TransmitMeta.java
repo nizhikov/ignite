@@ -26,8 +26,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.ignite.internal.processors.transmit.ReadPolicy;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
+
+import static org.apache.ignite.internal.processors.transmit.ReadPolicy.FILE;
 
 /**
  *
@@ -38,7 +41,8 @@ public class TransmitMeta implements Externalizable {
 
     /** The tombstone key */
     @GridToStringExclude
-    private static final TransmitMeta TOMBSTONE = new TransmitMeta("d2738352-8813-477a-a165-b73249798134", -1, -1, true, null);
+    private static final TransmitMeta TOMBSTONE =
+        new TransmitMeta("d2738352-8813-477a-a165-b73249798134", -1, -1, true, FILE, null);
 
     /**
      * The name to associate particular meta with.
@@ -46,14 +50,17 @@ public class TransmitMeta implements Externalizable {
      */
     private String name;
 
-    /** The initial meta info for the file transferred the first time. */
-    private boolean initial;
-
     /** */
     private long offset;
 
     /** */
     private long count;
+
+    /** The initial meta info for the file transferred the first time. */
+    private boolean initial;
+
+    /** The policy of {@link ReadPolicy} the way to handle input data stream. */
+    private int plc;
 
     /** */
     private HashMap<String, Serializable> map = new HashMap<>();
@@ -67,7 +74,7 @@ public class TransmitMeta implements Externalizable {
      * @param name The name to associate particular meta with.
      */
     public TransmitMeta(String name) {
-        this(name, -1, -1, true, null);
+        this(name, -1, -1, true, FILE, null);
     }
 
     /**
@@ -77,11 +84,12 @@ public class TransmitMeta implements Externalizable {
      * @param initial {@code true} if
      * @param params The additional transfer meta params.
      */
-    public TransmitMeta(String name, long offset, long count, boolean initial, Map<String, Serializable> params) {
+    public TransmitMeta(String name, long offset, long count, boolean initial, ReadPolicy plc, Map<String, Serializable> params) {
         this.name = name;
-        this.initial = initial;
         this.offset = offset;
         this.count = count;
+        this.initial = initial;
+        this.plc = plc.ordinal();
 
         if (params != null) {
             for (Map.Entry<String, Serializable> key : params.entrySet())
@@ -94,13 +102,6 @@ public class TransmitMeta implements Externalizable {
      */
     public String name() {
         return Objects.requireNonNull(name);
-    }
-
-    /**
-     * @return {@code true} if the file is transferred the first time.
-     */
-    public boolean initial() {
-        return initial;
     }
 
     /**
@@ -122,6 +123,20 @@ public class TransmitMeta implements Externalizable {
     }
 
     /**
+     * @return {@code true} if the file is transferred the first time.
+     */
+    public boolean initial() {
+        return initial;
+    }
+
+    /**
+     *
+     */
+    public ReadPolicy policy() {
+        return ReadPolicy.values()[plc];
+    }
+
+    /**
      * @return The map of additional keys.
      */
     public Map<String, Serializable> keys() {
@@ -138,18 +153,20 @@ public class TransmitMeta implements Externalizable {
     /** {@inheritDoc} */
     @Override public void writeExternal(ObjectOutput out) throws IOException {
         out.writeUTF(name());
-        out.writeBoolean(initial);
         out.writeLong(offset);
         out.writeLong(count);
+        out.writeBoolean(initial);
+        out.writeInt(plc);
         out.writeObject(map);
     }
 
     /** {@inheritDoc} */
     @Override public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         name = Objects.requireNonNull(in.readUTF());
-        initial = in.readBoolean();
         offset = in.readLong();
         count = in.readLong();
+        initial = in.readBoolean();
+        plc = in.readInt();
         map = (HashMap) in.readObject();
     }
 

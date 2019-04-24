@@ -20,9 +20,9 @@ package org.apache.ignite.internal.processors.transmit;
 /**
  *
  */
-public interface FileReadHandlerFactory {
+public interface TransmitSessionHandlerFactory {
     /**
      * @return The handler to process new channel creation.
      */
-    public FileReadHandler create();
+    public TransmitSessionHandler create();
 }

@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.File;
@@ -5,7 +22,6 @@ import java.io.IOException;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
-import org.apache.ignite.internal.processors.transmit.FileTarget;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -30,7 +46,7 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      */
-    public ChunkedFileIo(FileTarget<File> fileCfg, String name, long position, long count) {
+    public ChunkedFileIo(File fileCfg, String name, long position, long count) {
         super(fileCfg, name, position, count);
     }
 
@@ -39,11 +55,11 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
      */
     public void open() throws IOException {
         if (fileIo == null)
-            fileIo = dfltIoFactory.create(obj.target());
+            fileIo = dfltIoFactory.create(obj);
     }
 
     /** {@inheritDoc} */
-    @Override public FileTarget<File> readFrom(TransmitInputChannel channel) throws IOException {
+    @Override public File readFrom(TransmitInputChannel channel) throws IOException {
         open();
 
         long batchSize = Math.min(segmentSize, count - transferred.longValue());

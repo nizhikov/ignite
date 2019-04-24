@@ -17,43 +17,34 @@
 
 package org.apache.ignite.internal.processors.transmit;
 
-import java.io.File;
+import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Map;
+import org.apache.ignite.IgniteCheckedException;
 
 /**
- * @param <T> The type of destination object.
+ *
  */
-public class FileTarget<T> {
-    /** */
-    private final T target;
+public interface ChunkedReadHandler {
+    /**
+     * @param name The file name on remote.
+     * @param position The start position pointer of downloading file in original source.
+     * @param count Total count of bytes to read from the original source.
+     * @param params The additional transfer file description params.
+     * @return The instance of {@link ByteBuffer} to read the input channel into.
+
+     */
+    public ByteBuffer begin(String name, long position, long count, Map<String, Serializable> params);
 
     /**
-     * @param target The target object to read source into.
+     * @param buff The data filled buffer.
+     * @return {@code true} if the chunk of data have been successfully accepted.
+     * @throws IgniteCheckedException If fails.
      */
-    private FileTarget(T target) {
-        this.target = target;
-    }
+    public boolean chunk(ByteBuffer buff) throws IgniteCheckedException;
 
     /**
-     * @param obj The buffer object to read source into.
-     * @return The target wrapper instance over the buffer object.
+     * Handling ends. The all chunks of data have been received.
      */
-    public static FileTarget<ByteBuffer> buffTarget(ByteBuffer obj) {
-        return new FileTarget<>(obj);
-    }
-
-    /**
-     * @param obj The file to read source into.
-     * @return The target wrapper instance over the file.
-     */
-    public static FileTarget<File> fileTarget(File obj) {
-        return new FileTarget<>(obj);
-    }
-
-    /**
-     * @return The destination object to read source into.
-     */
-    public T target() {
-        return target;
-    }
+    public void end();
 }

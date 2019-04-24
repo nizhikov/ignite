@@ -17,44 +17,13 @@
 
 package org.apache.ignite.internal.processors.transmit;
 
-import java.io.File;
-import java.nio.ByteBuffer;
-
 /**
  *
  */
 public enum ReadPolicy {
     /** Read the source direcly info the FileChannel. */
-    FILE(0, File.class),
+    FILE,
 
     /** Read the source into the appropriate ByteBuffer. */
-    BUFF(1, ByteBuffer.class);
-
-    /** The type of handler to read source. */
-    private int type;
-
-    /** */
-    private Class<?> clazz;
-
-    /**
-     * @param type The type of read handler.
-     */
-    ReadPolicy(int type, Class<?> clazz) {
-        this.type = type;
-        this.clazz = clazz;
-    }
-
-    /**
-     * @return The type of read handler.
-     */
-    public int type() {
-        return type;
-    }
-
-    /**
-     * @return The type of particualr handler.
-     */
-    public Class<?> clazz() {
-        return clazz;
-    }
+    BUFF
 }

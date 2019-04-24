@@ -18,7 +18,7 @@
 package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.IOException;
-import org.apache.ignite.internal.processors.transmit.FileTarget;
+import org.apache.ignite.internal.processors.transmit.ReadPolicy;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
 
@@ -51,7 +51,7 @@ public interface ChunkedIo<T> extends AutoCloseable {
      * @return The destination obj to read data into.
      * @throws IOException If fails.
      */
-    public FileTarget<T> readFrom(TransmitInputChannel channel) throws IOException;
+    public T readFrom(TransmitInputChannel channel) throws IOException;
 
     /**
      * @param channel The channel to write data into.
