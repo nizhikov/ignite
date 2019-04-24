@@ -32,7 +32,6 @@ public interface ChunkedReadHandler {
      * @param count Total count of bytes to read from the original source.
      * @param params The additional transfer file description params.
      * @return The instance of {@link ByteBuffer} to read the input channel into.
-
      */
     public ByteBuffer begin(String name, long position, long count, Map<String, Serializable> params);
 

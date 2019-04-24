@@ -36,7 +36,7 @@ public interface TransmitSessionHandler {
     public ChunkedReadHandler chunkHandler();
 
     /**
-     * @return The intance of read handler to process incoming data in the {@link FileChannel} manner.
+     * @return The intance of read handler to process incoming data like the {@link FileChannel} manner.
      */
     public FileReadHandler fileHandler();
 
