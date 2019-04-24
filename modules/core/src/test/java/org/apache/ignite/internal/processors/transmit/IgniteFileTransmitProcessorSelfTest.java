@@ -23,6 +23,8 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
@@ -52,12 +54,17 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
     /** */
     private static final String TEMP_FILES_DIR = "ctmp";
 
+    /** The temporary directory to store files. */
+    private File tempStore;
+
     /**
      * @throws Exception if failed.
      */
     @Before
     public void before() throws Exception {
         cleanPersistenceDir();
+
+        tempStore = U.resolveWorkDirectory(U.defaultWorkDirectory(), TEMP_FILES_DIR, true);
     }
 
     /**
@@ -100,7 +107,9 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
     }
 
     /**
-     *
+     * @param ignite The ignite instance.
+     * @param cacheName Cache name string representation.
+     * @return The cache working directory.
      */
     private File cacheWorkDir(IgniteEx ignite, String cacheName) {
         // Resolve cache directory
@@ -115,7 +124,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
 
     /**
-     *
+     * @throws Exception If fails.
      */
     @Test
     public void testTransmitCachePartitionsToTopic() throws Exception {
@@ -130,13 +139,13 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         Object topic = GridTopic.TOPIC_CACHE.topic("test", 0);
 
-        File tempStore = U.resolveWorkDirectory(U.defaultWorkDirectory(), TEMP_FILES_DIR, true);
+        ConcurrentMap<String, Long> fileWithSizes = new ConcurrentHashMap<>();
 
         ig1.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
             @Override public TransmitSession create() {
                 return new TransmitSession() {
                     @Override public void begin(UUID nodeId, String sessionId) {
-
+                        assertTrue(ig0.localNode().id().equals(nodeId));
                     }
 
                     @Override public ChunkHandler chunkHandler() {
@@ -145,23 +154,28 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
                     @Override public FileHandler fileHandler() {
                         return new FileHandler() {
-                            @Override public String begin(String name, long position, long count,
-                                Map<String, Serializable> params) {
+                            @Override public String begin(
+                                String name,
+                                long position,
+                                long count,
+                                Map<String, Serializable> params
+                            ) {
                                 return new File(tempStore, name).getAbsolutePath();
                             }
 
                             @Override public void end(File file, Map<String, Serializable> params) {
-
+                                assertTrue(fileWithSizes.containsKey(file.getName()));
+                                assertEquals(fileWithSizes.get(file.getName()), new Long(file.length()));
                             }
                         };
                     }
 
                     @Override public void end() {
-
+                        // No-op.
                     }
 
                     @Override public void onException(Throwable cause) {
-
+                        // No-op.
                     }
                 };
             }
@@ -180,11 +194,16 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
             });
 
             for (File file : files)
+                fileWithSizes.put(file.getName(), file.length());
+
+            for (File file : files)
                 writer.write(file, 0, file.length(), new HashMap<>(), ReadPolicy.FILE);
         }
     }
 
-    /** */
+    /**
+     * @throws Exception If fails.
+     */
     @Test
     public void testReconnectWhenChannelClosed() throws Exception {
 

@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.transmit.stream;
 
+import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.channels.AsynchronousCloseException;
@@ -36,7 +37,7 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
  *
  * A write will throw an IOException: 'connection reset by peer', eventually, subject to buffering delays.
  */
-public abstract class TransmitAbstractChannel implements AutoCloseable {
+public abstract class TransmitAbstractChannel implements Closeable {
     /** */
     private static final String RESET_BY_PEER_MSG = "Connection reset by peer";
 

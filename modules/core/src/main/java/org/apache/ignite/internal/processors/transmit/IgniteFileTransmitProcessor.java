@@ -126,7 +126,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                             if (sessionMeta.equals(TransmitMeta.tombstone()))
                                 return;
 
-                            assert sessionMeta.initial();
+                            assert sessionMeta.initial() : "The session meta message must be initialized";
 
                             onChannelCreated0(sessionContextMap.computeIfAbsent(sessionMeta.name(),
                                 ses -> {
@@ -139,7 +139,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                                 objChannel);
                         } catch (IOException e) {
                             log.error("Error processing channel creation event [topic=" + topic +
-                                ", channel=" + channel + ']');
+                                ", channel=" + channel + ']', e);
+                        }
+                        finally {
+                            U.closeQuiet(channel);
                         }
                     }
                 });
@@ -275,9 +278,6 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
             log.error("The download session cannot be finished due to unexpected error [ctx=" + rctx +
                 ", channel=" + chnl + ']', t);
-        }
-        finally {
-            U.closeQuiet(chnl);
         }
     }
 
