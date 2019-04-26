@@ -20,11 +20,15 @@ package org.apache.ignite.internal.processors.transmit.stream;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.ClosedChannelException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.SocketChannel;
 import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
@@ -45,14 +49,16 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
  * </p>
  * <p>
  *     <h3>Channel timeout handling</h3>
+ *
  *     <ul>
- *         <li>For read operations over the InputStream or write operation through the OutputStream the
- *         {@link Socket#setSoTimeout(int)} will be used and an {@link SocketTimeoutException} will be
+ *         <li>For read operations over the {@link InputStream} or write operation through the {@link OutputStream}
+ *         the {@link Socket#setSoTimeout(int)} will be used and an {@link SocketTimeoutException} will be
  *         thrown when the timeout occured.</li>
- *         <li>To achive the file zero-copy the SocketChannel must be used directly in the blocking mode.
- *         For reading or writing over the SocketChannels, using the <tt>Socket.setSoTimeout()</tt> is not
- *         possible, because it isn't supported for sockets originating as channels. In this case, the
- *         decicated wather thread must be used which will close conneciton on timeout occured.</li>
+ *         <li>To achive the file zero-copy {@link FileChannel#transferTo(long, long, java.nio.channels.WritableByteChannel)}
+ *         the {@link SocketChannel} must be used directly in the blocking mode. For reading or writing over
+ *         the SocketChannels, using the <tt>Socket#setSoTimeout(int)</tt> is not possible, because it isn't
+ *         supported for sockets originating as channels. In this case, the decicated wather thread must be
+ *         used which will close conneciton on timeout occured.</li>
  *     </ul>
  * </p>
  */
