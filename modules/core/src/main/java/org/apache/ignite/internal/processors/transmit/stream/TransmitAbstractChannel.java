@@ -20,32 +20,60 @@ package org.apache.ignite.internal.processors.transmit.stream;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.ClosedChannelException;
+import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
 /**
- * If the peer has closed the connection in an orderly way
+ * <p>
+ *     <h3>Channel exception handling</h3>
  *
- * read() returns -1
- * readLine() returns null
- * readXXX() throws EOFException for any other XXX.
- *
- * A write will throw an IOException: 'connection reset by peer', eventually, subject to buffering delays.
+ *     If the peer has closed the connection in an orderly way, the read operation:
+ *     <ul>
+ *         <li>read() returns -1</li>
+ *         <li>readLine() returns null</li>
+ *         <li>readXXX() throws EOFException for any other XXX</li>
+ *     </ul>
+ *     A write will throw an <tt>IOException</tt> 'Connection reset by peer', eventually, subject to buffering delays.
+ * </p>
+ * <p>
+ *     <h3>Channel timeout handling</h3>
+ *     <ul>
+ *         <li>For read operations over the InputStream or write operation through the OutputStream the
+ *         {@link Socket#setSoTimeout(int)} will be used and an {@link SocketTimeoutException} will be
+ *         thrown when the timeout occured.</li>
+ *         <li>To achive the file zero-copy the SocketChannel must be used directly in the blocking mode.
+ *         For reading or writing over the SocketChannels, using the <tt>Socket.setSoTimeout()</tt> is not
+ *         possible, because it isn't supported for sockets originating as channels. In this case, the
+ *         decicated wather thread must be used which will close conneciton on timeout occured.</li>
+ *     </ul>
+ * </p>
  */
 public abstract class TransmitAbstractChannel implements Closeable {
     /** */
+    private static final int DFLT_IO_TIMEOUT_MILLIS = 15_000;
+
+    /** */
     private static final String RESET_BY_PEER_MSG = "Connection reset by peer";
+
+    /** */
+    private final GridKernalContext ktx;
 
     /** */
     private final IgniteSocketChannel igniteChannel;
 
     /** */
     protected final IgniteLogger log;
+
+    /** */
+    private final int timeoutMillis;
 
     /**
      * @param ktx Kernal context.
@@ -55,10 +83,39 @@ public abstract class TransmitAbstractChannel implements Closeable {
         GridKernalContext ktx,
         IgniteSocketChannel channel
     ) {
-        assert channel.config().blocking();
+        this(ktx, channel, DFLT_IO_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+    }
 
-        this.igniteChannel = channel;
-        this.log = ktx.log(getClass());
+    /**
+     * @param ktx Kernal context.
+     * @param channel Socket channel to upload files to.
+     * @param timeout Read\write timeout.
+     * @param unit The {@link TimeUnit} of given <tt>timeout</tt>.
+     */
+    protected TransmitAbstractChannel(
+        GridKernalContext ktx,
+        IgniteSocketChannel channel,
+        int timeout,
+        TimeUnit unit
+    ) {
+        assert ktx != null;
+        assert channel != null;
+        assert unit != null;
+
+        this.ktx = ktx;
+        igniteChannel = channel;
+        log = ktx.log(getClass());
+        timeoutMillis = timeout <= 0 ? 0 : Math.max((int)unit.toMillis(timeout), DFLT_IO_TIMEOUT_MILLIS);
+
+        channel.config().blocking(true);
+        channel.config().timeout(timeoutMillis);
+    }
+
+    /**
+     * @return The timeout of read\write operations in milliseconds.
+     */
+    public int timeout() {
+        return timeoutMillis;
     }
 
     /**
@@ -70,13 +127,19 @@ public abstract class TransmitAbstractChannel implements Closeable {
         if ((cause instanceof IOException && RESET_BY_PEER_MSG.equals(cause.getMessage())) ||
             cause instanceof EOFException ||
             cause instanceof ClosedChannelException ||
-            cause instanceof AsynchronousCloseException ||
             cause instanceof ClosedByInterruptException) {
             // Return the new one with detailed message.
             return new RemoteTransmitException(
                 "Lost connection to the remote node. The connection will be re-established according " +
                     "to the manager's transmission configuration [remoteId=" + igniteChannel.id().remoteId() +
                     ", index=" + igniteChannel.id().idx() + ']', cause);
+        }
+        else if (cause instanceof SocketTimeoutException ||
+            cause instanceof AsynchronousCloseException) {
+            return new RemoteTransmitException(
+                "The connection has been timeouted. The connection will be re-established according " +
+                    "to the manager's transmission configuration [remoteId=" + igniteChannel.id().remoteId() +
+                    ", index=" + igniteChannel.id().idx() + ", timeout=" + timeoutMillis + ']', cause);
         }
 
         return cause;

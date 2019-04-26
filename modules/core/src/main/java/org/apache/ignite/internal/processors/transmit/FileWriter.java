@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.transmit;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.Serializable;
 import java.util.Map;
@@ -25,7 +26,7 @@ import org.apache.ignite.IgniteCheckedException;
 /**
  *
  */
-public interface FileWriter extends AutoCloseable {
+public interface FileWriter extends Closeable {
     /**
      * @param file The source file to send at.
      * @param offset The position to start at.

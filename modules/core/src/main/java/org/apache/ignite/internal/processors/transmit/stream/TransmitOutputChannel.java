@@ -45,7 +45,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
     ) throws IOException {
         super(ktx, igniteChannel);
 
-        this.dos = new ObjectOutputStream(igniteChannel.channel().socket().getOutputStream());
+        dos = new ObjectOutputStream(igniteChannel.channel().socket().getOutputStream());
     }
 
     /**

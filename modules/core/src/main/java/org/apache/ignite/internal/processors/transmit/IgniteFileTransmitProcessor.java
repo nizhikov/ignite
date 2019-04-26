@@ -400,7 +400,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         }
 
         /** {@inheritDoc} */
-        @Override public void close() throws Exception {
+        @Override public void close() throws IOException {
             try {
                 if (ch != null)
                     ch.writeMeta(TransmitMeta.tombstone());

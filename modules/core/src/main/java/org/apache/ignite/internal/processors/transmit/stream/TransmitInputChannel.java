@@ -46,8 +46,7 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
     ) throws IOException {
         super(ktx, igniteChannel);
 
-        this.dis = new ObjectInputStream(igniteChannel.channel().socket().getInputStream());
-
+        dis = new ObjectInputStream(igniteChannel.channel().socket().getInputStream());
     }
 
     /**

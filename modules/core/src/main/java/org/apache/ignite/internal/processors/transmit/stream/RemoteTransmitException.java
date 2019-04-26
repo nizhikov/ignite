@@ -23,6 +23,9 @@ import java.io.IOException;
  *
  */
 public class RemoteTransmitException extends IOException {
+    /** Serial version uid. */
+    private static final long serialVersionUID = 0L;
+
     /**
      * Constructs an {@code RemoteTransmitException} with the specified detail message.
      */
