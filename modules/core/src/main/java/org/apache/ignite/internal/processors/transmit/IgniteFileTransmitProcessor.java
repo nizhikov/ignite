@@ -35,9 +35,9 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.GridIoChannelListener;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
 import org.apache.ignite.internal.processors.GridProcessorAdapter;
-import org.apache.ignite.internal.processors.transmit.chunk.ChunkedBufferIo;
-import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileIo;
-import org.apache.ignite.internal.processors.transmit.chunk.ChunkedIo;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedBufferStream;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileStream;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStream;
 import org.apache.ignite.internal.processors.transmit.stream.RemoteTransmitException;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitMeta;
@@ -168,9 +168,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @param chnl The connection channel instance.
      */
     private void onChannelCreated0(FileIoReadContext rctx, TransmitInputChannel chnl) {
+        ChunkedStream<?> chunkedStream = null;
+
         try {
             TransmitMeta meta;
-            ChunkedIo<?> seg;
             boolean stopped = false;
 
             while (!Thread.currentThread().isInterrupted() && !stopped) {
@@ -197,18 +198,22 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         case FILE:
                             rctx.fileHndlr = Objects.requireNonNull(rctx.sesHndlr.fileHandler());
 
-                            String absPath = rctx.fileHndlr.begin(meta.name(), meta.offset(), meta.count(), rctx.currIoParams);
+                            String absPath = rctx.fileHndlr.begin(meta.name(), meta.offset(), meta.count(),
+                                rctx.currIoParams);
 
-                            seg = new ChunkedFileIo(new File(absPath), meta.name(), meta.offset(), meta.count());
+                            chunkedStream = new ChunkedFileStream(new File(absPath), meta.name(), meta.offset(),
+                                meta.count());
 
                             break;
 
                         case BUFF:
                             rctx.chunkHndlr = Objects.requireNonNull(rctx.sesHndlr.chunkHandler());
 
-                            int buffSize = rctx.chunkHndlr.begin(meta.name(), meta.offset(), meta.count(), rctx.currIoParams);
+                            int buffSize = rctx.chunkHndlr.begin(meta.name(), meta.offset(), meta.count(),
+                                rctx.currIoParams);
 
-                            seg = new ChunkedBufferIo(ByteBuffer.allocate(buffSize), meta.name(), meta.offset(), meta.count());
+                            chunkedStream = new ChunkedBufferStream(ByteBuffer.allocate(buffSize), meta.name(),
+                                meta.offset(), meta.count());
 
                             break;
 
@@ -217,34 +222,35 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                                 "required: " + rctx.currPlc);
                     }
 
-                    rctx.currIo = seg;
+                    rctx.currIo = chunkedStream;
                 }
                 else {
-                    seg = rctx.currIo;
+                    chunkedStream = rctx.currIo;
 
                     assert meta.policy() == rctx.currPlc :
                         "Attempt to process the same input with the different read policy: " + meta.policy();
-                    assert seg.name().equals(meta.name()) : "Attempt to load different file name [name=" + seg.name() +
-                        ", meta=" + meta.name() + ']';
-                    assert seg.postition() + seg.transferred() == meta.offset() :
-                        "The next segmented input is incorrect [postition=" + seg.postition() +
-                            ", transferred=" + seg.transferred() + ", offset=" + meta.offset() + ']';
-                    assert seg.count() - seg.transferred() == meta.count() :
-                        " The count of bytes to transfer fot the next segment is incorrect [size=" + seg.count() +
-                            ", transferred=" + seg.transferred() + ", count=" + meta.count() + ']';
+                    assert chunkedStream.name().equals(meta.name()) : "Attempt to load different file name " +
+                        "[name=" + chunkedStream.name() + ", meta=" + meta.name() + ']';
+                    assert chunkedStream.startPosition() + chunkedStream.transferred() == meta.offset() :
+                        "The next segmented input is incorrect [postition=" + chunkedStream.startPosition() +
+                            ", transferred=" + chunkedStream.transferred() + ", offset=" + meta.offset() + ']';
+                    assert chunkedStream.count() - chunkedStream.transferred() == meta.count() :
+                        " The count of bytes to transfer fot the next segment is incorrect " +
+                            "[size=" + chunkedStream.count() + ", transferred=" + chunkedStream.transferred() +
+                            ", count=" + meta.count() + ']';
                 }
 
                 // Read data from the input.
-                while (!seg.endOfTransmit() && !Thread.currentThread().isInterrupted()) {
-                    seg.readChunk(chnl);
+                while (!chunkedStream.endOfTransmit() && !Thread.currentThread().isInterrupted()) {
+                    chunkedStream.readChunk(chnl);
 
                     if (rctx.currPlc == ReadPolicy.BUFF)
-                        rctx.chunkHndlr.chunk((ByteBuffer)seg.chunk());
+                        rctx.chunkHndlr.chunk(((ChunkedBufferStream)chunkedStream).buffer());
                 }
 
                 switch (rctx.currPlc) {
                     case FILE:
-                        rctx.fileHndlr.end((File)seg.chunk(), rctx.currIoParams);
+                        rctx.fileHndlr.end(((ChunkedFileStream)chunkedStream).file(), rctx.currIoParams);
 
                         break;
 
@@ -278,6 +284,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
             log.error("The download session cannot be finished due to unexpected error [ctx=" + rctx +
                 ", channel=" + chnl + ']', t);
+
+            if (chunkedStream != null)
+                U.closeQuiet(chunkedStream);
         }
     }
 
@@ -372,7 +381,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     try {
                         ch.writeMeta(new TransmitMeta(file.getName(), offset, count, true, plc, params));
 
-                        ChunkedFileIo chunked = new ChunkedFileIo(file, file.getName(), offset, count);
+                        ChunkedFileStream chunked = new ChunkedFileStream(file, file.getName(), offset, count);
 
                         while (!chunked.endOfTransmit() && !Thread.currentThread().isInterrupted())
                             chunked.writeChunk(ch);
@@ -427,29 +436,29 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      *
      */
     private static class FileIoReadContext {
-        /** */
+        /** The remote node input channel came from. */
         private final UUID nodeId;
 
         /** The unique session id. */
         private final String sessionId;
 
-        /** */
+        /** Current sesssion. */
         private final TransmitSession sesHndlr;
 
-        /** */
+        /** Handle input channel as chunks of data. */
         private ChunkHandler chunkHndlr;
 
-        /** */
+        /** Handle input channel as file input.*/
         private FileHandler fileHndlr;
 
         /** The number of reconnect attempts of current session. */
         private int reconnects = DFLT_RECONNECT_CNT;
 
-        /** */
+        /** The read policy of handlind input data. */
         private ReadPolicy currPlc;
 
         /** The last infinished download. */
-        private ChunkedIo<?> currIo;
+        private ChunkedStream<?> currIo;
 
         /** */
         private Map<String, Serializable> currIoParams;

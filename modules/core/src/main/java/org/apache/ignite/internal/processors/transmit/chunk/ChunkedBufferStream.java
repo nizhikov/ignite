@@ -26,15 +26,22 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 /**
  *
  */
-public class ChunkedBufferIo extends AbstractChunkedIo<ByteBuffer> {
+public class ChunkedBufferStream extends AbstractChunkedStream<ByteBuffer> {
     /**
      * @param buff The buff to read into.
      * @param name The unique file name within transfer process.
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      */
-    public ChunkedBufferIo(ByteBuffer buff, String name, long position, long count) {
+    public ChunkedBufferStream(ByteBuffer buff, String name, long position, long count) {
         super(buff, name, position, count);
+    }
+
+    /**
+     * @return The buffer to read data from or write to.
+     */
+    public ByteBuffer buffer() {
+        return obj;
     }
 
     /** {@inheritDoc} */
@@ -56,12 +63,12 @@ public class ChunkedBufferIo extends AbstractChunkedIo<ByteBuffer> {
     }
 
     /** {@inheritDoc} */
-    @Override public void close() throws Exception {
+    @Override public void close() throws IOException {
 
     }
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(ChunkedBufferIo.class, this);
+        return S.toString(ChunkedBufferStream.class, this);
     }
 }

@@ -21,70 +21,64 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.ignite.internal.processors.transmit.stream.RemoteTransmitException;
-import org.apache.ignite.internal.processors.transmit.stream.TransmitAbstractChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  *
  */
-abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
+abstract class AbstractChunkedStream<T> implements ChunkedStream<T> {
     /** The default region size to transfer data. */
     public static final int DFLT_SEGMENT_SIZE = 1024 * 1024;
 
-    /** The destination object to transfer data into. */
-    protected final T obj;
-
     /** The unique input name to identify particular transfer part.*/
-    protected final String name;
+    private final String name;
 
     /** The position offest to start at. */
-    protected final long position;
+    protected final long startPos;
 
     /** The total number of bytes to send. */
     protected final long count;
 
     /** The size of segment for the read. */
-    protected final int segmentSize;
+    protected final int chunkSize;
 
     /** The number of bytes successfully transferred druring iteration. */
     protected final LongAdder transferred = new LongAdder();
 
+    /** The destination object to transfer data to\from. */
+    protected final T obj;
+
     /**
      * @param obj The destination object to transfer into.
      * @param name The unique file name within transfer process.
-     * @param position The position from which the transfer should start to.
+     * @param startPos The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
-     * @param segmentSize The size of segmented the read.
+     * @param chunkSize The size of segmented the read.
      */
-    protected AbstractChunkedIo(T obj, String name, long position, long count, int segmentSize) {
-        assert position >= 0 : "The file position must be non-negative";
+    protected AbstractChunkedStream(T obj, String name, long startPos, long count, int chunkSize) {
+        assert startPos >= 0 : "The file position must be non-negative";
         assert count >= 0 : "The number of bytes to sent must be positive";
 
         this.obj = Objects.requireNonNull(obj);
         this.name = Objects.requireNonNull(name);
-        this.position = position;
+        this.startPos = startPos;
         this.count = count;
-        this.segmentSize = segmentSize;
+        this.chunkSize = chunkSize;
     }
 
     /**
      * @param obj The destination object to transfer into.
      * @param name The unique file name within transfer process.
-     * @param position The position from which the transfer should start to.
+     * @param startPos The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      */
-    protected AbstractChunkedIo(T obj, String name, long position, long count) {
-        this(obj, name, position, count, DFLT_SEGMENT_SIZE);
+    protected AbstractChunkedStream(T obj, String name, long startPos, long count) {
+        this(obj, name, startPos, count, DFLT_SEGMENT_SIZE);
     }
 
     /** {@inheritDoc} */
-    @Override public T chunk() {
-        return obj;
-    }
-
-    /** {@inheritDoc} */
-    @Override public long postition() {
-        return position;
+    @Override public long startPosition() {
+        return startPos;
     }
 
     /** {@inheritDoc} */
@@ -106,7 +100,7 @@ abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
      * @param io The file object to check.
      * @throws IOException If the check fails.
      */
-    public void checkChunkedIoEOF(ChunkedIo<?> io) throws IOException {
+    public void checkChunkedIoEOF(ChunkedStream<?> io) throws IOException {
         if (io.transferred() < io.count()) {
             throw new RemoteTransmitException("Socket channel EOF received, but the file is not fully transferred " +
                 "[count=" + io.count() + ", transferred=" + io.transferred() + ']');
@@ -120,6 +114,6 @@ abstract class AbstractChunkedIo<T> implements ChunkedIo<T> {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(AbstractChunkedIo.class, this);
+        return S.toString(AbstractChunkedStream.class, this);
     }
 }

@@ -31,7 +31,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 /**
  *
  */
-public class ChunkedFileIo extends AbstractChunkedIo<File> {
+public class ChunkedFileStream extends AbstractChunkedStream<File> {
     /** The default factory to provide IO oprations over underlying file. */
     @GridToStringExclude
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
@@ -46,8 +46,15 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      */
-    public ChunkedFileIo(File fileCfg, String name, long position, long count) {
+    public ChunkedFileStream(File fileCfg, String name, long position, long count) {
         super(fileCfg, name, position, count);
+    }
+
+    /**
+     * @return The file of IO operations.
+     */
+    public File file() {
+        return obj;
     }
 
     /**
@@ -62,9 +69,9 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
     @Override public void readChunk(TransmitInputChannel channel) throws IOException {
         open();
 
-        long batchSize = Math.min(segmentSize, count - transferred.longValue());
+        long batchSize = Math.min(chunkSize, count - transferred.longValue());
 
-        long readed = channel.readInto(fileIo, position + transferred.longValue(), batchSize);
+        long readed = channel.readInto(fileIo, startPos + transferred.longValue(), batchSize);
 
         if (readed > 0)
             transferred.add(readed);
@@ -74,21 +81,21 @@ public class ChunkedFileIo extends AbstractChunkedIo<File> {
     @Override public void writeChunk(TransmitOutputChannel channel) throws IOException {
         open();
 
-        long batchSize = Math.min(segmentSize, count - transferred.longValue());
+        long batchSize = Math.min(chunkSize, count - transferred.longValue());
 
-        long sent = channel.writeFrom(position + transferred.longValue(), batchSize, fileIo);
+        long sent = channel.writeFrom(startPos + transferred.longValue(), batchSize, fileIo);
 
         if (sent > 0)
             transferred.add(sent);
     }
 
     /** {@inheritDoc} */
-    @Override public void close() throws Exception {
+    @Override public void close() throws IOException {
         U.closeQuiet(fileIo);
     }
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(ChunkedFileIo.class, this);
+        return S.toString(ChunkedFileStream.class, this);
     }
 }

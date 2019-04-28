@@ -17,6 +17,8 @@
 
 package org.apache.ignite.internal.processors.transmit.chunk;
 
+import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
@@ -24,29 +26,25 @@ import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChann
 /**
  * @param <T>
  */
-public interface ChunkedIo<T> extends AutoCloseable {
+public interface ChunkedStream<T> extends Closeable {
     /**
-     * @return The chunk of data to interact as io.
-     */
-    public T chunk();
-
-    /**
-     * @return The string representation file name.
+     * @return The string of chunked IO stream.
      */
     public String name();
 
     /**
-     * @return The offset in the file where the transfer began.
+     * @return The position from which the transfer will start. For the {@link File} it will be offset
+     * in the file where the transfer begin data transfer.
      */
-    public long postition();
+    public long startPosition();
 
     /**
-     * @return The bytes which was transfered already.
+     * @return The bytes which has been transfered.
      */
     public long transferred();
 
     /**
-     * @return The number of bytes to transfer.
+     * @return The number of bytes to transfer (read from or write to).
      */
     public long count();
 
