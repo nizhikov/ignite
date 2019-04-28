@@ -134,7 +134,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                                     sesHndlr.begin(nodeId, ses);
 
-                                    return new FileIoReadContext(nodeId, ses, sesHndlr);
+                                    return new FileIoReadContext(nodeId, sesHndlr);
                                 }),
                                 objChannel);
                         } catch (IOException e) {
@@ -161,6 +161,14 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
             ctx.io().removeChannelListener(topic);
         }
+    }
+
+    /**
+     * @param sessionId The session identifier to get context.
+     * @return The current session chunked stream of {@code null} if session not found.
+     */
+    ChunkedStream<?> sessionChunkedStream(String sessionId) {
+        return sessionContextMap.get(sessionId) == null ? null : sessionContextMap.get(sessionId).currIo;
     }
 
     /**
@@ -439,9 +447,6 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         /** The remote node input channel came from. */
         private final UUID nodeId;
 
-        /** The unique session id. */
-        private final String sessionId;
-
         /** Current sesssion. */
         private final TransmitSession sesHndlr;
 
@@ -465,12 +470,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
         /**
          * @param nodeId The remote node id.
-         * @param sessionId The unique session id.
          * @param sesHndlr The channel handler.
          */
-        public FileIoReadContext(UUID nodeId, String sessionId, TransmitSession sesHndlr) {
+        public FileIoReadContext(UUID nodeId, TransmitSession sesHndlr) {
             this.nodeId = nodeId;
-            this.sessionId = sessionId;
             this.sesHndlr = sesHndlr;
         }
 
