@@ -24,9 +24,12 @@ import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChanne
 import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
 
 /**
- * @param <T>
+ *
  */
-public interface ChunkedStream<T> extends Closeable {
+public interface ChunkedStream extends Closeable {
+    /** The default chunk size to transfer data. */
+    public static final int DFLT_SEGMENT_SIZE = 1024 * 1024;
+
     /**
      * @return The string of chunked IO stream.
      */
@@ -49,6 +52,11 @@ public interface ChunkedStream<T> extends Closeable {
     public long count();
 
     /**
+     * @throws IOException If initialization failed.
+     */
+    public void init() throws IOException;
+
+    /**
      * @param ch The channel to read data from.
      * @throws IOException If fails.
      */
@@ -61,7 +69,7 @@ public interface ChunkedStream<T> extends Closeable {
     public void writeChunk(TransmitOutputChannel ch) throws IOException;
 
     /**
-     * @return {@code true} if and only if there is no data left in the channel and it reached its end.
+     * @return {@code true} if and only if the chunked stream received all the data it expected.
      */
-    public boolean endOfTransmit();
+    public boolean endOfStream();
 }

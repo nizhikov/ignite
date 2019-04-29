@@ -38,9 +38,8 @@ public interface ChunkHandler {
     /**
      * @param buff The data filled buffer.
      * @return {@code true} if the chunk of data have been successfully accepted.
-     * @throws IgniteCheckedException If fails.
      */
-    public boolean chunk(ByteBuffer buff) throws IgniteCheckedException;
+    public boolean chunk(ByteBuffer buff);
 
     /**
      * @param params The additional handling channel description params.

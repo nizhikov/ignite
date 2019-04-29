@@ -18,7 +18,11 @@
 package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Map;
+import java.util.Objects;
+import org.apache.ignite.internal.processors.transmit.ChunkHandler;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -26,45 +30,77 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 /**
  *
  */
-public class ChunkedBufferStream extends AbstractChunkedStream<ByteBuffer> {
+public class ChunkedBufferStream extends AbstractChunkedStream {
+    /** */
+    private final ChunkHandler hndlr;
+
+    /** The size of destination buffer. */
+    private int buffSize;
+
+    /** The destination object to transfer data to\from. */
+    private ByteBuffer buff;
+
     /**
-     * @param buff The buff to read into.
      * @param name The unique file name within transfer process.
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
+     * @param params Additional stream params.
      */
-    public ChunkedBufferStream(ByteBuffer buff, String name, long position, long count) {
-        super(buff, name, position, count);
+    public ChunkedBufferStream(
+        ChunkHandler hndlr,
+        String name,
+        long position,
+        long count,
+        Map<String, Serializable> params
+    ) {
+        super(name, position, count, params);
+
+        this.buffSize = buffSize;
+        this.hndlr = Objects.requireNonNull(hndlr);
     }
 
     /**
-     * @return The buffer to read data from or write to.
+     * @throws IOException If initialization failed.
      */
-    public ByteBuffer buffer() {
-        return obj;
+    @Override public void init() throws IOException {
+        if (buff == null) {
+            buffSize = hndlr.begin(name(), startPosition(), count(), params());
+
+            buff = ByteBuffer.allocate(buffSize);
+        }
     }
 
     /** {@inheritDoc} */
     @Override public void readChunk(TransmitInputChannel channel) throws IOException {
-        long readed = channel.readInto(obj);
+        long readed = channel.readInto(buff);
 
         if (readed > 0)
             transferred.add(readed);
         else if (readed < 0)
             checkChunkedIoEOF(this);
+
+        hndlr.chunk(buff);
+
+        if (endOfStream())
+            hndlr.end(params());
     }
 
     /** {@inheritDoc} */
     @Override public void writeChunk(TransmitOutputChannel channel) throws IOException {
-        long written = channel.writeFrom(obj);
+        long written = channel.writeFrom(buff);
 
         if (written > 0)
             transferred.add(written);
+
+        hndlr.chunk(buff);
+
+        if (endOfStream())
+            hndlr.end(params());
     }
 
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
-
+        buff = null;
     }
 
     /** {@inheritDoc} */

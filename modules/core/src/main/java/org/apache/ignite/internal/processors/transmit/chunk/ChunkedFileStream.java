@@ -19,9 +19,13 @@ package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
+import java.util.Map;
+import java.util.Objects;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
+import org.apache.ignite.internal.processors.transmit.FileHandler;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -31,30 +35,40 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 /**
  *
  */
-public class ChunkedFileStream extends AbstractChunkedStream<File> {
+public class ChunkedFileStream extends AbstractChunkedStream {
     /** The default factory to provide IO oprations over underlying file. */
     @GridToStringExclude
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
+
+    /** */
+    private final FileHandler hndlr;
+
+    /** The destination object to transfer data to\from. */
+    private String fileAbsPath;
+
+    /** The abstract java representation of the chunked file. */
+    private File file;
 
     /** The corresponding file channel to work with. */
     @GridToStringExclude
     private FileIO fileIo;
 
     /**
-     * @param fileCfg The java {@link File} representation which should be transfered.
      * @param name The unique file name within transfer process.
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
+     * @param params Additional stream params.
      */
-    public ChunkedFileStream(File fileCfg, String name, long position, long count) {
-        super(fileCfg, name, position, count);
-    }
+    public ChunkedFileStream(
+        FileHandler hndlr,
+        String name,
+        long position,
+        long count,
+        Map<String, Serializable> params
+    ) {
+        super(name, position, count, params);
 
-    /**
-     * @return The file of IO operations.
-     */
-    public File file() {
-        return obj;
+        this.hndlr = Objects.requireNonNull(hndlr);
     }
 
     /**
@@ -62,31 +76,46 @@ public class ChunkedFileStream extends AbstractChunkedStream<File> {
      */
     public void open() throws IOException {
         if (fileIo == null)
-            fileIo = dfltIoFactory.create(obj);
+            fileIo = dfltIoFactory.create(Objects.requireNonNull(file));
+    }
+
+    /** {@inheritDoc} */
+    @Override public void init() throws IOException {
+        if (file == null) {
+            fileAbsPath = hndlr.begin(name(), startPosition(), count(), params());
+
+            file = new File(fileAbsPath);
+        }
     }
 
     /** {@inheritDoc} */
     @Override public void readChunk(TransmitInputChannel channel) throws IOException {
         open();
 
-        long batchSize = Math.min(chunkSize, count - transferred.longValue());
+        long batchSize = Math.min(chunkSize(), count() - transferred.longValue());
 
-        long readed = channel.readInto(fileIo, startPos + transferred.longValue(), batchSize);
+        long readed = channel.readInto(fileIo, startPosition() + transferred.longValue(), batchSize);
 
         if (readed > 0)
             transferred.add(readed);
+
+        if (endOfStream())
+            hndlr.end(file, params());
     }
 
     /** {@inheritDoc} */
     @Override public void writeChunk(TransmitOutputChannel channel) throws IOException {
         open();
 
-        long batchSize = Math.min(chunkSize, count - transferred.longValue());
+        long batchSize = Math.min(chunkSize(), count() - transferred.longValue());
 
-        long sent = channel.writeFrom(startPos + transferred.longValue(), batchSize, fileIo);
+        long sent = channel.writeFrom(startPosition() + transferred.longValue(), batchSize, fileIo);
 
         if (sent > 0)
             transferred.add(sent);
+
+        if (endOfStream())
+            hndlr.end(file, params());
     }
 
     /** {@inheritDoc} */

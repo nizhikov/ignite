@@ -18,6 +18,10 @@
 package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.IOException;
+import java.io.Serializable;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.ignite.internal.processors.transmit.stream.RemoteTransmitException;
@@ -26,54 +30,58 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 /**
  *
  */
-abstract class AbstractChunkedStream<T> implements ChunkedStream<T> {
-    /** The default region size to transfer data. */
-    public static final int DFLT_SEGMENT_SIZE = 1024 * 1024;
-
+abstract class AbstractChunkedStream implements ChunkedStream {
     /** The unique input name to identify particular transfer part.*/
     private final String name;
 
     /** The position offest to start at. */
-    protected final long startPos;
+    private final long startPos;
 
     /** The total number of bytes to send. */
-    protected final long count;
+    private final long count;
 
     /** The size of segment for the read. */
-    protected final int chunkSize;
+    private final int chunkSize;
+
+    /** Additional stream params. */
+    private final Map<String, Serializable> params;
 
     /** The number of bytes successfully transferred druring iteration. */
     protected final LongAdder transferred = new LongAdder();
 
-    /** The destination object to transfer data to\from. */
-    protected final T obj;
-
     /**
-     * @param obj The destination object to transfer into.
      * @param name The unique file name within transfer process.
      * @param startPos The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      * @param chunkSize The size of segmented the read.
+     * @param params Additional stream params.
      */
-    protected AbstractChunkedStream(T obj, String name, long startPos, long count, int chunkSize) {
+    protected AbstractChunkedStream(
+        String name,
+        long startPos,
+        long count,
+        int chunkSize,
+        Map<String, Serializable> params
+    ) {
         assert startPos >= 0 : "The file position must be non-negative";
         assert count >= 0 : "The number of bytes to sent must be positive";
+        assert params != null;
 
-        this.obj = Objects.requireNonNull(obj);
         this.name = Objects.requireNonNull(name);
         this.startPos = startPos;
         this.count = count;
         this.chunkSize = chunkSize;
+        this.params = Collections.unmodifiableMap(new HashMap<>(params));
     }
 
     /**
-     * @param obj The destination object to transfer into.
      * @param name The unique file name within transfer process.
      * @param startPos The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
+     * @param params Additional stream params.
      */
-    protected AbstractChunkedStream(T obj, String name, long startPos, long count) {
-        this(obj, name, startPos, count, DFLT_SEGMENT_SIZE);
+    protected AbstractChunkedStream(String name, long startPos, long count, Map<String, Serializable> params) {
+        this(name, startPos, count, DFLT_SEGMENT_SIZE, params);
     }
 
     /** {@inheritDoc} */
@@ -97,10 +105,24 @@ abstract class AbstractChunkedStream<T> implements ChunkedStream<T> {
     }
 
     /**
+     * @return The size of chunk in bytes.
+     */
+    protected int chunkSize() {
+        return chunkSize;
+    }
+
+    /**
+     * @return Additional stream params
+     */
+    public Map<String, Serializable> params() {
+        return params;
+    }
+
+    /**
      * @param io The file object to check.
      * @throws IOException If the check fails.
      */
-    public void checkChunkedIoEOF(ChunkedStream<?> io) throws IOException {
+    public void checkChunkedIoEOF(ChunkedStream io) throws IOException {
         if (io.transferred() < io.count()) {
             throw new RemoteTransmitException("Socket channel EOF received, but the file is not fully transferred " +
                 "[count=" + io.count() + ", transferred=" + io.transferred() + ']');
@@ -108,7 +130,7 @@ abstract class AbstractChunkedStream<T> implements ChunkedStream<T> {
     }
 
     /** {@inheritDoc} */
-    @Override public boolean endOfTransmit() {
+    @Override public boolean endOfStream() {
         return transferred.longValue() == count;
     }
 
