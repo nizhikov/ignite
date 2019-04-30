@@ -136,26 +136,32 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
                         try {
                             // A new channel established, read the transfer session id first.
-                            final TransmitInputChannel objChannel = new TransmitInputChannel(ctx, channel);
+                            final TransmitInputChannel inChannel = new TransmitInputChannel(ctx, channel);
 
                             TransmitMeta sessionMeta;
 
-                            objChannel.readMeta(sessionMeta = new TransmitMeta());
+                            inChannel.readMeta(sessionMeta = new TransmitMeta());
 
-                            if (sessionMeta.equals(TransmitMeta.tombstone()))
+                            if (sessionMeta.equals(TransmitMeta.tombstone())) {
+                                U.log(log, "Connection has been closed by remote node [nodeId=" + nodeId +']');
+
                                 return;
+                            }
 
                             assert sessionMeta.initial() : "The session meta message must be initialized";
 
-                            onChannelCreated0(sessionContextMap.computeIfAbsent(sessionMeta.name(),
+                            final FileIoReadContext readCtx = sessionContextMap.computeIfAbsent(sessionMeta.name(),
                                 ses -> {
                                     final TransmitSession sesHndlr = factory.create();
 
                                     sesHndlr.begin(nodeId, ses);
 
                                     return new FileIoReadContext(nodeId, sesHndlr, reconnectCnt);
-                                }),
-                                objChannel);
+                                });
+
+                            readCtx.currInputCh = inChannel;
+
+                            onChannelCreated0(readCtx);
                         } catch (IOException e) {
                             log.error("Error processing channel creation event [topic=" + topic +
                                 ", channel=" + channel + ']', e);
@@ -167,7 +173,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 });
             }
             else
-                log.warning("The topic already have an appropriate channel handler factory [topic=" + topic + ']');
+                U.warn(log,"The topic already have an appropriate channel handler factory [topic=" + topic + ']');
         }
     }
 
@@ -191,10 +197,17 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     }
 
     /**
-     * @param rctx The handler read context.
-     * @param chnl The connection channel instance.
+     * @param sessionId The session identifier to get context.
+     * @return The current session channel which is processing.
      */
-    private void onChannelCreated0(FileIoReadContext rctx, TransmitInputChannel chnl) {
+    TransmitInputChannel sessionInputChannel(String sessionId) {
+        return sessionContextMap.get(sessionId) == null ? null : sessionContextMap.get(sessionId).currInputCh;
+    }
+
+    /**
+     * @param readCtx The handler read context.
+     */
+    private void onChannelCreated0(FileIoReadContext readCtx) {
         ChunkedStream inChunkStream = null;
 
         try {
@@ -202,48 +215,48 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
             boolean stopped = false;
 
             while (!Thread.currentThread().isInterrupted() && !stopped) {
-                chnl.readMeta(meta = new TransmitMeta());
+                readCtx.currInputCh.readMeta(meta = new TransmitMeta());
 
                 if (meta.equals(TransmitMeta.tombstone())) {
-                    rctx.sesHndlr.end();
+                    readCtx.sesHndlr.end();
 
                     break;
                 }
 
-                rctx.currPlc = meta.policy();
+                readCtx.currPlc = meta.policy();
 
                 // Loading the file the first time.
                 if (meta.initial()) {
-                    if (rctx.currIo != null) {
+                    if (readCtx.currIo != null) {
                         throw new IgniteCheckedException("Receive the offer to download a new file which was " +
                             "previously not been fully loaded [file=" + meta.name() +
-                            ", unfinished=" + rctx.currIo.name() + ']');
+                            ", unfinished=" + readCtx.currIo.name() + ']');
                     }
 
-                    switch (rctx.currPlc) {
+                    switch (readCtx.currPlc) {
                         case FILE:
-                            inChunkStream = new ChunkedFileStream(rctx.sesHndlr.fileHandler(), meta.name(), meta.offset(),
+                            inChunkStream = new ChunkedFileStream(readCtx.sesHndlr.fileHandler(), meta.name(), meta.offset(),
                                 meta.count(), meta.params());
 
                             break;
 
                         case BUFF:
-                            inChunkStream = new ChunkedBufferStream(rctx.sesHndlr.chunkHandler(), meta.name(),
+                            inChunkStream = new ChunkedBufferStream(readCtx.sesHndlr.chunkHandler(), meta.name(),
                                 meta.offset(), meta.count(), meta.params());
 
                             break;
 
                         default:
                             throw new IgniteCheckedException("The type of read policy is unknown. The impelentation " +
-                                "required: " + rctx.currPlc);
+                                "required: " + readCtx.currPlc);
                     }
 
-                    rctx.currIo = inChunkStream;
+                    readCtx.currIo = inChunkStream;
                 }
                 else {
-                    inChunkStream = rctx.currIo;
+                    inChunkStream = readCtx.currIo;
 
-                    assert meta.policy() == rctx.currPlc :
+                    assert meta.policy() == readCtx.currPlc :
                         "Attempt to process the same input with the different read policy: " + meta.policy();
                     assert inChunkStream.name().equals(meta.name()) : "Attempt to load different file name " +
                         "[name=" + inChunkStream.name() + ", meta=" + meta.name() + ']';
@@ -263,31 +276,31 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     if (Thread.currentThread().isInterrupted())
                         throw new InterruptedException("The thread has been interrupted. Stop processing input stream.");
 
-                    inChunkStream.readChunk(chnl);
+                    inChunkStream.readChunk(readCtx.currInputCh);
                 }
 
                 inChunkStream.close();
-                rctx.currIo = null;
+                readCtx.currIo = null;
             }
         }
         catch (RemoteTransmitException e) {
             // Waiting for re-establishing connection.
             log.warning("The connection lost. Waiting for the new one to continue load", e);
 
-            rctx.reconnectCnt--;
+            readCtx.reconnectCnt--;
 
-            if (rctx.reconnectCnt == 0) {
+            if (readCtx.reconnectCnt == 0) {
                 IOException ex = new IOException("The number of reconnect attempts exceeded the limit. " +
                     "Max attempts: " + reconnectCnt);
 
-                rctx.sesHndlr.onException(ex);
+                readCtx.sesHndlr.onException(ex);
             }
         }
         catch (Throwable t) {
-            rctx.sesHndlr.onException(t);
+            readCtx.sesHndlr.onException(t);
 
-            log.error("The download session cannot be finished due to unexpected error [ctx=" + rctx +
-                ", channel=" + chnl + ']', t);
+            log.error("The download session cannot be finished due to unexpected error [ctx=" + readCtx +
+                ", channel=" + readCtx.currInputCh + ']', t);
         }
         finally {
             U.closeQuiet(inChunkStream);
@@ -490,6 +503,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
         /** The number of reconnect attempts of current session. */
         private int reconnectCnt;
+
+        /** The currently used input channel. */
+        private TransmitInputChannel currInputCh;
 
         /** The read policy of handlind input data. */
         private ReadPolicy currPlc;
