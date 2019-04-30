@@ -15,14 +15,13 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit.stream;
+package org.apache.ignite.internal.processors.transmit.channel;
 
-import java.io.EOFException;
 import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
-import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -31,53 +30,52 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 /**
  *
  */
-public class TransmitInputChannel extends TransmitAbstractChannel {
+public class TransmitOutputChannel extends TransmitAbstractChannel {
     /** */
-    private final ObjectInput dis;
+    private final ObjectOutput dos;
 
     /**
      * @param ktx Kernal context.
      * @param igniteChannel Ignite channel to upload files to.
      * @throws IOException If fails.
      */
-    public TransmitInputChannel(
+    public TransmitOutputChannel(
         GridKernalContext ktx,
         IgniteSocketChannel igniteChannel
     ) throws IOException {
         super(ktx, igniteChannel);
 
-        dis = new ObjectInputStream(igniteChannel.channel().socket().getInputStream());
+        dos = new ObjectOutputStream(igniteChannel.channel().socket().getOutputStream());
     }
 
     /**
-     * @param meta The meta to read to.
+     * @param meta The file meta to write from.
      * @throws IOException If fails.
      */
-    public void readMeta(TransmitMeta meta) throws IOException {
+    public void writeMeta(TransmitMeta meta) throws IOException {
         try {
-            meta.readExternal(dis);
+            meta.writeExternal(dos);
+
+            dos.flush();
 
             if (log.isDebugEnabled())
-                log.debug("The file meta info have been received [meta=" + meta + ']');
-        }
-        catch (EOFException e) {
+                log.debug("The file meta info have been written:" + meta + ']');
+        } catch (IOException e) {
             throw transformExceptionIfNeed(e);
         }
-        catch (ClassNotFoundException e) {
-            throw new IOException("The required transmit meta class information not found", e);
-        }
+
     }
 
     /**
-     * @param fileIO The I\O file
      * @param position The position to start from.
-     * @param count The number of bytes to read.
-     * @return The number of readed bytes.
+     * @param count The number of bytes to write.
+     * @param fileIO The I\O file
+     * @return The number of writed bytes.
      * @throws IOException If fails.
      */
-    public long readInto(FileIO fileIO, long position, long count) throws IOException {
+    public long writeFrom(long position, long count, FileIO fileIO) throws IOException {
         try {
-            return fileIO.transferFrom((ReadableByteChannel)igniteSocket().channel(), position, count);
+            return fileIO.transferTo(position, count, (WritableByteChannel)igniteSocket().channel());
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);
@@ -85,18 +83,23 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
     }
 
     /**
-     * @param buff Buffer to read data into.
-     * @return The number of bytes read, possibly zero, or <tt>-1</tt> if the channel has reached end-of-stream.
+     * @param buff Buffer to write data from.
+     * @return The number of bytes written, possibly zero, or <tt>-1</tt> if the channel has reached end-of-stream.
      * @throws IOException If fails.
      */
-    public long readInto(ByteBuffer buff) throws IOException {
-        return igniteSocket().channel().read(buff);
+    public long writeFrom(ByteBuffer buff) throws IOException {
+        try {
+            return igniteSocket().channel().write(buff);
+        }
+        catch (IOException e) {
+            throw transformExceptionIfNeed(e);
+        }
     }
 
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
         super.close();
 
-        U.closeQuiet(dis);
+        U.closeQuiet(dos);
     }
 }

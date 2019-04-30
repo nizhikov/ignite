@@ -34,10 +34,10 @@ import org.apache.ignite.internal.processors.GridProcessorAdapter;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedBufferStream;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileStream;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStream;
-import org.apache.ignite.internal.processors.transmit.stream.RemoteTransmitException;
-import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
-import org.apache.ignite.internal.processors.transmit.stream.TransmitMeta;
-import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
+import org.apache.ignite.internal.processors.transmit.channel.RemoteTransmitException;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitMeta;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
@@ -61,6 +61,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     /** */
     private DiscoveryEventListener discoLsnr;
 
+    /** The number of reconnects of current trasmission process (read or write attempts). */
+    private volatile int reconnectCnt = DFLT_RECONNECT_CNT;
+
     /** */
     private final Object mux = new Object();
 
@@ -69,6 +72,26 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      */
     public IgniteFileTransmitProcessor(GridKernalContext ctx) {
         super(ctx);
+    }
+
+    /**
+     * Get the maximum number of reconnect attempts used for uploading or downloading file when the socket connection
+     * has been dropped by network issues.
+     *
+     * @return The number of reconnect attempts.
+     */
+    public int reconnectCnt() {
+        return reconnectCnt;
+    }
+
+    /**
+     * Set the maximum number of reconnect attempts used for uploading or downloading file when the socket connection
+     * has been dropped by network issues.
+     *
+     * @param reconnectCnt The number of reconnect attempts.
+     */
+    public void reconnectCnt(int reconnectCnt) {
+        this.reconnectCnt = reconnectCnt;
     }
 
     /** {@inheritDoc} */
@@ -130,7 +153,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                                     sesHndlr.begin(nodeId, ses);
 
-                                    return new FileIoReadContext(nodeId, sesHndlr);
+                                    return new FileIoReadContext(nodeId, sesHndlr, reconnectCnt);
                                 }),
                                 objChannel);
                         } catch (IOException e) {
@@ -251,11 +274,11 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
             // Waiting for re-establishing connection.
             log.warning("The connection lost. Waiting for the new one to continue load", e);
 
-            rctx.reconnects--;
+            rctx.reconnectCnt--;
 
-            if (rctx.reconnects == 0) {
+            if (rctx.reconnectCnt == 0) {
                 IOException ex = new IOException("The number of reconnect attempts exceeded the limit. " +
-                    "Max attempts: " + DFLT_RECONNECT_CNT);
+                    "Max attempts: " + reconnectCnt);
 
                 rctx.sesHndlr.onException(ex);
             }
@@ -357,8 +380,8 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     if (Thread.currentThread().isInterrupted())
                         throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
 
-                    if (reconnects > DFLT_RECONNECT_CNT)
-                        throw new IOException("The number of reconnect attempts exceeded the limit: " + DFLT_RECONNECT_CNT);
+                    if (reconnects > reconnectCnt)
+                        throw new IOException("The number of reconnect attempts exceeded the limit: " + reconnectCnt);
 
                     if (ch == null)
                         connect();
@@ -466,7 +489,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         private final TransmitSession sesHndlr;
 
         /** The number of reconnect attempts of current session. */
-        private int reconnects = DFLT_RECONNECT_CNT;
+        private int reconnectCnt;
 
         /** The read policy of handlind input data. */
         private ReadPolicy currPlc;
@@ -477,10 +500,12 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         /**
          * @param nodeId The remote node id.
          * @param sesHndlr The channel handler.
+         * @param reconnectCnt The number of reconnect attempts.
          */
-        public FileIoReadContext(UUID nodeId, TransmitSession sesHndlr) {
+        public FileIoReadContext(UUID nodeId, TransmitSession sesHndlr, int reconnectCnt) {
             this.nodeId = nodeId;
             this.sesHndlr = sesHndlr;
+            this.reconnectCnt = reconnectCnt;
         }
 
         /** {@inheritDoc} */

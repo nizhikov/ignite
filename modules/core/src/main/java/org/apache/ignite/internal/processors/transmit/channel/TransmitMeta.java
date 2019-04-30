@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit.stream;
+package org.apache.ignite.internal.processors.transmit.channel;
 
 import java.io.Externalizable;
 import java.io.IOException;

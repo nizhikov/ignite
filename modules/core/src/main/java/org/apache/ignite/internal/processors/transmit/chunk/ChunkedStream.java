@@ -20,14 +20,14 @@ package org.apache.ignite.internal.processors.transmit.chunk;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
-import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
-import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
 
 /**
  *
  */
 public interface ChunkedStream extends Closeable {
-    /** The default chunk size to transfer data. */
+    /** The default chunk size to transfer data in bytes. */
     public static final int DFLT_SEGMENT_SIZE = 1024 * 1024;
 
     /**

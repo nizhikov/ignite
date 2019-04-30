@@ -23,8 +23,8 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.ignite.internal.processors.transmit.ChunkHandler;
-import org.apache.ignite.internal.processors.transmit.stream.TransmitInputChannel;
-import org.apache.ignite.internal.processors.transmit.stream.TransmitOutputChannel;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**

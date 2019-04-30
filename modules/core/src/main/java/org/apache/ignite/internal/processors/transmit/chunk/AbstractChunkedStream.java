@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
-import org.apache.ignite.internal.processors.transmit.stream.RemoteTransmitException;
+import org.apache.ignite.internal.processors.transmit.channel.RemoteTransmitException;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
@@ -48,6 +48,9 @@ abstract class AbstractChunkedStream implements ChunkedStream {
 
     /** The number of bytes successfully transferred druring iteration. */
     protected final LongAdder transferred = new LongAdder();
+
+    /** */
+
 
     /**
      * @param name The unique file name within transfer process.
