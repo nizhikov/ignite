@@ -36,9 +36,6 @@ public enum IgniteFeatures {
     /** Cache metrics v2 support. */
     CACHE_METRICS_V2(1),
 
-    /** Distributed metastorage. */
-    DISTRIBUTED_METASTORAGE(2),
-
     /** Data paket compression. */
     DATA_PACKET_COMPRESSION(3),
 
@@ -61,7 +58,10 @@ public enum IgniteFeatures {
     FIND_AND_DELETE_GARBAGE_COMMAND(8),
 
     /** The node can communicate with other via socket channel. */
-    CHANNEL_COMMUNICATION(9);
+    CHANNEL_COMMUNICATION(9),
+
+    /** Distributed metastorage. */
+    DISTRIBUTED_METASTORAGE(11);
 
 
     /**
