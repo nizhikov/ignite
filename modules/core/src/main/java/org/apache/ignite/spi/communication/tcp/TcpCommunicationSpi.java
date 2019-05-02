@@ -4363,6 +4363,8 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
             ses = (GridSelectorNioSession)createNioSession(remote, newConnId);
 
+            assert ses != null : "Session must be established [remoteId=" + remote.id() + ", key=" + newConnId + ']';
+
             sockCh = createIgniteSocketChannel(remote.id(), newConnId, (SocketChannel)ses.key().channel());
 
             // Send configuration message new GridIoMessage(msg, ..)

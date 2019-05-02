@@ -31,13 +31,13 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.GridIoChannelListener;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
 import org.apache.ignite.internal.processors.GridProcessorAdapter;
-import org.apache.ignite.internal.processors.transmit.chunk.ChunkedBufferStream;
-import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileStream;
-import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStream;
 import org.apache.ignite.internal.processors.transmit.channel.RemoteTransmitException;
 import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedBufferStream;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileStream;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStream;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
@@ -162,7 +162,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                             readCtx.currInputCh = inChannel;
 
                             onChannelCreated0(readCtx);
-                        } catch (IOException e) {
+                        } catch (Exception e) {
                             log.error("Error processing channel creation event [topic=" + topic +
                                 ", channel=" + channel + ']', e);
                         }
@@ -256,17 +256,18 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 else {
                     inChunkStream = readCtx.currIo;
 
+                    assert inChunkStream != null : "The file stream must be previously initialized [meta=" + meta +']';
                     assert meta.policy() == readCtx.currPlc :
                         "Attempt to process the same input with the different read policy: " + meta.policy();
                     assert inChunkStream.name().equals(meta.name()) : "Attempt to load different file name " +
-                        "[name=" + inChunkStream.name() + ", meta=" + meta.name() + ']';
+                        "[name=" + inChunkStream.name() + ", meta=" + meta + ']';
                     assert inChunkStream.startPosition() + inChunkStream.transferred() == meta.offset() :
                         "The next segmented input is incorrect [postition=" + inChunkStream.startPosition() +
-                            ", transferred=" + inChunkStream.transferred() + ", offset=" + meta.offset() + ']';
+                            ", transferred=" + inChunkStream.transferred() + ", meta=" + meta + ']';
                     assert inChunkStream.count() - inChunkStream.transferred() == meta.count() :
                         " The count of bytes to transfer fot the next segment is incorrect " +
                             "[size=" + inChunkStream.count() + ", transferred=" + inChunkStream.transferred() +
-                            ", count=" + meta.count() + ']';
+                            ", meta=" + meta + ']';
                 }
 
                 inChunkStream.init();
@@ -317,9 +318,8 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         UUID remoteId,
         Object topic,
         byte plc
-    ) throws IgniteCheckedException {
-        return new FileWriterImpl(remoteId, topic, plc)
-            .connect();
+    ) {
+        return new FileWriterImpl(remoteId, topic, plc);
     }
 
     /**
@@ -367,12 +367,13 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                 ch = new TransmitOutputChannel(ctx, sock);
 
+                // TODO SessionId must be send on channel handshake process (implement onChannelConfigure(..))
                 ch.writeMeta(new TransmitMeta(sessionId));
 
                 return this;
             }
             catch (IOException e) {
-                throw new IgniteCheckedException("The connection cannot be established [remoteId=" + remoteId +
+                throw new IgniteCheckedException("Error sending initial session meta to remote [remoteId=" + remoteId +
                     ", topic=" + topic + ", plc=" + plc + ']', e);
             }
         }
@@ -386,7 +387,27 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
             ReadPolicy plc
         ) throws IgniteCheckedException {
             int reconnects = 0;
-            ChunkedFileStream outChunkStream = null;
+
+            ChunkedFileStream outChunkStream = new ChunkedFileStream(
+                new FileHandler() {
+                    @Override public String begin(
+                        String name,
+                        long position,
+                        long count,
+                        Map<String, Serializable> params
+                    ) {
+                        return file.getAbsolutePath();
+                    }
+
+                    @Override public void end(File file, Map<String, Serializable> params) {
+                        if (log.isDebugEnabled())
+                            log.debug("File has been successfully uploaded: " + file.getName());
+                    }
+                },
+                file.getName(),
+                offset,
+                count,
+                params);
 
             try {
                 while (true) {
@@ -396,32 +417,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     if (reconnects > reconnectCnt)
                         throw new IOException("The number of reconnect attempts exceeded the limit: " + reconnectCnt);
 
-                    if (ch == null)
-                        connect();
-
                     try {
-                        if (outChunkStream == null) {
-                            outChunkStream = new ChunkedFileStream(
-                                new FileHandler() {
-                                    @Override public String begin(
-                                        String name,
-                                        long position,
-                                        long count,
-                                        Map<String, Serializable> params
-                                    ) {
-                                        return file.getAbsolutePath();
-                                    }
-
-                                    @Override public void end(File file, Map<String, Serializable> params) {
-                                        if (log.isDebugEnabled())
-                                            log.debug("File has been successfully uploaded: " + file.getName());
-                                    }
-                                },
-                                file.getName(),
-                                offset,
-                                count,
-                                params);
-                        }
+                        if (ch == null)
+                            connect();
 
                         ch.writeMeta(new TransmitMeta(outChunkStream.name(),
                             outChunkStream.startPosition() + outChunkStream.transferred(),
@@ -440,11 +438,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         }
 
                         outChunkStream.close();
-                        outChunkStream = null;
 
                         break;
                     }
-                    catch (RemoteTransmitException e) {
+                    catch (IOException | IgniteCheckedException e) {
                         closeChannelQuiet();
 
                         reconnects++;
@@ -452,7 +449,8 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         // Re-establish the new connection to continue upload.
                         U.warn(log, "An exception occured during file transmission. Re-establishing connection " +
                             " [remoteId=" + remoteId + ", file=" + file.getName() + ", sessionId=" + sessionId +
-                            ", reconnects=" + reconnects + ']', e);
+                            ", reconnects=" + reconnects + ", transferred=" + outChunkStream.transferred() +
+                            ", count=" + outChunkStream.count() + ']', e);
                     }
                 }
             }
@@ -470,8 +468,11 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         /** {@inheritDoc} */
         @Override public void close() throws IOException {
             try {
-                if (ch != null)
+                if (ch != null) {
+                    U.log(log, "Writing tombstone on close write session");
+
                     ch.writeMeta(TransmitMeta.tombstone());
+                }
             }
             catch (IOException e) {
                 U.warn(log, "The excpetion of writing 'tombstone' on channel close operation has been ignored", e);

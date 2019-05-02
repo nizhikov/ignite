@@ -19,14 +19,19 @@ package org.apache.ignite.internal.processors.transmit;
 
 import java.io.File;
 import java.io.FilenameFilter;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteDataStreamer;
+import org.apache.ignite.IgniteException;
 import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.DataRegionConfiguration;
@@ -42,6 +47,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.apache.ignite.internal.managers.communication.GridIoPolicy.PUBLIC_POOL;
 import static org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager.FILE_SUFFIX;
 
 /**
@@ -52,10 +58,17 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
     private static final long CACHE_SIZE = 50_000L;
 
     /** */
+    private static final int FILE_SIZE_BYTES = 50 * 1024 * 1024;
+
+    /** */
     private static final String TEMP_FILES_DIR = "ctmp";
 
     /** The temporary directory to store files. */
     private File tempStore;
+
+    /** The topic to send files to. */
+    private Object topic;
+
 
     /**
      * @throws Exception if failed.
@@ -65,6 +78,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
         cleanPersistenceDir();
 
         tempStore = U.resolveWorkDirectory(U.defaultWorkDirectory(), TEMP_FILES_DIR, true);
+        topic = GridTopic.TOPIC_CACHE.topic("test", 0);
     }
 
     /**
@@ -122,34 +136,47 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
         return pageStoreMgr.cacheWorkDir(cache.configuration());
     }
 
+    /**
+     * @param name The file name to create.
+     * @param size The file size.
+     * @throws IOException If fails.
+     */
+    private File createFileRandomData(String name, final int size) throws IOException {
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+        File out = new File(tempStore, name);
+
+        try (RandomAccessFile raf = new RandomAccessFile(out, "rw")) {
+            byte[] buf = new byte[size];
+            rnd.nextBytes(buf);
+            raf.write(buf);
+        }
+
+        return out;
+    }
+
 
     /**
      * @throws Exception If fails.
      */
     @Test
     public void testTransmitCachePartitionsToTopic() throws Exception {
-        IgniteEx ig0 = startGrid(0);
-        IgniteEx ig1 = startGrid(1);
+        IgniteEx sender = startGrid(0);
+        IgniteEx receiver = startGrid(1);
 
-        ig0.cluster().active(true);
+        sender.cluster().active(true);
 
-        addCacheData(ig0, DEFAULT_CACHE_NAME);
+        addCacheData(sender, DEFAULT_CACHE_NAME);
 
         awaitPartitionMapExchange();
 
-        Object topic = GridTopic.TOPIC_CACHE.topic("test", 0);
-
         ConcurrentMap<String, Long> fileWithSizes = new ConcurrentHashMap<>();
 
-        ig1.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
             @Override public TransmitSession create() {
-                return new TransmitSession() {
+                return new TransmitSessionAdapter() {
                     @Override public void begin(UUID nodeId, String sessionId) {
-                        assertTrue(ig0.localNode().id().equals(nodeId));
-                    }
-
-                    @Override public ChunkHandler chunkHandler() {
-                        return null;
+                        assertTrue(sender.localNode().id().equals(nodeId));
                     }
 
                     @Override public FileHandler fileHandler() {
@@ -169,23 +196,15 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                             }
                         };
                     }
-
-                    @Override public void end() {
-                        // No-op.
-                    }
-
-                    @Override public void onException(Throwable cause) {
-                        // No-op.
-                    }
                 };
             }
         });
 
-        File cacheDirIg0 = cacheWorkDir(ig0, DEFAULT_CACHE_NAME);
+        File cacheDirIg0 = cacheWorkDir(sender, DEFAULT_CACHE_NAME);
 
-        try (FileWriter writer = ig0.context()
+        try (FileWriter writer = sender.context()
             .fileTransmit()
-            .fileWriter(ig1.localNode().id(), topic, (byte)1)) {
+            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
             // Iterate over cache partition files.
             File [] files = cacheDirIg0.listFiles(new FilenameFilter() {
                 @Override public boolean accept(File dir, String name) {
@@ -206,6 +225,77 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
      */
     @Test
     public void testReconnectWhenChannelClosed() throws Exception {
+        final AtomicBoolean failFirstTime = new AtomicBoolean();
 
+        IgniteEx sender = startGrid(0);
+        IgniteEx receiver = startGrid(1);
+
+        sender.cluster().active(true);
+
+        File fileToSend = createFileRandomData("50Mb", FILE_SIZE_BYTES);
+
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
+            @Override public TransmitSession create() {
+                return new TransmitSessionAdapter() {
+                    @Override public void begin(UUID nodeId, String sessionId) {
+                        if (failFirstTime.compareAndSet(false, true))
+                            throw new IgniteException("Session initialization failed. Connection must be reestablished.");
+                    }
+
+                    @Override public FileHandler fileHandler() {
+                        return new FileHandler() {
+                            @Override public String begin(
+                                String name,
+                                long position,
+                                long count,
+                                Map<String, Serializable> params
+                            ) {
+                                return new File(tempStore, name + "_" + receiver.localNode().id()).getAbsolutePath();
+                            }
+
+                            @Override public void end(File file, Map<String, Serializable> params) {
+                                assertEquals(fileToSend.length(), file.length());
+                            }
+                        };
+                    }
+                };
+            }
+        });
+
+        try (FileWriter writer = sender.context()
+            .fileTransmit()
+            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
+        }
+    }
+
+    /**
+     * The defailt implementation of transmit session.
+     */
+    private static class TransmitSessionAdapter implements TransmitSession {
+        /** {@inheritDoc} */
+        @Override public void begin(UUID nodeId, String sessionId) {
+            // No-op.
+        }
+
+        /** {@inheritDoc} */
+        @Override public ChunkHandler chunkHandler() {
+            return null;
+        }
+
+        /** {@inheritDoc} */
+        @Override public FileHandler fileHandler() {
+            return null;
+        }
+
+        /** {@inheritDoc} */
+        @Override public void end() {
+            // No-op.
+        }
+
+        /** {@inheritDoc} */
+        @Override public void onException(Throwable cause) {
+            // No-op.
+        }
     }
 }

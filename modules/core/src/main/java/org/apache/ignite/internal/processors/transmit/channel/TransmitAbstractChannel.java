@@ -70,6 +70,9 @@ public abstract class TransmitAbstractChannel implements Closeable {
     private static final String RESET_BY_PEER_MSG = "Connection reset by peer";
 
     /** */
+    private static final String CLOSED_BY_REMOTE_MSG = "An existing connection was forcibly closed by the remote host";
+
+    /** */
     private final GridKernalContext ktx;
 
     /** */
@@ -129,9 +132,8 @@ public abstract class TransmitAbstractChannel implements Closeable {
      * @return The new cause or the old one.
      */
     public IOException transformExceptionIfNeed(IOException cause) {
-        // Transform the connection reset by peer error message.
-        if ((cause instanceof IOException && RESET_BY_PEER_MSG.equals(cause.getMessage())) ||
-            cause instanceof EOFException ||
+        // The set of local issues with connection.
+        if (cause instanceof EOFException ||
             cause instanceof ClosedChannelException ||
             cause instanceof ClosedByInterruptException) {
             // Return the new one with detailed message.
@@ -140,12 +142,24 @@ public abstract class TransmitAbstractChannel implements Closeable {
                     "to the manager's transmission configuration [remoteId=" + igniteChannel.id().remoteId() +
                     ", index=" + igniteChannel.id().idx() + ']', cause);
         }
+        // Connection timeout issues.
         else if (cause instanceof SocketTimeoutException ||
             cause instanceof AsynchronousCloseException) {
             return new RemoteTransmitException(
                 "The connection has been timeouted. The connection will be re-established according " +
                     "to the manager's transmission configuration [remoteId=" + igniteChannel.id().remoteId() +
                     ", index=" + igniteChannel.id().idx() + ", timeout=" + timeoutMillis + ']', cause);
+        }
+        else if (cause instanceof IOException) {
+            // Improve IOException connection error handling
+            String causeMsg = cause.getMessage();
+
+            if (RESET_BY_PEER_MSG.equals(causeMsg) ||
+                CLOSED_BY_REMOTE_MSG.equals(causeMsg)) {
+                return new RemoteTransmitException("Connection has been dropped by remote due to unhandled error. " +
+                    "The connection will be re-established according to the manager's transmission configuration " +
+                    "[remoteId=" + igniteChannel.id().remoteId() + ", index=" + igniteChannel.id().idx() + ']', cause);
+            };
         }
 
         return cause;
