@@ -49,9 +49,6 @@ abstract class AbstractChunkedStream implements ChunkedStream {
     /** The number of bytes successfully transferred druring iteration. */
     protected final LongAdder transferred = new LongAdder();
 
-    /** */
-
-
     /**
      * @param name The unique file name within transfer process.
      * @param startPos The position from which the transfer should start to.
