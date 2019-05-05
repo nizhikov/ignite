@@ -75,7 +75,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public long writeFrom(long position, long count, FileIO fileIO) throws IOException {
         try {
-            return fileIO.transferTo(position, count, (WritableByteChannel)igniteSocket().channel());
+            return fileIO.transferTo(position, count, (WritableByteChannel)igniteChannel().channel());
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);
@@ -89,7 +89,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public long writeFrom(ByteBuffer buff) throws IOException {
         try {
-            return igniteSocket().channel().write(buff);
+            return igniteChannel().channel().write(buff);
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);

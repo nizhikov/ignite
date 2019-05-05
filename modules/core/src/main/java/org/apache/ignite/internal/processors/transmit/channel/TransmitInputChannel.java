@@ -80,7 +80,7 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      */
     public long readInto(FileIO fileIO, long position, long count) throws IOException {
         try {
-            return fileIO.transferFrom((ReadableByteChannel)igniteSocket().channel(), position, count);
+            return fileIO.transferFrom((ReadableByteChannel)igniteChannel().channel(), position, count);
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);
@@ -93,7 +93,7 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      * @throws IOException If fails.
      */
     public long readInto(ByteBuffer buff) throws IOException {
-        return igniteSocket().channel().read(buff);
+        return igniteChannel().channel().read(buff);
     }
 
     /** {@inheritDoc} */

@@ -20,6 +20,8 @@ package org.apache.ignite.internal.processors.transmit.chunk;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
+import java.util.Map;
 import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
 
@@ -52,9 +54,19 @@ public interface ChunkedStream extends Closeable {
     public long transferred();
 
     /**
+     * @param cnt The number of bytes which has been already transferred.
+     */
+    public void transferred(long cnt);
+
+    /**
      * @return The number of bytes to transfer (read from or write to).
      */
     public long count();
+
+    /**
+     * @return Additional stream params
+     */
+    public Map<String, Serializable> params();
 
     /**
      * @throws IOException If initialization failed.

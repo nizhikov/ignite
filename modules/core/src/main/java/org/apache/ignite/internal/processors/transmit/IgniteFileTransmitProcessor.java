@@ -20,7 +20,10 @@ package org.apache.ignite.internal.processors.transmit;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -43,6 +46,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
+import static java.util.Optional.ofNullable;
 import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
 import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 
@@ -52,6 +56,15 @@ import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     /** Reconnect attempts count to send single file. */
     private static final int DFLT_RECONNECT_CNT = 5;
+
+    /** The sessionId attribute map key. */
+    private static final String SESSION_ID_KEY = "sessionId";
+
+    /** The last file offset attribute map key.*/
+    private static final String RECEIVED_BYTES_KEY = "receivedBytes";
+
+    /** The last file name attribute map key. */
+    private static final String LAST_FILE_NAME_KEY = "lastFileName";
 
     /** */
     private final ConcurrentMap<Object, TransmitSessionFactory> topicFactoryMap = new ConcurrentHashMap<>();
@@ -134,24 +147,42 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         synchronized (mux) {
             if (topicFactoryMap.putIfAbsent(topic, factory) == null) {
                 ctx.io().addChannelListener(topic, new GridIoChannelListener() {
+                    @Override public Map<String, Serializable> onChannelConfigure(IgniteSocketChannel channel) {
+                        // Restore the last received session state on remote node.
+                        String sessionId = channel.attr(SESSION_ID_KEY);
+
+                        assert sessionId != null;
+
+                        FileIoReadContext readCtx = sessionContextMap.get(sessionId);
+
+                        if (readCtx == null)
+                            return null;
+                        else {
+                            ChunkedStream stream = readCtx.currIo;
+
+                            if (stream == null)
+                                return null;
+                            else {
+                                Map<String, Serializable> attrs = new HashMap<>();
+
+                                attrs.put(RECEIVED_BYTES_KEY, stream.transferred());
+                                attrs.put(LAST_FILE_NAME_KEY, stream.name());
+
+                                return attrs;
+                            }
+                        }
+                    }
+
                     @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
+                        String sessionId = null;
+
                         try {
                             // A new channel established, read the transfer session id first.
                             final TransmitInputChannel inChannel = new TransmitInputChannel(ctx, channel);
 
-                            TransmitMeta sessionMeta;
+                            sessionId = Objects.requireNonNull(channel.attr(SESSION_ID_KEY));
 
-                            inChannel.readMeta(sessionMeta = new TransmitMeta());
-
-                            if (sessionMeta.equals(TransmitMeta.tombstone())) {
-                                U.log(log, "Connection has been closed by remote node [nodeId=" + nodeId +']');
-
-                                return;
-                            }
-
-                            assert sessionMeta.initial() : "The session meta message must be initialized";
-
-                            final FileIoReadContext readCtx = sessionContextMap.computeIfAbsent(sessionMeta.name(),
+                            final FileIoReadContext readCtx = sessionContextMap.computeIfAbsent(sessionId,
                                 ses -> {
                                     final TransmitSession sesHndlr = factory.create();
 
@@ -165,7 +196,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                             onChannelCreated0(readCtx);
                         } catch (Exception e) {
                             log.error("Error processing channel creation event [topic=" + topic +
-                                ", channel=" + channel + ']', e);
+                                ", channel=" + channel + ", sessionId=" + sessionId + ']', e);
                         }
                         finally {
                             U.closeQuiet(channel);
@@ -359,19 +390,14 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         }
 
         /**
-         * @return The current initialized channel instance.
          * @throws IgniteCheckedException If fails.
          */
-        public FileWriter connect() throws IgniteCheckedException {
+        public void connect() throws IgniteCheckedException {
             try {
-                IgniteSocketChannel sock = ctx.io().channelToTopic(remoteId, topic, plc);
+                IgniteSocketChannel sock = ctx.io().channelToTopic(remoteId, topic, plc,
+                    Collections.singletonMap(SESSION_ID_KEY, sessionId));
 
                 ch = new TransmitOutputChannel(ctx, sock);
-
-                // TODO SessionId must be send on channel handshake process (implement onChannelConfigure(..))
-                ch.writeMeta(new TransmitMeta(sessionId));
-
-                return this;
             }
             catch (IOException e) {
                 throw new IgniteCheckedException("Error sending initial session meta to remote [remoteId=" + remoteId +
@@ -421,6 +447,15 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     try {
                         if (ch == null)
                             connect();
+
+                        String lastFileName = ch.igniteChannel().attr(LAST_FILE_NAME_KEY);
+                        Long receivedBytes = ch.igniteChannel().attr(RECEIVED_BYTES_KEY);
+
+                        assert lastFileName == null || outChunkStream.name().equals(lastFileName) :
+                            "Attempt to upload different file [local=" + outChunkStream.name() + ", remote=" + lastFileName + ']';
+                        assert receivedBytes == null || receivedBytes >= 0;
+
+                        outChunkStream.transferred(ofNullable(receivedBytes).orElse(0L));
 
                         ch.writeMeta(new TransmitMeta(outChunkStream.name(),
                             outChunkStream.startPosition() + outChunkStream.transferred(),

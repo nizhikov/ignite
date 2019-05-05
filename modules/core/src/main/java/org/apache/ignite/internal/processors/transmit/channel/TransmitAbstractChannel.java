@@ -168,7 +168,7 @@ public abstract class TransmitAbstractChannel implements Closeable {
     /**
      * @return The corresponding ignite channel.
      */
-    public IgniteSocketChannel igniteSocket() {
+    public IgniteSocketChannel igniteChannel() {
         return igniteChannel;
     }
 

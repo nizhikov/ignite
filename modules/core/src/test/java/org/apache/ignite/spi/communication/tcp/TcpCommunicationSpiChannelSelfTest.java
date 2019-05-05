@@ -107,9 +107,7 @@ public class TcpCommunicationSpiChannelSelfTest extends GridCommonAbstractTest {
 
         GridIoManager ioMgr = grid(0).context().io();
 
-        IgniteSocketChannel senderCh = ioMgr.channelToTopic(grid(1).localNode().id(),
-            topic,
-            PUBLIC_POOL);
+        IgniteSocketChannel senderCh = ioMgr.channelToTopic(grid(1).localNode().id(), topic, PUBLIC_POOL, null);
 
         // Wait for the channel connection established.
         assertTrue(waitChLatch.await(5_000L, TimeUnit.MILLISECONDS));

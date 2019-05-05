@@ -305,8 +305,9 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                         lock0.unlock();
                     }
                 }
-                catch (Exception ignored) {
-                    U.error(log, "Unknown channel type received (will ignore): " + ch.getClass());
+                catch (Exception ignore) {
+                    U.error(log, "The channel configure envent has been finished with exception. " +
+                        "Will be ignored.", ignore);
                 }
 
                 return null;
@@ -1666,6 +1667,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @param topic Topic to send the message to.
      * @param topicOrd GridTopic enumeration ordinal.
      * @param plc Thread policy to execute on.
+     * @param attrs Addtitional attributes to send.
      * @return Established {@link IgniteSocketChannel} to use.
      * @throws IgniteCheckedException If fails.
      */
@@ -1673,7 +1675,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         ClusterNode node,
         Object topic,
         int topicOrd,
-        byte plc
+        byte plc,
+        Map<String, Serializable> attrs
     ) throws IgniteCheckedException {
         assert node != null;
         assert topic != null;
@@ -1681,12 +1684,12 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
             (topicOrd < 0 && !(topic instanceof GridTopic));
 
         try {
-            Map<String, Serializable> attrs = new HashMap<>();
+            Map<String, Serializable> attrs0 = attrs == null ? new HashMap<>() : new HashMap<>(attrs);
 
-            attrs.put(CHANNEL_TOPIC_KEY, (Serializable)topic);
-            attrs.put(CHANNEL_IO_POLICY_KEY, plc);
+            attrs0.put(CHANNEL_TOPIC_KEY, (Serializable)topic);
+            attrs0.put(CHANNEL_IO_POLICY_KEY, plc);
 
-            return (IgniteSocketChannel)getSpi().channel(node, attrs);
+            return (IgniteSocketChannel)getSpi().channel(node, attrs0);
         }
         catch (IgniteSpiException e) {
             if (e.getCause() instanceof ClusterTopologyCheckedException)
@@ -1705,13 +1708,15 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @param nodeId Destination node.
      * @param topic Topic to send the message to.
      * @param plc Thread policy to execute on.
+     * @param attrs Additional attributes to send.
      * @return Established {@link IgniteSocketChannel} to use.
      * @throws IgniteCheckedException If fails.
      */
     public IgniteSocketChannel channelToTopic(
         UUID nodeId,
         Object topic,
-        byte plc
+        byte plc,
+        Map<String, Serializable> attrs
     ) throws IgniteCheckedException {
         ClusterNode node = ctx.discovery().node(nodeId);
 
@@ -1719,8 +1724,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
             throw new ClusterTopologyCheckedException("Failed to send message to node (has node left grid?): " + nodeId);
 
         return topic instanceof GridTopic ?
-            channel(node, topic, ((Enum<GridTopic>)topic).ordinal(), plc) :
-            channel(node, topic, -1, plc);
+            channel(node, topic, ((Enum<GridTopic>)topic).ordinal(), plc, attrs) :
+            channel(node, topic, -1, plc, attrs);
     }
 
     /**

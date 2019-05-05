@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.ignite.internal.processors.transmit.channel.RemoteTransmitException;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -47,7 +48,7 @@ abstract class AbstractChunkedStream implements ChunkedStream {
     private final Map<String, Serializable> params;
 
     /** The number of bytes successfully transferred druring iteration. */
-    protected final LongAdder transferred = new LongAdder();
+    protected final AtomicLong transferred = new AtomicLong();
 
     /**
      * @param name The unique file name within transfer process.
@@ -91,7 +92,12 @@ abstract class AbstractChunkedStream implements ChunkedStream {
 
     /** {@inheritDoc} */
     @Override public long transferred() {
-        return transferred.longValue();
+        return transferred.get();
+    }
+
+    /** {@inheritDoc} */
+    @Override public void transferred(long cnt) {
+        transferred.set(cnt);
     }
 
     /** {@inheritDoc} */
@@ -111,10 +117,8 @@ abstract class AbstractChunkedStream implements ChunkedStream {
         return chunkSize;
     }
 
-    /**
-     * @return Additional stream params
-     */
-    public Map<String, Serializable> params() {
+    /** {@inheritDoc} */
+    @Override public Map<String, Serializable> params() {
         return params;
     }
 
@@ -131,7 +135,7 @@ abstract class AbstractChunkedStream implements ChunkedStream {
 
     /** {@inheritDoc} */
     @Override public boolean endOfStream() {
-        return transferred.longValue() == count;
+        return transferred.get() == count;
     }
 
     /** {@inheritDoc} */

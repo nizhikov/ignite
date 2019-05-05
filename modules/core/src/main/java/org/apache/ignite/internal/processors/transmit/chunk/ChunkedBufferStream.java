@@ -75,7 +75,7 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
         long readed = channel.readInto(buff);
 
         if (readed > 0)
-            transferred.add(readed);
+            transferred.addAndGet(readed);
         else if (readed < 0)
             checkChunkedIoEOF(this);
 
@@ -90,7 +90,7 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
         long written = channel.writeFrom(buff);
 
         if (written > 0)
-            transferred.add(written);
+            transferred.addAndGet(written);
 
         hndlr.chunk(buff);
 

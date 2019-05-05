@@ -69,6 +69,8 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
     /** The topic to send files to. */
     private Object topic;
 
+    /** File filter. */
+    private FilenameFilter fileBinFilter;
 
     /**
      * @throws Exception if failed.
@@ -79,6 +81,11 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         tempStore = U.resolveWorkDirectory(U.defaultWorkDirectory(), TEMP_FILES_DIR, true);
         topic = GridTopic.TOPIC_CACHE.topic("test", 0);
+        fileBinFilter = new FilenameFilter() {
+            @Override public boolean accept(File dir, String name) {
+                return name.endsWith(FILE_SUFFIX);
+            }
+        };
     }
 
     /**
@@ -206,11 +213,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
             .fileTransmit()
             .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
             // Iterate over cache partition files.
-            File [] files = cacheDirIg0.listFiles(new FilenameFilter() {
-                @Override public boolean accept(File dir, String name) {
-                    return name.endsWith(FILE_SUFFIX);
-                }
-            });
+            File [] files = cacheDirIg0.listFiles(fileBinFilter);
 
             for (File file : files)
                 fileWithSizes.put(file.getName(), file.length());
@@ -218,6 +221,10 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
             for (File file : files)
                 writer.write(file, 0, file.length(), new HashMap<>(), ReadPolicy.FILE);
         }
+
+        stopAllGrids();
+
+        assertEquals(fileWithSizes.size(), tempStore.listFiles(fileBinFilter).length);
     }
 
     /**

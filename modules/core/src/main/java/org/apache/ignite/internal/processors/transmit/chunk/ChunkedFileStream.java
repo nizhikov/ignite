@@ -92,12 +92,12 @@ public class ChunkedFileStream extends AbstractChunkedStream {
     @Override public void readChunk(TransmitInputChannel channel) throws IOException {
         open();
 
-        long batchSize = Math.min(chunkSize(), count() - transferred.longValue());
+        long batchSize = Math.min(chunkSize(), count() - transferred.get());
 
-        long readed = channel.readInto(fileIo, startPosition() + transferred.longValue(), batchSize);
+        long readed = channel.readInto(fileIo, startPosition() + transferred.get(), batchSize);
 
         if (readed > 0)
-            transferred.add(readed);
+            transferred.addAndGet(readed);
 
         if (endOfStream())
             hndlr.end(file, params());
@@ -112,7 +112,7 @@ public class ChunkedFileStream extends AbstractChunkedStream {
         long sent = channel.writeFrom(startPosition() + transferred.longValue(), batchSize, fileIo);
 
         if (sent > 0)
-            transferred.add(sent);
+            transferred.addAndGet(sent);
 
         if (endOfStream())
             hndlr.end(file, params());
