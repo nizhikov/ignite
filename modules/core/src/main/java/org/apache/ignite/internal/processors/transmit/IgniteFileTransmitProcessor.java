@@ -38,6 +38,7 @@ import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChan
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedBufferStream;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileStream;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStream;
+import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
@@ -500,12 +501,14 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         private final UUID nodeId;
 
         /** Current sesssion. */
+        @GridToStringExclude
         private final TransmitSession sesHndlr;
 
         /** The number of reconnect attempts of current session. */
         private int reconnectCnt;
 
         /** The currently used input channel. */
+        @GridToStringExclude
         private TransmitInputChannel currInputCh;
 
         /** The read policy of handlind input data. */

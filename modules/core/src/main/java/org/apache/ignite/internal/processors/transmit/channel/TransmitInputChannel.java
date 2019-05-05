@@ -25,6 +25,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
+import org.apache.ignite.internal.util.tostring.GridToStringExclude;
+import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
@@ -33,6 +35,7 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
  */
 public class TransmitInputChannel extends TransmitAbstractChannel {
     /** */
+    @GridToStringExclude
     private final ObjectInput dis;
 
     /**
@@ -98,5 +101,10 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
         super.close();
 
         U.closeQuiet(dis);
+    }
+
+    /** {@inheritDoc} */
+    @Override public String toString() {
+        return S.toString(TransmitInputChannel.class, this);
     }
 }

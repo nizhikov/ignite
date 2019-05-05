@@ -108,8 +108,6 @@ public class TransmitMeta implements Externalizable {
      * @return The position to start channel transfer at.
      */
     public long offset() {
-        assert offset >=0;
-
         return offset;
     }
 
@@ -117,8 +115,6 @@ public class TransmitMeta implements Externalizable {
      * @return The number of bytes expect to transfer.
      */
     public long count() {
-        assert count >= 0;
-
         return count;
     }
 

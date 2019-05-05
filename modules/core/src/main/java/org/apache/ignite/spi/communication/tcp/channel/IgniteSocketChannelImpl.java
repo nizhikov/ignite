@@ -19,6 +19,7 @@ package org.apache.ignite.spi.communication.tcp.channel;
 
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
+import java.util.HashMap;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -29,7 +30,6 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.spi.communication.ChannelId;
 import org.apache.ignite.spi.communication.ChannelListener;
-import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateRequestMessage;
 
 /**
@@ -52,10 +52,7 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     private final AtomicBoolean active = new AtomicBoolean();
 
     /** */
-    private byte plc;
-
-    /** */
-    private Object topic;
+    private final HashMap<String, Object> attrs = new HashMap<>();
 
     /**
      * @param channel The {@link SocketChannel} which will be used.
@@ -106,23 +103,13 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     }
 
     /** {@inheritDoc} */
-    @Override public byte policy() {
-        return plc;
+    @Override public <T> T attr(String name) {
+        return (T) attrs.get(name);
     }
 
     /** {@inheritDoc} */
-    @Override public void policy(byte plc) {
-        this.plc = plc;
-    }
-
-    /** {@inheritDoc} */
-    @Override public Object topic() {
-        return topic;
-    }
-
-    /** {@inheritDoc} */
-    @Override public void topic(Object topic) {
-        this.topic = topic;
+    @Override public <T> void attr(String name, T obj) {
+        attrs.put(name, obj);
     }
 
     /** {@inheritDoc} */

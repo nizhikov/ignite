@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.BrokenBarrierException;
@@ -143,6 +144,12 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
     /** Current IO policy. */
     private static final ThreadLocal<Byte> CUR_PLC = new ThreadLocal<>();
+
+    /** The key fot the channel {@link GridTopic} attribute. */
+    private static final String CHANNEL_TOPIC_KEY = "topic";
+
+    /** The key fot the channel {@link GridIoPolicy} attribute. */
+    private static final String CHANNEL_IO_POLICY_KEY = "plc";
 
     /** Channel listeners by topic. */
     private final ConcurrentMap<Object, ConcurrentLinkedQueue<GridIoChannelListener>> channelLsnrMap =
@@ -938,17 +945,20 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      */
     private void onChannelCreated0(UUID nodeId, IgniteSocketChannel ch) {
         assert ch != null;
-        assert ch.topic() != null;
+
+        Object topic = Objects.requireNonNull(ch.attr(CHANNEL_TOPIC_KEY));
 
         try {
-            final ConcurrentLinkedQueue<GridIoChannelListener> lsnrQueue = channelLsnrMap.get(ch.topic());
+            final ConcurrentLinkedQueue<GridIoChannelListener> lsnrQueue = channelLsnrMap.get(topic);
 
             if (log.isInfoEnabled())
                 log.info("Notify listeners on channel created [channel=" + ch +
                     ", queue=" + (lsnrQueue == null ? 0 : lsnrQueue.size()) + ']');
 
             if (lsnrQueue != null) {
-                pools.poolForPolicy(ch.policy()).execute(new Runnable() {
+                byte plc = ch.attr(CHANNEL_IO_POLICY_KEY);
+
+                pools.poolForPolicy(plc).execute(new Runnable() {
                     @Override public void run() {
                         for (GridIoChannelListener lsnr: lsnrQueue) {
                             if (lsnr != null)
@@ -986,8 +996,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     U.unmarshal(marsh, msg.topicBytes(), U.resolveClassLoader(ctx.config()));
             }
 
-            ch.topic(topic);
-            ch.policy(msg.policy());
+            ch.attr(CHANNEL_TOPIC_KEY, topic);
+            ch.attr(CHANNEL_IO_POLICY_KEY, msg.policy());
         }
         catch (IgniteCheckedException e) {
             U.error(log, "Failed to process message (will ignore): " + msg, e);

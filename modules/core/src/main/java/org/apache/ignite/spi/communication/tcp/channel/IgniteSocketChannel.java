@@ -33,24 +33,4 @@ public interface IgniteSocketChannel extends Channel {
      * @return The underlying java nio {@link SocketChannel} used by the current channel.
      */
     public SocketChannel channel();
-
-    /**
-     * @return The type of {@link GridIoPolicy} which defines the processing policy by the communication manager.
-     */
-    public byte policy();
-
-    /**
-     * @param plc The type of {@link GridIoPolicy} to define the processing policy by the communication manager.
-     */
-    public void policy(byte plc);
-
-    /**
-     * @return The communication topic of {@link GridTopic} shows the established channel connection from.
-     */
-    public Object topic();
-
-    /**
-     * @param topic The communication topic of {@link GridTopic} to establish channel connection to.
-     */
-    public void topic(Object topic);
 }

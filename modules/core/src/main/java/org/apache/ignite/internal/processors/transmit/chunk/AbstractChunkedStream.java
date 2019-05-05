@@ -63,8 +63,8 @@ abstract class AbstractChunkedStream implements ChunkedStream {
         int chunkSize,
         Map<String, Serializable> params
     ) {
-        assert startPos >= 0 : "The file position must be non-negative";
-        assert count >= 0 : "The number of bytes to sent must be positive";
+        assert startPos >= 0 : "The file position must be non-negative: " + startPos;
+        assert count >= 0 : "The number of bytes to sent must be positive: " + count;
         assert params != null;
 
         this.name = Objects.requireNonNull(name);

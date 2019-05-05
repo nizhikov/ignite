@@ -17,12 +17,12 @@
 
 package org.apache.ignite.spi.communication;
 
-import java.util.UUID;
+import java.io.Closeable;
 
 /**
  * A hub to a direct communication between ignite components which is capable of I/O operations such as read, write.
  */
-public interface Channel extends AutoCloseable {
+public interface Channel extends Closeable {
     /**
      * @return Connection id to remote node.
      */
@@ -34,6 +34,20 @@ public interface Channel extends AutoCloseable {
     public ChannelConfig config();
 
     /**
+     * @param name The name to get attribute.
+     * @param <T> The attribute type.
+     * @return The corresponding channel attribute instance.
+     */
+    public <T> T attr(String name);
+
+    /**
+     * @param name The name to get attribute.
+     * @param obj The chanel attribute instance.
+     * @param <T> The attribute type.
+     */
+    public <T> void attr(String name, T obj);
+
+    /**
      * @return <tt>true</tt> if the channel is configured and ready to use.
      */
     public boolean active();
@@ -42,5 +56,4 @@ public interface Channel extends AutoCloseable {
      * Make the channel ready for use.
      */
     public void activate();
-
 }
