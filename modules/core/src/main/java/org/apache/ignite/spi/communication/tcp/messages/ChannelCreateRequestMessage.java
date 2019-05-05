@@ -17,12 +17,17 @@
 
 package org.apache.ignite.spi.communication.tcp.messages;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.ignite.internal.GridDirectTransient;
+import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
+import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
 /**
  * Message requesting to creation of {@link IgniteSocketChannel}.
@@ -34,35 +39,40 @@ public class ChannelCreateRequestMessage implements Message {
     /** */
     private static final long serialVersionUID = 0L;
 
+    /** The map of channel attributes. */
+    @GridDirectTransient
+    private Map<String, Serializable> attrs;
+
     /** Message. */
-    private Message message;
+    @GridToStringExclude
+    private byte[] attrsBytes;
 
     /**
-     * Default constructor required by {@link Message}.
+     * @return The map of channel attributes.
      */
-    public ChannelCreateRequestMessage() {
-        // Default constructor used only for GridIoMessageFactory.
+    public Map<String, Serializable> getAttrs() {
+        return attrs;
     }
 
     /**
-     * @param message {@link Message} to wrap.
+     * @param attrs The map of channel attributes.
      */
-    public ChannelCreateRequestMessage(Message message) {
-        this.message = message;
+    public void setAttrs(Map<String, Serializable> attrs) {
+        this.attrs = new HashMap<>(attrs);
     }
 
     /**
-     * @return Message.
+     * @return The serialized channel attributes byte array.
      */
-    public Message getMessage() {
-        return message;
+    public byte[] getAttrsBytes() {
+        return attrsBytes;
     }
 
     /**
-     * @param message Message.
+     * @param attrsBytes The serialized channel attributes byte array.
      */
-    public void setMessage(Message message) {
-        this.message = message;
+    public void setAttrsBytes(byte[] attrsBytes) {
+        this.attrsBytes = attrsBytes;
     }
 
     /** {@inheritDoc} */
@@ -82,7 +92,7 @@ public class ChannelCreateRequestMessage implements Message {
         }
 
         if (writer.state() == 0) {
-            if (!writer.writeMessage("message", message))
+            if (!writer.writeByteArray("attrsBytes", attrsBytes))
                 return false;
 
             writer.incrementState();
@@ -99,7 +109,7 @@ public class ChannelCreateRequestMessage implements Message {
             return false;
 
         if (reader.state() == 0) {
-            message = reader.readMessage("message");
+            attrsBytes = reader.readByteArray("attrsBytes");
 
             if (!reader.isLastRead())
                 return false;

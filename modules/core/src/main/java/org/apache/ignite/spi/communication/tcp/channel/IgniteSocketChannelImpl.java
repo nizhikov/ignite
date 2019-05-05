@@ -18,8 +18,10 @@
 package org.apache.ignite.spi.communication.tcp.channel;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.channels.SocketChannel;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,7 +54,7 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     private final AtomicBoolean active = new AtomicBoolean();
 
     /** */
-    private final HashMap<String, Object> attrs = new HashMap<>();
+    private final Map<String, Serializable> attrs = new HashMap<>();
 
     /**
      * @param channel The {@link SocketChannel} which will be used.
@@ -79,10 +81,10 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
      * @param msg The configuration channel message.
      * @throws IgniteCheckedException If fails.
      */
-    public void configure(GridSelectorNioSession ses, Message msg) throws IgniteCheckedException {
+    public void configure(GridSelectorNioSession ses, ChannelCreateRequestMessage msg) throws IgniteCheckedException {
         assert ses.key().channel() == channel;
 
-        ses.send(new ChannelCreateRequestMessage(msg)).get();
+        ses.send(msg).get();
     }
 
     /** {@inheritDoc} */
@@ -103,12 +105,17 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     }
 
     /** {@inheritDoc} */
-    @Override public <T> T attr(String name) {
+    @Override public Map<String, Serializable> attrs() {
+        return new HashMap<>(attrs);
+    }
+
+    /** {@inheritDoc} */
+    @Override public <T extends Serializable> T attr(String name) {
         return (T) attrs.get(name);
     }
 
     /** {@inheritDoc} */
-    @Override public <T> void attr(String name, T obj) {
+    @Override public <T extends Serializable> void attr(String name, T obj) {
         attrs.put(name, obj);
     }
 

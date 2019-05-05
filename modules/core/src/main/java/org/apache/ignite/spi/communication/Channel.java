@@ -18,6 +18,8 @@
 package org.apache.ignite.spi.communication;
 
 import java.io.Closeable;
+import java.io.Serializable;
+import java.util.Map;
 
 /**
  * A hub to a direct communication between ignite components which is capable of I/O operations such as read, write.
@@ -34,18 +36,23 @@ public interface Channel extends Closeable {
     public ChannelConfig config();
 
     /**
+     * @return A map of all channel attributes.
+     */
+    public Map<String, Serializable> attrs();
+
+    /**
      * @param name The name to get attribute.
      * @param <T> The attribute type.
      * @return The corresponding channel attribute instance.
      */
-    public <T> T attr(String name);
+    public <T extends Serializable> T attr(String name);
 
     /**
      * @param name The name to get attribute.
      * @param obj The chanel attribute instance.
      * @param <T> The attribute type.
      */
-    public <T> void attr(String name, T obj);
+    public <T extends Serializable> void attr(String name, T obj);
 
     /**
      * @return <tt>true</tt> if the channel is configured and ready to use.

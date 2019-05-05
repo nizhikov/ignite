@@ -17,7 +17,12 @@
 
 package org.apache.ignite.spi.communication.tcp.messages;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.ignite.internal.GridDirectTransient;
+import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.plugin.extensions.communication.Message;
@@ -34,35 +39,40 @@ public class ChannelCreateResponseMessage implements Message {
     /** */
     private static final long serialVersionUID = 0L;
 
+    /** The map of channel attributes. */
+    @GridDirectTransient
+    private Map<String, Serializable> attrs;
+
     /** Message. */
-    private boolean created;
+    @GridToStringExclude
+    private byte[] attrsBytes;
 
     /**
-     * Default constructor required by {@link Message}.
+     * @return The map of channel attributes.
      */
-    public ChannelCreateResponseMessage() {
-        // Default constructor used only for GridIoMessageFactory.
+    public Map<String, Serializable> getAttrs() {
+        return attrs;
     }
 
     /**
-     * @param created flag.
+     * @param attrs The map of channel attributes.
      */
-    public ChannelCreateResponseMessage(boolean created) {
-        this.created = created;
+    public void setAttrs(Map<String, Serializable> attrs) {
+        this.attrs = new HashMap<>(attrs);
     }
 
     /**
-     * @return {@code True} if created successfully.
+     * @return The serialized channel attributes byte array.
      */
-    public boolean isCreated() {
-        return created;
+    public byte[] getAttrsBytes() {
+        return attrsBytes;
     }
 
     /**
-     * @param created {@code True} if channel created successfully.
+     * @param attrsBytes The serialized channel attributes byte array.
      */
-    public void setCreated(boolean created) {
-        this.created = created;
+    public void setAttrsBytes(byte[] attrsBytes) {
+        this.attrsBytes = attrsBytes;
     }
 
     /** {@inheritDoc} */
@@ -82,7 +92,7 @@ public class ChannelCreateResponseMessage implements Message {
         }
 
         if (writer.state() == 0) {
-            if (!writer.writeBoolean("created", created))
+            if (!writer.writeByteArray("attrsBytes", attrsBytes))
                 return false;
 
             writer.incrementState();
@@ -99,7 +109,7 @@ public class ChannelCreateResponseMessage implements Message {
             return false;
 
         if (reader.state() == 0) {
-            created = reader.readBoolean("created");
+            attrsBytes = reader.readByteArray("attrsBytes");
 
             if (!reader.isLastRead())
                 return false;

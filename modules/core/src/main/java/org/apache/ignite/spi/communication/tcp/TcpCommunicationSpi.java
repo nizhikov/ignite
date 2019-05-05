@@ -20,6 +20,7 @@ package org.apache.ignite.spi.communication.tcp;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -101,11 +102,6 @@ import org.apache.ignite.internal.util.nio.GridNioSessionMetaKey;
 import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
 import org.apache.ignite.internal.util.nio.GridShmemCommunicationClient;
 import org.apache.ignite.internal.util.nio.GridTcpNioCommunicationClient;
-import org.apache.ignite.spi.communication.Channel;
-import org.apache.ignite.spi.communication.ChannelId;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannelImpl;
-import org.apache.ignite.spi.communication.ChannelListener;
 import org.apache.ignite.internal.util.nio.ssl.BlockingSslHandler;
 import org.apache.ignite.internal.util.nio.ssl.GridNioSslFilter;
 import org.apache.ignite.internal.util.nio.ssl.GridSslMeta;
@@ -126,6 +122,9 @@ import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.lang.IgniteProductVersion;
 import org.apache.ignite.lang.IgniteRunnable;
 import org.apache.ignite.lang.IgniteUuid;
+import org.apache.ignite.marshaller.Marshaller;
+import org.apache.ignite.marshaller.MarshallerUtils;
+import org.apache.ignite.marshaller.jdk.JdkMarshaller;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageFactory;
 import org.apache.ignite.plugin.extensions.communication.MessageFormatter;
@@ -147,8 +146,13 @@ import org.apache.ignite.spi.IgniteSpiOperationTimeoutHelper;
 import org.apache.ignite.spi.IgniteSpiThread;
 import org.apache.ignite.spi.IgniteSpiTimeoutObject;
 import org.apache.ignite.spi.TimeoutStrategy;
+import org.apache.ignite.spi.communication.Channel;
+import org.apache.ignite.spi.communication.ChannelId;
+import org.apache.ignite.spi.communication.ChannelListener;
 import org.apache.ignite.spi.communication.CommunicationListener;
 import org.apache.ignite.spi.communication.CommunicationSpi;
+import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
+import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannelImpl;
 import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 import org.apache.ignite.spi.communication.tcp.internal.HandshakeException;
 import org.apache.ignite.spi.communication.tcp.internal.TcpCommunicationConnectionCheckFuture;
@@ -417,6 +421,9 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
     /** */
     private ConnectionPolicy sockConnPlc = new ChannelRandomConnectionPolicy();
+
+    /** Marshaller. */
+    private Marshaller marsh;
 
     /** */
     private boolean enableForcibleNodeKill = IgniteSystemProperties
@@ -759,7 +766,43 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                 }
             }
 
-            private void onChannelRequest(
+            private void handleChannelCreateResponse(
+                GridSelectorNioSession ses,
+                ConnectionKey connKey,
+                ChannelCreateResponseMessage msg
+            ) {
+                IgniteSocketChannel ch = socketChannel(connKey.nodeId(), connKey.connectionIndex());
+
+                assert ch != null : "Channel doesnt' exist for key: " + connKey;
+
+                try {
+                    if (msg.getAttrsBytes() != null) {
+                        Map<String, Serializable> attrs = U.unmarshal(marshaller(), msg.getAttrsBytes(),
+                            U.resolveClassLoader(ignite.configuration()));
+
+                        for (Map.Entry<String, Serializable> attr : attrs.entrySet())
+                            ch.attr(attr.getKey(), attr.getValue());
+                    }
+                } catch (IgniteCheckedException e) {
+                    log.error("Fail to unmarshall additional channel attibutes from remote node " +
+                        "(will ignore) [nodeId=" + connKey.nodeId() + ']', e);
+                }
+
+                ses.closeSocketOnSessionClose(false);
+
+                ses.close().listen(f -> {
+                    try {
+                        ch.channel().configureBlocking(true);
+
+                        ch.activate();
+                    }
+                    catch (IOException e) {
+                        U.error(log, "Unable to configure blocking mode", e);
+                    }
+                });
+            }
+
+            private void handleChannelCreateRequest(
                 GridSelectorNioSession ses,
                 ConnectionKey connKey,
                 ChannelCreateRequestMessage msg
@@ -768,26 +811,58 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                     connKey.connectionIndex(),
                     (SocketChannel)ses.key().channel());
 
-                if (lsnr != null)
-                    lsnr.onChannelConfigure(ch, msg.getMessage());
+                try {
+                    if (msg.getAttrs() == null) {
+                        Map<String, Serializable> attrs = U.unmarshal(marshaller(), msg.getAttrsBytes(),
+                            U.resolveClassLoader(ignite.configuration()));
 
-                ses.send(new ChannelCreateResponseMessage(true)).listen(c1 -> {
-                    // Close session and send response.
-                    ses.closeSocketOnSessionClose(false);
+                        for (Map.Entry<String, Serializable> attr : attrs.entrySet())
+                            ch.attr(attr.getKey(), attr.getValue());
+                    }
 
-                    ses.close().listen(c2 -> {
-                        try {
-                            ch.channel().configureBlocking(true);
+                    Map<String, Serializable> outAttrs = null;
 
-                            ch.activate();
+                    if (lsnr != null)
+                        outAttrs = lsnr.onChannelConfigure(ch);
 
-                            notifyListener(connKey.nodeId(), ch);
+                    ChannelCreateResponseMessage resp0 = new ChannelCreateResponseMessage();
+
+                    try {
+                        if (outAttrs != null) {
+                            byte[] attrsBytes = U.marshal(marshaller(), outAttrs);
+
+                            resp0.setAttrsBytes(attrsBytes);
                         }
-                        catch (IOException e) {
-                            U.error(log, "Unable to configure blocking mode.", e);
-                        }
+                    }
+                    catch (IgniteCheckedException e) {
+                        log.error("Fail to marshall channel attributes to send to remote(will ignore) " +
+                            "[attrs=" + outAttrs + ']');
+                    }
+
+                    ses.send(resp0).listen(c1 -> {
+                        // Close session and send response.
+                        ses.closeSocketOnSessionClose(false);
+
+                        ses.close().listen(c2 -> {
+                            try {
+                                ch.channel().configureBlocking(true);
+
+                                ch.activate();
+
+                                notifyListener(connKey.nodeId(), ch);
+                            }
+                            catch (IOException e) {
+                                U.error(log, "Unable to configure blocking mode.", e);
+                            }
+                        });
                     });
-                });
+                }
+                catch (IgniteCheckedException e) {
+                    log.error("Fail to unmarshall additional channel attributes from remote node. " +
+                        "Channel will be closed [nodeId=" + connKey.nodeId() + ", channel="  + ch + ']', e);
+
+                    U.closeQuiet(ch);
+                }
             }
 
             @Override public void onMessage(final GridNioSession ses, Message msg) {
@@ -891,28 +966,15 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                         c = NOOP;
 
                     if (msg instanceof ChannelCreateRequestMessage) {
-                        onChannelRequest((GridSelectorNioSession)ses, connKey, (ChannelCreateRequestMessage)msg);
+                        handleChannelCreateRequest((GridSelectorNioSession)ses, connKey,
+                            (ChannelCreateRequestMessage)msg);
 
                         if (c != null)
                             c.run();
                     }
                     else if (msg instanceof ChannelCreateResponseMessage) {
-                        IgniteSocketChannel ch = socketChannel(connKey.nodeId(), connKey.connectionIndex());
-
-                        assert ch != null : "Channel doesnt' exist for key: " + connKey;
-
-                        ses.closeSocketOnSessionClose(false);
-
-                        ses.close().listen(f -> {
-                            try {
-                                ch.channel().configureBlocking(true);
-
-                                ch.activate();
-                            }
-                            catch (IOException e) {
-                                U.error(log, "Unable to configure blocking mode", e);
-                            }
-                        });
+                        handleChannelCreateResponse((GridSelectorNioSession)ses, connKey,
+                            (ChannelCreateResponseMessage)msg);
 
                         if (c != null)
                             c.run();
@@ -1351,7 +1413,20 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
         if (ignite != null) {
             setAddressResolver(ignite.configuration().getAddressResolver());
             setLocalAddress(ignite.configuration().getLocalHost());
+
+            // IgniteMock instance can be injected from tests.
+            marsh = ignite instanceof IgniteEx ?
+                ((IgniteEx)ignite).context().marshallerContext().jdkMarshaller() : new JdkMarshaller();
         }
+    }
+
+    /**
+     * @return The local marshaller instance.
+     */
+    private Marshaller marshaller() {
+        MarshallerUtils.setNodeName(marsh, igniteInstanceName);
+
+        return marsh;
     }
 
     /**
@@ -4340,7 +4415,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteSocketChannel channel(ClusterNode remote, Message msg) throws IgniteSpiException {
+    @Override public IgniteSocketChannel channel(ClusterNode remote, Map<String, Serializable> attrs) throws IgniteSpiException {
         assert !remote.isLocal() : remote;
 
         if (!nodeSupports(remote, CHANNEL_COMMUNICATION)) {
@@ -4367,8 +4442,16 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
             sockCh = createIgniteSocketChannel(remote.id(), newConnId, (SocketChannel)ses.key().channel());
 
-            // Send configuration message new GridIoMessage(msg, ..)
-            sockCh.configure(ses, msg);
+            // Send configuration message over the created session.
+            ChannelCreateRequestMessage req0 = new ChannelCreateRequestMessage();
+
+            if (attrs != null) {
+                byte[] attrsBytes = U.marshal(marshaller(), attrs);
+
+                req0.setAttrsBytes(attrsBytes);
+            }
+
+            sockCh.configure(ses, req0);
 
             // Synchronous wait for the reply (channel created and configured on the remote side)
             long curTime = U.currentTimeMillis();

@@ -95,6 +95,7 @@ public class GridIoMessage implements Message {
     ) {
         assert topic != null;
         assert topicOrd <= Byte.MAX_VALUE;
+        assert msg != null;
 
         this.plc = plc;
         this.msg = msg;

@@ -152,8 +152,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     private static final String CHANNEL_IO_POLICY_KEY = "plc";
 
     /** Channel listeners by topic. */
-    private final ConcurrentMap<Object, ConcurrentLinkedQueue<GridIoChannelListener>> channelLsnrMap =
-        new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, GridIoChannelListener> channelLsnrMap = new ConcurrentHashMap<>();
 
     /** Listeners by topic. */
     private final ConcurrentMap<Object, GridMessageListener> lsnrMap = new ConcurrentHashMap<>();
@@ -288,15 +287,29 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     lsnr.onNodeDisconnected(nodeId);
             }
 
-            @Override public void onChannelConfigure(Channel ch, Serializable msg) {
+            @Override public Map<String, Serializable> onChannelConfigure(Channel ch) {
                 try {
-                    if (msg instanceof GridIoMessage)
-                        onChannelConfigure0((IgniteSocketChannel)ch, (GridIoMessage)msg);
+                    Channel ch0 = Objects.requireNonNull(ch);
+                    Object topic = Objects.requireNonNull(ch0.attr(CHANNEL_TOPIC_KEY));
+
+                    Lock lock0 = busyLock.readLock();
+
+                    lock0.lock();
+
+                    try {
+                        GridIoChannelListener lsnr0 = channelLsnrMap.get(topic);
+
+                        return lsnr0 == null ? null : lsnr0.onChannelConfigure((IgniteSocketChannel)ch0);
+                    }
+                    finally {
+                        lock0.unlock();
+                    }
                 }
-                catch (ClassCastException ignored) {
-                    U.error(log, "Unknown type of channel configuration message received (will ignore): " +
-                        msg.getClass().getName());
+                catch (Exception ignored) {
+                    U.error(log, "Unknown channel type received (will ignore): " + ch.getClass());
                 }
+
+                return null;
             }
 
             @Override public void onChannelCreated(UUID nodeId, Channel ch) {
@@ -944,66 +957,25 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @param ch The channel to notify listeners with.
      */
     private void onChannelCreated0(UUID nodeId, IgniteSocketChannel ch) {
-        assert ch != null;
-
-        Object topic = Objects.requireNonNull(ch.attr(CHANNEL_TOPIC_KEY));
-
         try {
-            final ConcurrentLinkedQueue<GridIoChannelListener> lsnrQueue = channelLsnrMap.get(topic);
+            Channel ch0 = Objects.requireNonNull(ch);
+            Object topic = Objects.requireNonNull(ch0.attr(CHANNEL_TOPIC_KEY));
 
-            if (log.isInfoEnabled())
-                log.info("Notify listeners on channel created [channel=" + ch +
-                    ", queue=" + (lsnrQueue == null ? 0 : lsnrQueue.size()) + ']');
+            final GridIoChannelListener lsnr0 = channelLsnrMap.get(topic);
 
-            if (lsnrQueue != null) {
+            if (lsnr0 != null) {
                 byte plc = ch.attr(CHANNEL_IO_POLICY_KEY);
 
                 pools.poolForPolicy(plc).execute(new Runnable() {
                     @Override public void run() {
-                        for (GridIoChannelListener lsnr: lsnrQueue) {
-                            if (lsnr != null)
-                                lsnr.onChannelCreated(nodeId, ch);
-                        }
+                        lsnr0.onChannelCreated(nodeId, ch);
                     }
                 });
             }
         }
-        catch (IgniteCheckedException | RejectedExecutionException e) {
-            U.error(log, "Failed to process channel creation event due to execution rejection.", e);
-        }
-    }
-
-    /**
-     * @param ch The channel to configure to.
-     * @param msg The configuration message.
-     */
-    private void onChannelConfigure0(IgniteSocketChannel ch, GridIoMessage msg) {
-        assert ch != null;
-        assert msg != null;
-
-        busyLock.readLock().lock();
-
-        try {
-            if (stopping || !started)
-                throw new IgniteCheckedException("Node is stopping or not started yet.");
-
-            Object topic = msg.topic();
-
-            if (topic == null) {
-                int topicOrd = msg.topicOrdinal();
-
-                topic = topicOrd >= 0 ? GridTopic.fromOrdinal(topicOrd) :
-                    U.unmarshal(marsh, msg.topicBytes(), U.resolveClassLoader(ctx.config()));
-            }
-
-            ch.attr(CHANNEL_TOPIC_KEY, topic);
-            ch.attr(CHANNEL_IO_POLICY_KEY, msg.policy());
-        }
-        catch (IgniteCheckedException e) {
-            U.error(log, "Failed to process message (will ignore): " + msg, e);
-        }
-        finally {
-            busyLock.readLock().unlock();
+        catch (Exception e) {
+            U.error(log, "Failed to process channel creation event due to exception [nodeId=" + nodeId +
+                ", channel=" + ch + ']' , e);
         }
     }
 
@@ -1708,13 +1680,13 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         assert (topicOrd >= 0 && topic instanceof GridTopic) ||
             (topicOrd < 0 && !(topic instanceof GridTopic));
 
-        GridIoMessage cfgMsg = new GridIoMessage(plc, topic, topicOrd, null, false, 0, false);
-
-        if (topicOrd < 0)
-            cfgMsg.topicBytes(U.marshal(marsh, topic));
-
         try {
-            return (IgniteSocketChannel)getSpi().channel(node, cfgMsg);
+            Map<String, Serializable> attrs = new HashMap<>();
+
+            attrs.put(CHANNEL_TOPIC_KEY, (Serializable)topic);
+            attrs.put(CHANNEL_IO_POLICY_KEY, plc);
+
+            return (IgniteSocketChannel)getSpi().channel(node, attrs);
         }
         catch (IgniteSpiException e) {
             if (e.getCause() instanceof ClusterTopologyCheckedException)
@@ -2221,20 +2193,9 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         assert lsnr != null;
         assert topic != null;
 
-        channelLsnrMap.computeIfAbsent(topic, k -> new ConcurrentLinkedQueue<>())
-            .add(lsnr);
-    }
+        GridIoChannelListener result = channelLsnrMap.putIfAbsent(topic, lsnr);
 
-    /**
-     * @param topic Topic to remove listener from.
-     * @param lsnr The listener instance to remove, or {@code null} to remove all listneres of specified topic.
-     */
-    public void removeChannelListener(Object topic, GridIoChannelListener lsnr) {
-        assert lsnr != null;
-        assert topic != null;
-
-        channelLsnrMap.computeIfAbsent(topic, t -> new ConcurrentLinkedQueue<>())
-            .remove(lsnr);
+        assert result == null;
     }
 
     /**

@@ -19,6 +19,7 @@ package org.apache.ignite.spi.communication;
 
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Map;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.spi.IgniteSpi;
 import org.apache.ignite.spi.IgniteSpiException;
@@ -112,10 +113,10 @@ public interface CommunicationSpi<T extends Serializable> extends IgniteSpi {
 
     /**
      * @param remote Destination cluster node to communicate with.
-     * @param msg Configuration channel message.
+     * @param attrs Configuration channel attributes.
      * @throws IgniteSpiException If fails.
      */
-    public default Channel channel(ClusterNode remote, T msg) throws IgniteSpiException {
+    public default Channel channel(ClusterNode remote, Map<String, Serializable> attrs) throws IgniteSpiException {
         throw new UnsupportedOperationException();
     }
 }
