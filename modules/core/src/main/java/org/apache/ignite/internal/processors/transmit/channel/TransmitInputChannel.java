@@ -105,6 +105,6 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(TransmitInputChannel.class, this);
+        return S.toString(TransmitInputChannel.class, this, "super", super.toString());
     }
 }

@@ -29,7 +29,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.Ignite;
+import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
@@ -41,6 +43,10 @@ import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileStream;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStream;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStreamFactory;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.After;
@@ -231,8 +237,9 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
      * @throws Exception If fails.
      */
     @Test
-    public void testReconnectWhenChannelClosed() throws Exception {
+    public void testReconnectBeginSessionThrowsEx() throws Exception {
         final AtomicBoolean failFirstTime = new AtomicBoolean();
+        final String exTestMessage = "Test exception. Session initialization failed. Connection will be reestablished.";
 
         IgniteEx sender = startGrid(0);
         IgniteEx receiver = startGrid(1);
@@ -246,7 +253,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                 return new TransmitSessionAdapter() {
                     @Override public void begin(UUID nodeId, String sessionId) {
                         if (failFirstTime.compareAndSet(false, true))
-                            throw new IgniteException("Session initialization failed. Connection must be reestablished.");
+                            throw new IgniteException(exTestMessage);
                     }
 
                     @Override public FileHandler fileHandler() {
@@ -264,6 +271,82 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                                 assertEquals(fileToSend.length(), file.length());
                             }
                         };
+                    }
+
+                    @Override public void onException(Throwable cause) {
+                        assertEquals(exTestMessage, cause.getMessage());
+                    }
+                };
+            }
+        });
+
+        try (FileWriter writer = sender.context()
+            .fileTransmit()
+            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
+        }
+    }
+
+    /** */
+    @Test
+    public void testReconnectInTheMiddleOfTransmission() throws Exception {
+        final String chunkDownloadExMsg = "Test exception. Chunk processing error.";
+
+        IgniteEx sender = startGrid(0);
+        IgniteEx receiver = startGrid(1);
+
+        sender.cluster().active(true);
+
+        File fileToSend = createFileRandomData("testFile", FILE_SIZE_BYTES);
+        final AtomicInteger readedChunks = new AtomicInteger();
+
+        receiver.context().fileTransmit().chunkedStreamFactory(new ChunkedStreamFactory() {
+            @Override public ChunkedStream createChunkedStream(
+                ReadPolicy policy,
+                TransmitSession session,
+                String name,
+                long position,
+                long count,
+                Map<String, Serializable> params
+            ) throws IgniteCheckedException {
+                assertEquals(policy, ReadPolicy.FILE);
+
+                return new ChunkedFileStream(session.fileHandler(), name, position, count, params) {
+                    @Override public void readChunk(TransmitInputChannel channel) throws IOException {
+                        // Read 4 chunks than throw an exception to emulate error processing.
+                        if (readedChunks.incrementAndGet() == 4)
+                            throw new IOException(chunkDownloadExMsg);
+
+                        super.readChunk(channel);
+
+                        assertTrue(transferred.get() > 0);
+                    }
+                };
+            }
+        });
+
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
+            @Override public TransmitSession create() {
+                return new TransmitSessionAdapter() {
+                    @Override public FileHandler fileHandler() {
+                        return new FileHandler() {
+                            @Override public String begin(
+                                String name,
+                                long position,
+                                long count,
+                                Map<String, Serializable> params
+                            ) {
+                                return new File(tempStore, name + "_" + receiver.localNode().id()).getAbsolutePath();
+                            }
+
+                            @Override public void end(File file, Map<String, Serializable> params) {
+                                assertEquals(fileToSend.length(), file.length());
+                            }
+                        };
+                    }
+
+                    @Override public void onException(Throwable cause) {
+                        assertEquals(chunkDownloadExMsg, cause.getMessage());
                     }
                 };
             }

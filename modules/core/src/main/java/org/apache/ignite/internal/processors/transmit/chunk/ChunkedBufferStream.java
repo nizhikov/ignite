@@ -41,13 +41,14 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
     private ByteBuffer buff;
 
     /**
+     * @param handler The chunk handler to process each chunk.
      * @param name The unique file name within transfer process.
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      * @param params Additional stream params.
      */
     public ChunkedBufferStream(
-        ChunkHandler hndlr,
+        ChunkHandler handler,
         String name,
         long position,
         long count,
@@ -56,7 +57,7 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
         super(name, position, count, params);
 
         this.buffSize = buffSize;
-        this.hndlr = Objects.requireNonNull(hndlr);
+        this.hndlr = Objects.requireNonNull(handler);
     }
 
     /**
@@ -105,6 +106,6 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(ChunkedBufferStream.class, this);
+        return S.toString(ChunkedBufferStream.class, this, "super", super.toString());
     }
 }

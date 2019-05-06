@@ -32,6 +32,7 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
@@ -175,5 +176,10 @@ public abstract class TransmitAbstractChannel implements Closeable {
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
         U.closeQuiet(igniteChannel);
+    }
+
+    /** {@inheritDoc} */
+    @Override public String toString() {
+        return S.toString(TransmitAbstractChannel.class, this);
     }
 }

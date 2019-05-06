@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
@@ -54,13 +55,14 @@ public class ChunkedFileStream extends AbstractChunkedStream {
     private FileIO fileIo;
 
     /**
+     * @param handler The file handler to process download result.
      * @param name The unique file name within transfer process.
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
      * @param params Additional stream params.
      */
     public ChunkedFileStream(
-        FileHandler hndlr,
+        FileHandler handler,
         String name,
         long position,
         long count,
@@ -68,15 +70,31 @@ public class ChunkedFileStream extends AbstractChunkedStream {
     ) {
         super(name, position, count, params);
 
-        this.hndlr = Objects.requireNonNull(hndlr);
+        this.hndlr = Objects.requireNonNull(handler);
     }
 
     /**
      * Explicitly open the underlying file if not done yet.
      */
     public void open() throws IOException {
-        if (fileIo == null)
+        if (fileIo == null) {
             fileIo = dfltIoFactory.create(Objects.requireNonNull(file));
+
+            fileIo.position(startPosition());
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override public void transferred(long cnt) {
+        super.transferred(cnt);
+
+        try {
+            if (fileIo != null)
+                fileIo.position(startPosition() + cnt);
+        }
+        catch (IOException e) {
+            throw new IgniteException("Unable to set new start file channel position [pos=" + (startPosition() + cnt) + ']');
+        }
     }
 
     /** {@inheritDoc} */
@@ -125,6 +143,6 @@ public class ChunkedFileStream extends AbstractChunkedStream {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(ChunkedFileStream.class, this);
+        return S.toString(ChunkedFileStream.class, this, "super", super.toString());
     }
 }

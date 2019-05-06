@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
+import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
@@ -101,5 +102,10 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
         super.close();
 
         U.closeQuiet(dos);
+    }
+
+    /** {@inheritDoc} */
+    @Override public String toString() {
+        return S.toString(TransmitOutputChannel.class, this, "super", super.toString());
     }
 }

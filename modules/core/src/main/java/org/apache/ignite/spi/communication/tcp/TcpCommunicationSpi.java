@@ -792,6 +792,8 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
                 ses.close().listen(f -> {
                     try {
+                        cleanupLocalNodeRecoveryDescriptor(connKey);
+
                         ch.channel().configureBlocking(true);
 
                         ch.activate();
@@ -845,11 +847,13 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
                         ses.close().listen(c2 -> {
                             try {
+                                cleanupLocalNodeRecoveryDescriptor(connKey);
+
                                 ch.channel().configureBlocking(true);
 
                                 ch.activate();
 
-                                notifyListener(connKey.nodeId(), ch);
+                                notifyChannelEvtListener(connKey.nodeId(), ch);
                             }
                             catch (IOException e) {
                                 U.error(log, "Unable to configure blocking mode.", e);
@@ -4089,7 +4093,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
      * @param nodeId The remote node id.
      * @param ch The configured channel to notify listeners with.
      */
-    private void notifyListener(UUID nodeId, IgniteSocketChannel ch) {
+    private void notifyChannelEvtListener(UUID nodeId, IgniteSocketChannel ch) {
         if (log.isDebugEnabled())
             log.debug("Notify corresponding listeners due to the new channel created: " + ch);
 
@@ -4182,6 +4186,20 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
         }
 
         return false;
+    }
+
+    /**
+     * @param key The connection key to cleanup descriptors on local node.
+     */
+    private void cleanupLocalNodeRecoveryDescriptor(ConnectionKey key) {
+        ClusterNode node = getLocalNode();
+
+        if (usePairedConnections(node)){
+            inRecDescs.remove(key);
+            outRecDescs.remove(key);
+        }
+        else
+            recoveryDescs.remove(key);
     }
 
     /**

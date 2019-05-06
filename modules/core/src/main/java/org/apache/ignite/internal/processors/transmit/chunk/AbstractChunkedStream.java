@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.ignite.internal.processors.transmit.channel.RemoteTransmitException;
+import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
@@ -45,9 +46,11 @@ abstract class AbstractChunkedStream implements ChunkedStream {
     private final int chunkSize;
 
     /** Additional stream params. */
+    @GridToStringInclude
     private final Map<String, Serializable> params;
 
     /** The number of bytes successfully transferred druring iteration. */
+    @GridToStringInclude
     protected final AtomicLong transferred = new AtomicLong();
 
     /**
