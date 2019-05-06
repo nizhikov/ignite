@@ -253,11 +253,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      */
     private void onChannelCreated0(FileIoReadContext readCtx) {
         ChunkedStream inChunkStream = null;
+        TransmitMeta meta = null;
+        boolean stopped = false;
 
         try {
-            TransmitMeta meta;
-            boolean stopped = false;
-
             while (!Thread.currentThread().isInterrupted() && !stopped) {
                 readCtx.currInputCh.readMeta(meta = new TransmitMeta());
 
@@ -328,10 +327,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
             }
         }
         catch (Throwable t) {
-            readCtx.sesHndlr.onException(t);
-
             log.error("The download session cannot be finished due to unexpected error [ctx=" + readCtx +
-                ", channel=" + readCtx.currInputCh + ']', t);
+                ", channel=" + readCtx.currInputCh + ", lastMeta=" + meta + ']', t);
+
+            readCtx.sesHndlr.onException(t);
         }
         finally {
             U.closeQuiet(inChunkStream);

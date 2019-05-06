@@ -65,7 +65,9 @@ public class TransmitMeta implements Externalizable {
     /** */
     private HashMap<String, Serializable> map = new HashMap<>();
 
-    /** */
+    /**
+     *
+     */
     public TransmitMeta() {
         this(null);
     }
@@ -84,7 +86,14 @@ public class TransmitMeta implements Externalizable {
      * @param initial {@code true} if
      * @param params The additional transfer meta params.
      */
-    public TransmitMeta(String name, long offset, long count, boolean initial, ReadPolicy plc, Map<String, Serializable> params) {
+    public TransmitMeta(
+        String name,
+        long offset,
+        long count,
+        boolean initial,
+        ReadPolicy plc,
+        Map<String, Serializable> params
+    ) {
         this.name = name;
         this.offset = offset;
         this.count = count;
@@ -95,6 +104,13 @@ public class TransmitMeta implements Externalizable {
             for (Map.Entry<String, Serializable> key : params.entrySet())
                 map.put(key.getKey(), key.getValue());
         }
+    }
+
+    /**
+     * @return The tombstone meta info.
+     */
+    public static TransmitMeta tombstone() {
+        return TOMBSTONE;
     }
 
     /**
@@ -139,13 +155,6 @@ public class TransmitMeta implements Externalizable {
         return Collections.unmodifiableMap(map);
     }
 
-    /**
-     * @return The tombstone meta info.
-     */
-    public static TransmitMeta tombstone() {
-        return TOMBSTONE;
-    }
-
     /** {@inheritDoc} */
     @Override public void writeExternal(ObjectOutput out) throws IOException {
         out.writeUTF(name());
@@ -163,7 +172,29 @@ public class TransmitMeta implements Externalizable {
         count = in.readLong();
         initial = in.readBoolean();
         plc = in.readInt();
-        map = (HashMap) in.readObject();
+        map = (HashMap)in.readObject();
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean equals(Object o) {
+        if (this == o)
+            return true;
+
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        TransmitMeta meta = (TransmitMeta)o;
+
+        return offset == meta.offset &&
+            count == meta.count &&
+            initial == meta.initial &&
+            plc == meta.plc &&
+            name.equals(meta.name);
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        return Objects.hash(name, offset, count, initial, plc);
     }
 
     /** {@inheritDoc} */
