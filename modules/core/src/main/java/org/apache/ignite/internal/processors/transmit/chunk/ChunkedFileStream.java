@@ -139,6 +139,8 @@ public class ChunkedFileStream extends AbstractChunkedStream {
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
         U.closeQuiet(fileIo);
+
+        fileIo = null;
     }
 
     /** {@inheritDoc} */

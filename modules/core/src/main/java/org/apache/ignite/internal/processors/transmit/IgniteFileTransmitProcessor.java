@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.GridTopic;
@@ -191,18 +192,15 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                             readCtx.currInputCh = inChannel;
 
-                            if (!readCtx.started) {
+                            if (readCtx.started.compareAndSet(false, true))
                                 readCtx.sesHndlr.begin(nodeId, sessionId);
-
-                                readCtx.started = true;
-                            }
 
                             onChannelCreated0(readCtx);
                         } catch (Throwable t) {
                             log.error("Error processing channel creation event [topic=" + topic +
                                 ", channel=" + channel + ", sessionId=" + sessionId + ']', t);
 
-                            if (readCtx != null && readCtx.started)
+                            if (readCtx != null)
                                 readCtx.sesHndlr.onException(t);
                         }
                         finally {
@@ -295,10 +293,11 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     assert inChunkStream.startPosition() + inChunkStream.transferred() == meta.offset() :
                         "The next segmented input is incorrect [postition=" + inChunkStream.startPosition() +
                             ", transferred=" + inChunkStream.transferred() + ", meta=" + meta + ']';
-                    assert inChunkStream.count() == meta.count() && inChunkStream.transferred() == meta.offset():
+                    assert inChunkStream.count() == meta.count() &&
+                        (inChunkStream.startPosition() + inChunkStream.transferred()) == meta.offset():
                         " The count of bytes to transfer for the next segment is incorrect " +
-                            "[size=" + inChunkStream.count() + ", transferred=" + inChunkStream.transferred() +
-                            ", meta=" + meta + ']';
+                            "[count=" + inChunkStream.count() + ", transferred=" + inChunkStream.transferred() +
+                            ", startPos=" + inChunkStream.startPosition() + ", meta=" + meta + ']';
                 }
 
                 inChunkStream.init();
@@ -539,7 +538,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         private final TransmitSession sesHndlr;
 
         /** Flag indicates session started. */
-        private boolean started;
+        private final AtomicBoolean started = new AtomicBoolean();
 
         /** The number of reconnect attempts of current session. */
         private int reconnectsLeft;
