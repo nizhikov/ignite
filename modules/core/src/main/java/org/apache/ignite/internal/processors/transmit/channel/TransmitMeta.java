@@ -39,6 +39,9 @@ public class TransmitMeta implements Externalizable {
     /** Serial version uid. */
     private static final long serialVersionUID = 0L;
 
+    /** */
+    private static final String DFLT_UNNAMED_META = "null";
+
     /** The tombstone key */
     @GridToStringExclude
     private static final TransmitMeta TOMBSTONE =
@@ -69,7 +72,7 @@ public class TransmitMeta implements Externalizable {
      *
      */
     public TransmitMeta() {
-        this(null);
+        this(DFLT_UNNAMED_META);
     }
 
     /**
@@ -94,7 +97,7 @@ public class TransmitMeta implements Externalizable {
         ReadPolicy plc,
         Map<String, Serializable> params
     ) {
-        this.name = name;
+        this.name = Objects.requireNonNull(name);
         this.offset = offset;
         this.count = count;
         this.initial = initial;
