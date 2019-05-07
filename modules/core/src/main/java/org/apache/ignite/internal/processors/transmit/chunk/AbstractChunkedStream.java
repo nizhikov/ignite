@@ -24,7 +24,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.LongAdder;
 import org.apache.ignite.internal.processors.transmit.channel.RemoteTransmitException;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -57,7 +56,7 @@ abstract class AbstractChunkedStream implements ChunkedStream {
      * @param name The unique file name within transfer process.
      * @param startPos The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
-     * @param chunkSize The size of segmented the read.
+     * @param chunkSize The size of chunk to read.
      * @param params Additional stream params.
      */
     protected AbstractChunkedStream(
@@ -76,16 +75,6 @@ abstract class AbstractChunkedStream implements ChunkedStream {
         this.count = count;
         this.chunkSize = chunkSize;
         this.params = Collections.unmodifiableMap(new HashMap<>(params));
-    }
-
-    /**
-     * @param name The unique file name within transfer process.
-     * @param startPos The position from which the transfer should start to.
-     * @param count The number of bytes to expect of transfer.
-     * @param params Additional stream params.
-     */
-    protected AbstractChunkedStream(String name, long startPos, long count, Map<String, Serializable> params) {
-        this(name, startPos, count, DFLT_SEGMENT_SIZE, params);
     }
 
     /** {@inheritDoc} */
@@ -113,10 +102,8 @@ abstract class AbstractChunkedStream implements ChunkedStream {
         return name;
     }
 
-    /**
-     * @return The size of chunk in bytes.
-     */
-    protected int chunkSize() {
+    /** {@inheritDoc} */
+    @Override public int chunkSize() {
         return chunkSize;
     }
 

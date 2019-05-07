@@ -47,6 +47,7 @@ import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChann
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileStream;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStream;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStreamFactory;
+import org.apache.ignite.internal.processors.transmit.rate.ByteUnit;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.After;
@@ -307,11 +308,12 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                 String name,
                 long position,
                 long count,
+                int chunkSize,
                 Map<String, Serializable> params
             ) throws IgniteCheckedException {
                 assertEquals(policy, ReadPolicy.FILE);
 
-                return new ChunkedFileStream(session.fileHandler(), name, position, count, params) {
+                return new ChunkedFileStream(session.fileHandler(), name, position, count, chunkSize, params) {
                     @Override public void readChunk(TransmitInputChannel channel) throws IOException {
                         // Read 4 chunks than throw an exception to emulate error processing.
                         if (readedChunks.incrementAndGet() == 4)

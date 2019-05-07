@@ -42,6 +42,8 @@ import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChan
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileStream;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStream;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStreamFactory;
+import org.apache.ignite.internal.processors.transmit.rate.ByteUnit;
+import org.apache.ignite.internal.processors.transmit.rate.TimedSemaphore;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -55,8 +57,19 @@ import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
  *
  */
 public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
+    /**
+     * The default transfer chunk size transfer in bytes. Setting the transfer chunk size
+     * more than <tt>1 MB</tt> is meaningless because there is no asymptotic benefit.
+     * What you're trying to achieve with larger transfer chunk sizes is fewer context
+     * switches, and every time you double the transfer size you halve the context switch cost.
+     */
+    public static final int DFLT_CHUNK_SIZE_BYTES = ByteUnit.BYTE.convertFrom(256, ByteUnit.KB);
+
     /** Reconnect attempts count to send single file. */
-    private static final int DFLT_RECONNECT_CNT = 5;
+    public static final int DFLT_RECONNECT_CNT = 5;
+
+    /** The default file download rate. */
+    public static final int DFLT_DOWNLOAD_RATE = ByteUnit.BYTE.convertFrom(500, ByteUnit.MB);
 
     /** The sessionId attribute map key. */
     private static final String SESSION_ID_KEY = "sessionId";
@@ -73,6 +86,14 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     /** The map of already known channel read contexts by its session id. */
     private final ConcurrentMap<String, FileIoReadContext> sessionContextMap = new ConcurrentHashMap<>();
 
+    /**
+     * The total amount of permits for the configured period of time. To limit the download
+     * speed of reading the stream of data we should acuire a permit per byte.
+     * <p>
+     * For instance, for the 128 Kb/sec rate you should specify total <tt>131_072</tt> permits.
+     */
+    private final TimedSemaphore permitsSemaphore;
+
     /** */
     private DiscoveryEventListener discoLsnr;
 
@@ -82,14 +103,16 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     /** The number of reconnects of current trasmission process (read or write attempts). */
     private volatile int reconnectCnt = DFLT_RECONNECT_CNT;
 
-    /** */
-    private final Object mux = new Object();
+    /** The size of stream chunks. */
+    private int ioStreamChunkSize = DFLT_CHUNK_SIZE_BYTES;
 
     /**
      * @param ctx Kernal context.
      */
     public IgniteFileTransmitProcessor(GridKernalContext ctx) {
         super(ctx);
+
+        permitsSemaphore = new TimedSemaphore(DFLT_DOWNLOAD_RATE);
     }
 
     /**
@@ -110,6 +133,36 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      */
     public void reconnectCnt(int reconnectCnt) {
         this.reconnectCnt = reconnectCnt;
+    }
+
+    /**
+     * Set the download rate per second. It is possible to modify the download rate at runtime.
+     * Reducing the speed takes effect immediately by blocking incoming requests on the
+     * semaphore {@link #permitsSemaphore}. If the speed is increased than waiting threads
+     * are not released immediately, but will be wake up when the next time period of
+     * {@link TimedSemaphore} runs out.
+     * <p>
+     * Setting the amount to {@link TimedSemaphore#UNLIMITED_PERMITS} will switch off the
+     * configured {@link #permitsSemaphore} limit.
+     *
+     * @param amount The amount of transfer unit rate.
+     * @param byteUnit The unit type transfer rate.
+     */
+    public void downloadRatePerSecond(int amount, ByteUnit byteUnit) {
+        if (amount <= 0)
+            permitsSemaphore.permitsPerSec(TimedSemaphore.UNLIMITED_PERMITS);
+
+        permitsSemaphore.permitsPerSec(ByteUnit.BYTE.convertFrom(amount, byteUnit));
+    }
+
+    /**
+     * @param unit The unit to convert download rate to.
+     * @return The total file download rate, by default {@link #DFLT_DOWNLOAD_RATE} or
+     * {@link TimedSemaphore#UNLIMITED_PERMITS} if there is no limit.
+     */
+    public int downloadRatePerSecond(ByteUnit unit) {
+        return permitsSemaphore.permitsPerSec() == TimedSemaphore.UNLIMITED_PERMITS ?
+            TimedSemaphore.UNLIMITED_PERMITS : unit.convertFrom(permitsSemaphore.permitsPerSec(), ByteUnit.BYTE);
     }
 
     /** {@inheritDoc} */
@@ -137,10 +190,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     @Override public void stop(boolean cancel) throws IgniteCheckedException {
         ctx.event().removeDiscoveryEventListener(discoLsnr, EVT_NODE_LEFT, EVT_NODE_FAILED);
 
-        synchronized (mux) {
-            for (Object topic : topicFactoryMap.keySet())
-                remoteFileIoChannelHandler(topic);
-        }
+        for (Object topic : topicFactoryMap.keySet())
+            removeFileIoChannelHandler(topic);
+
+        permitsSemaphore.shutdown();
     }
 
     /**
@@ -148,81 +201,78 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @param factory The factory will create a new handler for each created channel.
      */
     public void addFileIoChannelHandler(Object topic, TransmitSessionFactory factory) {
-        synchronized (mux) {
-            if (topicFactoryMap.putIfAbsent(topic, factory) == null) {
-                ctx.io().addChannelListener(topic, new GridIoChannelListener() {
-                    @Override public Map<String, Serializable> onChannelConfigure(IgniteSocketChannel channel) {
-                        // Restore the last received session state on remote node.
-                        String sessionId = channel.attr(SESSION_ID_KEY);
+        if (topicFactoryMap.putIfAbsent(topic, factory) == null) {
+            ctx.io().addChannelListener(topic, new GridIoChannelListener() {
+                @Override public Map<String, Serializable> onChannelConfigure(IgniteSocketChannel channel) {
+                    // Restore the last received session state on remote node.
+                    String sessionId = channel.attr(SESSION_ID_KEY);
 
-                        assert sessionId != null;
+                    assert sessionId != null;
 
-                        FileIoReadContext readCtx = sessionContextMap.get(sessionId);
+                    FileIoReadContext readCtx = sessionContextMap.get(sessionId);
 
-                        if (readCtx == null)
+                    if (readCtx == null)
+                        return null;
+                    else {
+                        ChunkedStream stream = readCtx.currIo;
+
+                        if (stream == null)
                             return null;
                         else {
-                            ChunkedStream stream = readCtx.currIo;
+                            Map<String, Serializable> attrs = new HashMap<>();
 
-                            if (stream == null)
-                                return null;
-                            else {
-                                Map<String, Serializable> attrs = new HashMap<>();
+                            attrs.put(RECEIVED_BYTES_KEY, stream.transferred());
+                            attrs.put(LAST_FILE_NAME_KEY, stream.name());
 
-                                attrs.put(RECEIVED_BYTES_KEY, stream.transferred());
-                                attrs.put(LAST_FILE_NAME_KEY, stream.name());
-
-                                return attrs;
-                            }
+                            return attrs;
                         }
                     }
+                }
 
-                    @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
-                        String sessionId = null;
-                        FileIoReadContext readCtx = null;
+                @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
+                    String sessionId = null;
+                    FileIoReadContext readCtx = null;
 
-                        try {
-                            // A new channel established, read the transfer session id first.
-                            final TransmitInputChannel inChannel = new TransmitInputChannel(ctx, channel);
+                    try {
+                        // A new channel established, read the transfer session id first.
+                        final TransmitInputChannel inChannel = new TransmitInputChannel(ctx, channel);
 
-                            sessionId = Objects.requireNonNull(channel.attr(SESSION_ID_KEY));
+                        sessionId = Objects.requireNonNull(channel.attr(SESSION_ID_KEY));
 
-                            readCtx = sessionContextMap.computeIfAbsent(sessionId,
-                                sesId -> new FileIoReadContext(nodeId, factory.create(), reconnectCnt));
+                        readCtx = sessionContextMap.computeIfAbsent(sessionId,
+                            sesId -> new FileIoReadContext(nodeId, factory.create(), reconnectCnt));
 
-                            readCtx.currInputCh = inChannel;
+                        readCtx.currInputCh = inChannel;
 
-                            if (readCtx.started.compareAndSet(false, true))
-                                readCtx.sesHndlr.begin(nodeId, sessionId);
+                        if (readCtx.started.compareAndSet(false, true))
+                            readCtx.sesHndlr.begin(nodeId, sessionId);
 
-                            onChannelCreated0(readCtx);
-                        } catch (Throwable t) {
-                            log.error("Error processing channel creation event [topic=" + topic +
-                                ", channel=" + channel + ", sessionId=" + sessionId + ']', t);
-
-                            if (readCtx != null)
-                                readCtx.sesHndlr.onException(t);
-                        }
-                        finally {
-                            U.closeQuiet(channel);
-                        }
+                        onChannelCreated0(readCtx);
                     }
-                });
-            }
-            else
-                U.warn(log,"The topic already have an appropriate channel handler factory [topic=" + topic + ']');
+                    catch (Throwable t) {
+                        log.error("Error processing channel creation event [topic=" + topic +
+                            ", channel=" + channel + ", sessionId=" + sessionId + ']', t);
+
+                        if (readCtx != null)
+                            readCtx.sesHndlr.onException(t);
+                    }
+                    finally {
+                        U.closeQuiet(channel);
+                    }
+                }
+            });
         }
+        else
+            U.warn(log, "The topic already have an appropriate channel handler factory [topic=" + topic + ']');
     }
 
     /**
      * @param topic The topic to erase handler from.
      */
-    public void remoteFileIoChannelHandler(Object topic) {
-        synchronized (mux) {
-            topicFactoryMap.remove(topic);
+    public void removeFileIoChannelHandler(Object topic) {
+        topicFactoryMap.remove(topic);
 
-            ctx.io().removeChannelListener(topic);
-        }
+        ctx.io().removeChannelListener(topic);
     }
 
     /**
@@ -277,7 +327,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     }
 
                     inChunkStream = streamFactory.createChunkedStream(readCtx.currPlc, readCtx.sesHndlr, meta.name(),
-                        meta.offset(), meta.count(), meta.params());
+                        meta.offset(), meta.count(), ioStreamChunkSize, meta.params());
 
                     readCtx.currIo = inChunkStream;
                 }
@@ -306,6 +356,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     if (Thread.currentThread().isInterrupted())
                         throw new InterruptedException("The thread has been interrupted. Stop processing input stream.");
 
+                    // If the limit of permits at appropriate period of time reached,
+                    // the furhter invocations of the #acuqire(int) method will be blocked.
+                    permitsSemaphore.acquire(inChunkStream.chunkSize());
+
                     inChunkStream.readChunk(readCtx.currInputCh);
                 }
 
@@ -321,7 +375,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
             if (readCtx.reconnectsLeft == 0) {
                 IOException ex = new IOException("The number of reconnect attempts exceeded the limit. " +
-                    "Max attempts: " + reconnectCnt);
+                    "Max attempts: " + reconnectCnt, e);
 
                 readCtx.sesHndlr.onException(ex);
             }
@@ -431,6 +485,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 file.getName(),
                 offset,
                 count,
+                ioStreamChunkSize,
                 params);
 
             try {

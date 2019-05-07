@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit.chunk;
+package org.apache.ignite.internal.processors.transmit.rate;
 
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -26,24 +26,24 @@ import org.apache.ignite.IgniteException;
 /**
  * The semaphore which releases the acquired permits when the configured period of time ends.
  */
-public final class TimedSemaphore {
+public class TimedSemaphore {
     /** The constant which represents unlimited number of permits being acquired. */
     public static final int UNLIMITED_PERMITS = -1;
 
-    /** The service to release permits during the configured period of time. */
+    /** The amount of time perdiod. */
+    private static final int DFLT_TIME_PERIOD_AMOUNT = 1;
+
+    /** The time period unit. */
+    private static final TimeUnit DFLT_TIME_PERIOD_UNIT = TimeUnit.SECONDS;
+
+    /** The service to release permits during the configured time of time. */
     private final ScheduledExecutorService scheduler;
-
-    /** The period time. */
-    private final long period;
-
-    /** The period unit. */
-    private final TimeUnit unit;
 
     /** A future object representing the timer task. */
     private ScheduledFuture<?> timerFut;
 
-    /** The maximum number of permits. */
-    private int limit;
+    /** The maximum number of permits available per second. */
+    private int permitsPerSec;
 
     /** The current acquired permits during the configured period of time. */
     private int acquireCnt;
@@ -52,21 +52,12 @@ public final class TimedSemaphore {
     private boolean shutdown;
 
     /**
-     * @param period The time period.
-     * @param unit The unit for the period.
-     * @param limit The limit of permits.
+     * @param permitsPerSec The number of permits per second.
      */
-    public TimedSemaphore(
-        long period,
-        TimeUnit unit,
-        int limit
-    ) {
-        assert period > 0;
-        assert limit >= 0;
+    public TimedSemaphore(int permitsPerSec) {
+        assert permitsPerSec >= 0;
 
-        this.period = period;
-        this.unit = unit;
-        this.limit = limit;
+        this.permitsPerSec = permitsPerSec;
 
         ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(1);
         scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
@@ -78,19 +69,19 @@ public final class TimedSemaphore {
     /**
      * @return The maximum number of available permits.
      */
-    public synchronized int limit() {
-        return limit;
+    public synchronized int permitsPerSec() {
+        return permitsPerSec;
     }
 
     /**
      * Sets the maximum number of available permits. In the other words, the number of times the
-     * {@link #acquire()} method can be called within the given time period without being blocked.
+     * {@link ##acquire(int)()} method can be called within the given time time without being blocked.
      * To disbale the limit, set {@link #UNLIMITED_PERMITS}.
      *
-     * @param limit The maximum number of available permits.
+     * @param permitsPerSec The maximum number of available permits per second.
      */
-    public synchronized void limit(final int limit) {
-        this.limit = limit;
+    public synchronized void permitsPerSec(final int permitsPerSec) {
+        this.permitsPerSec = permitsPerSec;
     }
 
     /**
@@ -101,83 +92,87 @@ public final class TimedSemaphore {
             shutdown = true;
 
             scheduler.shutdownNow();
+
+            timerFut = null;
         }
     }
 
     /**
-     * This method will be blocked if the limit for the current period has been reached.
-     * At the first call of this method the timer will be started to monitor (and release
-     * if need) permits during current period.
+     * This method will be blocked if the limit of permits for the current time period has been reached.
+     * At the first call of this method the timer will be started to monitor permits during current period.
      *
-     * @throws InterruptedException if the thread gets interrupted
+     * @param permits The total number of permits to acquire.
+     * @throws InterruptedException If the thread gets interrupted.
      */
-    public synchronized void acquire() throws InterruptedException {
+    public synchronized void acquire(final int permits) throws InterruptedException {
+        assert permits > 0;
+
         initTimePeriod();
 
-        boolean acquired;
-
-        do {
-            acquired = acquirePermit();
-
-            if (!acquired)
+        for (int i = 0; i < permits; ) {
+            if (acquirePermit())
+                i++;
+            else
                 wait();
         }
-        while (!acquired);
-    }
-
-    /**
-     * Reset the permits counter and releases all the threads waiting for it.
-     */
-    private synchronized void release() {
-        acquireCnt = 0;
-
-        notifyAll();
-    }
-
-    /**
-     * @return The current number of acquired permits during this period.
-     */
-    public synchronized int acquireCnt() {
-        return acquireCnt;
-    }
-
-    /**
-     * @return The current number of available permits during the current period
-     * or {@link #UNLIMITED_PERMITS} if there is to permits limit.
-     */
-    public synchronized int availablePermits() {
-        return limit == UNLIMITED_PERMITS ? limit : limit - acquireCnt;
-    }
-
-    /**
-     * @return The future represens scheduled period timer.
-     */
-    synchronized ScheduledFuture<?> scheduleTimePeriod() {
-        // The time period ends - release all permits.
-        return scheduler.scheduleAtFixedRate(this::release, period, period, unit);
-    }
-
-    /**
-     * Checks if the semaphore can be used and starts the internal process for period monitoring.
-     */
-    private void initTimePeriod() {
-        if (shutdown)
-            throw new IgniteException("The semaphore has been shutdown.");
-
-        if (timerFut == null)
-            timerFut = scheduleTimePeriod();
     }
 
     /**
      * @return {@code true} if permit has been successfully acquired.
      */
     private boolean acquirePermit() {
-        if (acquireCnt < limit || UNLIMITED_PERMITS == limit) {
+        if (acquireCnt < permitsPerSec || UNLIMITED_PERMITS == permitsPerSec) {
             acquireCnt++;
 
             return true;
         }
 
         return false;
+    }
+
+    /**
+     * Reset the permits counter and releases all the threads waiting for it.
+     */
+    synchronized void release() {
+        acquireCnt = 0;
+
+        notifyAll();
+    }
+
+    /**
+     * @return The current number of acquired permits during this time.
+     */
+    public synchronized int acquireCnt() {
+        return acquireCnt;
+    }
+
+    /**
+     * @return The current number of available permits during the current time
+     * or {@link #UNLIMITED_PERMITS} if there is to permits limit.
+     */
+    public synchronized int availablePermits() {
+        return permitsPerSec == UNLIMITED_PERMITS ? permitsPerSec : permitsPerSec - acquireCnt;
+    }
+
+    /**
+     * @return The future represens scheduled time timer.
+     */
+    synchronized ScheduledFuture<?> scheduleTimePeriod() {
+        // The time time ends - release all permits.
+        return scheduler.scheduleAtFixedRate(this::release,
+            DFLT_TIME_PERIOD_AMOUNT,
+            DFLT_TIME_PERIOD_AMOUNT,
+            DFLT_TIME_PERIOD_UNIT);
+    }
+
+    /**
+     * Checks if the semaphore can be used and starts the internal process for time monitoring.
+     */
+    private void initTimePeriod() {
+        if (shutdown)
+            throw new IgniteException("The semaphore has been shutdowned.");
+
+        if (timerFut == null)
+            timerFut = scheduleTimePeriod();
     }
 }

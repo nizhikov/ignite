@@ -45,6 +45,7 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
      * @param name The unique file name within transfer process.
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
+     * @param chunkSize The size of chunk to read.
      * @param params Additional stream params.
      */
     public ChunkedBufferStream(
@@ -52,9 +53,10 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
         String name,
         long position,
         long count,
+        int chunkSize,
         Map<String, Serializable> params
     ) {
-        super(name, position, count, params);
+        super(name, position, count, chunkSize, params);
 
         this.buffSize = buffSize;
         this.hndlr = Objects.requireNonNull(handler);

@@ -33,6 +33,7 @@ public class ChunkedStreamFactory {
      * @param name The unique file name within transfer process.
      * @param position The position from which the transfer should start to.
      * @param count The number of bytes to expect of transfer.
+     * @param chunkSize The size of chunk to read.
      * @param params Additional stream params.
      * @return The chunked stream instance.
      * @throws IgniteCheckedException If fails.
@@ -43,18 +44,19 @@ public class ChunkedStreamFactory {
         String name,
         long position,
         long count,
+        int chunkSize,
         Map<String, Serializable> params
     ) throws IgniteCheckedException {
         ChunkedStream stream;
 
         switch (policy) {
             case FILE:
-                stream = new ChunkedFileStream(session.fileHandler(), name, position, count, params);
+                stream = new ChunkedFileStream(session.fileHandler(), name, position, count, chunkSize, params);
 
                 break;
 
             case BUFF:
-                stream = new ChunkedBufferStream(session.chunkHandler(), name, position, count, params);
+                stream = new ChunkedBufferStream(session.chunkHandler(), name, position, count, chunkSize, params);
 
                 break;
 

@@ -30,14 +30,6 @@ import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChan
  */
 public interface ChunkedStream extends Closeable {
     /**
-     * The default transfer chunk size transfer in bytes. Setting the transfer chunk size more than 1MB is
-     * meaningless because there is no asymptotic benefit. What you're trying to achieve with larger transfer
-     * chunk sizes is fewer context switches, and every time you double the transfer size you halve the
-     * context switch cost.
-     */
-    public static final int DFLT_SEGMENT_SIZE = 1024 * 1024;
-
-    /**
      * @return The string of chunked IO stream.
      */
     public String name();
@@ -62,6 +54,11 @@ public interface ChunkedStream extends Closeable {
      * @return The number of bytes to transfer (read from or write to).
      */
     public long count();
+
+    /**
+     * @return The size of chunk in bytes.
+     */
+    public int chunkSize();
 
     /**
      * @return Additional stream params
