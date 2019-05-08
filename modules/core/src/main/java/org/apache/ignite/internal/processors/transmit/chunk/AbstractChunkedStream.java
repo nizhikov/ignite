@@ -17,36 +17,47 @@
 
 package org.apache.ignite.internal.processors.transmit.chunk;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.processors.transmit.channel.RemoteTransmitException;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitMeta;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  *
  */
-abstract class AbstractChunkedStream implements ChunkedStream {
-    /** The unique input name to identify particular transfer part.*/
-    private final String name;
-
-    /** The position offest to start at. */
-    private final long startPos;
-
-    /** The total number of bytes to send. */
-    private final long count;
-
+abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutputStream {
     /** The size of segment for the read. */
     private final int chunkSize;
 
+    /** The unique input name to identify particular transfer part.*/
+    private String name;
+
+    /**
+     * The position from which the transfer will start. For the {@link File} it will be offset
+     * where the transfer begin data transfer.
+     */
+    private Long startPos;
+
+    /** The total number of bytes to send. */
+    private Long count;
+
     /** Additional stream params. */
     @GridToStringInclude
-    private final Map<String, Serializable> params;
+    private final Map<String, Serializable> params = new HashMap<>();
+
+    /** Initialization flag. */
+    private final AtomicBoolean inited = new AtomicBoolean();
 
     /** The number of bytes successfully transferred druring iteration. */
     @GridToStringInclude
@@ -61,25 +72,25 @@ abstract class AbstractChunkedStream implements ChunkedStream {
      */
     protected AbstractChunkedStream(
         String name,
-        long startPos,
-        long count,
+        Long startPos,
+        Long count,
         int chunkSize,
         Map<String, Serializable> params
     ) {
-        assert startPos >= 0 : "The file position must be non-negative: " + startPos;
-        assert count >= 0 : "The number of bytes to sent must be positive: " + count;
-        assert params != null;
-
-        this.name = Objects.requireNonNull(name);
+        this.name = name;
         this.startPos = startPos;
         this.count = count;
         this.chunkSize = chunkSize;
-        this.params = Collections.unmodifiableMap(new HashMap<>(params));
+
+        if (params != null)
+            this.params.putAll(params);
     }
 
-    /** {@inheritDoc} */
-    @Override public long startPosition() {
-        return startPos;
+    /**
+     * @return The start stream position.
+     */
+    public long startPosition() {
+        return Objects.requireNonNull(startPos);
     }
 
     /** {@inheritDoc} */
@@ -94,12 +105,12 @@ abstract class AbstractChunkedStream implements ChunkedStream {
 
     /** {@inheritDoc} */
     @Override public long count() {
-        return count;
+        return Objects.requireNonNull(count);
     }
 
     /** {@inheritDoc} */
     @Override public String name() {
-        return name;
+        return Objects.requireNonNull(name);
     }
 
     /** {@inheritDoc} */
@@ -109,7 +120,61 @@ abstract class AbstractChunkedStream implements ChunkedStream {
 
     /** {@inheritDoc} */
     @Override public Map<String, Serializable> params() {
-        return params;
+        return new HashMap<>(params);
+    }
+
+    /**
+     * @throws IOException If fails.
+     */
+    protected abstract void init() throws IOException;
+
+    /** {@inheritDoc} */
+    @Override public void setup(TransmitInputChannel in) throws IOException, IgniteCheckedException {
+        TransmitMeta meta = new TransmitMeta();
+
+        in.readMeta(meta);
+
+        if (meta.initial()) {
+            if (inited.compareAndSet(false, true)) {
+                name = meta.name();
+                startPos = meta.offset();
+                count = meta.count();
+                params.putAll(meta.params());
+            }
+            else
+                throw new IgniteCheckedException("Attempt to read a new file from channel, but previous was not fully " +
+                    "loaded [new=" + meta.name() + ", old=" + name() + ']');
+        }
+        else {
+            if (inited.get()) {
+                if (!name().equals(meta.name()))
+                    throw new IgniteCheckedException("Attempt to load different file name [name=" + name() +
+                        ", meta=" + meta + ']');
+                else if (startPosition() + transferred() != meta.offset())
+                    throw new IgniteCheckedException("The next chunk input is incorrect " +
+                        "[postition=" + startPosition() + ", transferred=" + transferred() + ", meta=" + meta + ']');
+                else if (count() != meta.count())
+                    throw new IgniteCheckedException(" The count of bytes to transfer for the next chunk is incorrect " +
+                        "[count=" + count() + ", transferred=" + transferred() +
+                        ", startPos=" + startPosition() + ", meta=" + meta + ']');
+            }
+            else
+                throw new IgniteCheckedException("The setup of previous stream read failed [new=" + meta.name() +
+                    ", old=" + name() + ']');
+        }
+
+        init();
+    }
+
+    /** {@inheritDoc} */
+    @Override public void setup(TransmitOutputChannel out) throws IOException {
+        init();
+
+        out.writeMeta(new TransmitMeta(name(),
+            startPosition() + transferred(),
+            count(),
+            transferred() == 0,
+            params()));
     }
 
     /**
@@ -124,7 +189,7 @@ abstract class AbstractChunkedStream implements ChunkedStream {
     }
 
     /** {@inheritDoc} */
-    @Override public boolean endOfStream() {
+    @Override public boolean endStream() {
         return transferred.get() == count;
     }
 

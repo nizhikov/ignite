@@ -17,8 +17,6 @@
 
 package org.apache.ignite.internal.processors.transmit.chunk;
 
-import java.io.Serializable;
-import java.util.Map;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.processors.transmit.ReadPolicy;
 import org.apache.ignite.internal.processors.transmit.TransmitSession;
@@ -30,33 +28,25 @@ public class ChunkedStreamFactory {
     /**
      * @param policy The policy of how to read stream.
      * @param session The current session instance produces handlers.
-     * @param name The unique file name within transfer process.
-     * @param position The position from which the transfer should start to.
-     * @param count The number of bytes to expect of transfer.
      * @param chunkSize The size of chunk to read.
-     * @param params Additional stream params.
      * @return The chunked stream instance.
      * @throws IgniteCheckedException If fails.
      */
-    public ChunkedStream createChunkedStream(
+    public ChunkedInputStream createInputStream(
         ReadPolicy policy,
         TransmitSession session,
-        String name,
-        long position,
-        long count,
-        int chunkSize,
-        Map<String, Serializable> params
+        int chunkSize
     ) throws IgniteCheckedException {
-        ChunkedStream stream;
+        ChunkedInputStream stream;
 
         switch (policy) {
             case FILE:
-                stream = new ChunkedFileStream(session.fileHandler(), name, position, count, chunkSize, params);
+                stream = new ChunkedFileStream(session.fileHandler(), chunkSize);
 
                 break;
 
             case BUFF:
-                stream = new ChunkedBufferStream(session.chunkHandler(), name, position, count, chunkSize, params);
+                stream = new ChunkedBufferStream(session.chunkHandler(), chunkSize);
 
                 break;
 

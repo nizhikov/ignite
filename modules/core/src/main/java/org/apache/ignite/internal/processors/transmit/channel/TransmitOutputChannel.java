@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
+import org.apache.ignite.internal.processors.transmit.ReadPolicy;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
@@ -50,6 +51,34 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
     }
 
     /**
+     * @param plc The {@link ReadPolicy} to write to channel.
+     * @throws IOException If fails.
+     */
+    public void writePolicy(ReadPolicy plc) throws IOException {
+        try {
+            dos.writeInt(plc.ordinal());
+
+            dos.flush();
+        } catch (IOException e) {
+            throw transformExceptionIfNeed(e);
+        }
+    }
+
+    /**
+     * @param hash The hash of transmitted data.
+     * @throws IOException If fails.
+     */
+    public void acknowledge(int hash) throws IOException {
+        try {
+            dos.writeInt(hash);
+
+            dos.flush();
+        } catch (IOException e) {
+            throw transformExceptionIfNeed(e);
+        }
+    }
+
+    /**
      * @param meta The file meta to write from.
      * @throws IOException If fails.
      */
@@ -64,7 +93,6 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
         } catch (IOException e) {
             throw transformExceptionIfNeed(e);
         }
-
     }
 
     /**

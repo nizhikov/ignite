@@ -17,41 +17,24 @@
 
 package org.apache.ignite.internal.processors.transmit.chunk;
 
-import java.io.Closeable;
-import java.io.Serializable;
-import java.util.Map;
+import java.io.IOException;
+import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
 
 /**
  *
  */
-public interface ChunkedStream extends Closeable {
+public interface ChunkedInputStream extends ChunkedStream {
     /**
-     * @return The string of chunked IO stream.
+     * @param in The channel to read data from.
+     * @throws IOException If failed.
+     * @throws IgniteCheckedException If failed.
      */
-    public String name();
+    public void setup(TransmitInputChannel in) throws IOException, IgniteCheckedException;
 
     /**
-     * @return The bytes which has been transfered.
+     * @param in The channel to read data from.
+     * @throws IOException If fails.
      */
-    public long transferred();
-
-    /**
-     * @return The number of bytes to transfer (read from or write to).
-     */
-    public long count();
-
-    /**
-     * @return The size of chunk in bytes.
-     */
-    public int chunkSize();
-
-    /**
-     * @return Additional stream params
-     */
-    public Map<String, Serializable> params();
-
-    /**
-     * @return {@code true} if and only if the chunked stream received all the data it expected.
-     */
-    public boolean endStream();
+    public void readChunk(TransmitInputChannel in) throws IOException;
 }

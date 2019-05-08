@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
+import org.apache.ignite.internal.processors.transmit.ReadPolicy;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -50,6 +51,37 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
         super(ktx, igniteChannel);
 
         dis = new ObjectInputStream(igniteChannel.channel().socket().getInputStream());
+    }
+
+    /**
+     * @return Readed {@link ReadPolicy} from channel.
+     * @throws IOException If fails.
+     */
+    public ReadPolicy readPolicy() throws IOException {
+        try {
+            int plc = dis.readInt();
+
+            if (plc > ReadPolicy.values().length)
+                throw new IOException("The policy received from channel is unknown [order=" + plc + ']');
+
+            return ReadPolicy.values()[plc];
+        }
+        catch (IOException e) {
+            throw transformExceptionIfNeed(e);
+        }
+    }
+
+    /**
+     * @return hash The hash of transmitted data.
+     * @throws IOException If fails.
+     */
+    public int acknowledge() throws IOException {
+        try {
+            return dis.readInt();
+        }
+        catch (IOException e) {
+            throw transformExceptionIfNeed(e);
+        }
     }
 
     /**

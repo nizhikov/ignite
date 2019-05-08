@@ -32,7 +32,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
  */
 public class ChunkedBufferStream extends AbstractChunkedStream {
     /** */
-    private final ChunkHandler hndlr;
+    private final ChunkHandler handler;
 
     /** The size of destination buffer. */
     private int buffSize;
@@ -51,23 +51,28 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
     public ChunkedBufferStream(
         ChunkHandler handler,
         String name,
-        long position,
-        long count,
+        Long position,
+        Long count,
         int chunkSize,
         Map<String, Serializable> params
     ) {
         super(name, position, count, chunkSize, params);
 
-        this.buffSize = buffSize;
-        this.hndlr = Objects.requireNonNull(handler);
+        this.handler = Objects.requireNonNull(handler);
     }
 
     /**
-     * @throws IOException If initialization failed.
+     * @param handler The chunk handler to process each chunk.
+     * @param chunkSize The size of chunk to read.
      */
-    @Override public void init() throws IOException {
+    public ChunkedBufferStream(ChunkHandler handler, int chunkSize) {
+        this(handler, null, null, null, chunkSize, null);
+    }
+
+    /** {@inheritDoc} */
+    @Override protected void init() throws IOException {
         if (buff == null) {
-            buffSize = hndlr.begin(name(), startPosition(), count(), params());
+            buffSize = handler.begin(name(), startPosition(), count(), params());
 
             buff = ByteBuffer.allocate(buffSize);
         }
@@ -82,10 +87,10 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
         else if (readed < 0)
             checkChunkedIoEOF(this);
 
-        hndlr.chunk(buff);
+        handler.chunk(buff);
 
-        if (endOfStream())
-            hndlr.end(params());
+        if (endStream())
+            handler.end(params());
     }
 
     /** {@inheritDoc} */
@@ -95,10 +100,10 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
         if (written > 0)
             transferred.addAndGet(written);
 
-        hndlr.chunk(buff);
+        handler.chunk(buff);
 
-        if (endOfStream())
-            hndlr.end(params());
+        if (endStream())
+            handler.end(params());
     }
 
     /** {@inheritDoc} */

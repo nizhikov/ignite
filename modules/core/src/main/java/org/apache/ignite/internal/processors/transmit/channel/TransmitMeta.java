@@ -26,11 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import org.apache.ignite.internal.processors.transmit.ReadPolicy;
-import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
-
-import static org.apache.ignite.internal.processors.transmit.ReadPolicy.FILE;
 
 /**
  *
@@ -41,11 +37,6 @@ public class TransmitMeta implements Externalizable {
 
     /** */
     private static final String DFLT_UNNAMED_META = "null";
-
-    /** The tombstone key */
-    @GridToStringExclude
-    private static final TransmitMeta TOMBSTONE =
-        new TransmitMeta("d2738352-8813-477a-a165-b73249798134", -1, -1, true, FILE, null);
 
     /**
      * The name to associate particular meta with.
@@ -62,9 +53,6 @@ public class TransmitMeta implements Externalizable {
     /** The initial meta info for the file transferred the first time. */
     private boolean initial;
 
-    /** The policy of {@link ReadPolicy} the way to handle input data stream. */
-    private int plc;
-
     /** */
     private HashMap<String, Serializable> map = new HashMap<>();
 
@@ -79,7 +67,7 @@ public class TransmitMeta implements Externalizable {
      * @param name The name to associate particular meta with.
      */
     public TransmitMeta(String name) {
-        this(name, -1, -1, true, FILE, null);
+        this(name, -1, -1, true, null);
     }
 
     /**
@@ -94,26 +82,17 @@ public class TransmitMeta implements Externalizable {
         long offset,
         long count,
         boolean initial,
-        ReadPolicy plc,
         Map<String, Serializable> params
     ) {
         this.name = Objects.requireNonNull(name);
         this.offset = offset;
         this.count = count;
         this.initial = initial;
-        this.plc = plc.ordinal();
 
         if (params != null) {
             for (Map.Entry<String, Serializable> key : params.entrySet())
                 map.put(key.getKey(), key.getValue());
         }
-    }
-
-    /**
-     * @return The tombstone meta info.
-     */
-    public static TransmitMeta tombstone() {
-        return TOMBSTONE;
     }
 
     /**
@@ -145,13 +124,6 @@ public class TransmitMeta implements Externalizable {
     }
 
     /**
-     *
-     */
-    public ReadPolicy policy() {
-        return ReadPolicy.values()[plc];
-    }
-
-    /**
      * @return The map of additional keys.
      */
     public Map<String, Serializable> params() {
@@ -164,7 +136,6 @@ public class TransmitMeta implements Externalizable {
         out.writeLong(offset);
         out.writeLong(count);
         out.writeBoolean(initial);
-        out.writeInt(plc);
         out.writeObject(map);
     }
 
@@ -174,7 +145,6 @@ public class TransmitMeta implements Externalizable {
         offset = in.readLong();
         count = in.readLong();
         initial = in.readBoolean();
-        plc = in.readInt();
         map = (HashMap)in.readObject();
     }
 
@@ -191,13 +161,12 @@ public class TransmitMeta implements Externalizable {
         return offset == meta.offset &&
             count == meta.count &&
             initial == meta.initial &&
-            plc == meta.plc &&
             name.equals(meta.name);
     }
 
     /** {@inheritDoc} */
     @Override public int hashCode() {
-        return Objects.hash(name, offset, count, initial, plc);
+        return Objects.hash(name, offset, count, initial);
     }
 
     /** {@inheritDoc} */

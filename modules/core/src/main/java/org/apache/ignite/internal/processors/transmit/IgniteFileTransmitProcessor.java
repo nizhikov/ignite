@@ -40,10 +40,12 @@ import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChann
 import org.apache.ignite.internal.processors.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileStream;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedInputStream;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedOutputStream;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStream;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStreamFactory;
-import org.apache.ignite.internal.processors.transmit.rate.ByteUnit;
-import org.apache.ignite.internal.processors.transmit.rate.TimedSemaphore;
+import org.apache.ignite.internal.processors.transmit.util.ByteUnit;
+import org.apache.ignite.internal.processors.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -151,8 +153,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     public void downloadRatePerSecond(int amount, ByteUnit byteUnit) {
         if (amount <= 0)
             permitsSemaphore.permitsPerSec(TimedSemaphore.UNLIMITED_PERMITS);
+        else
+            permitsSemaphore.permitsPerSec(ByteUnit.BYTE.convertFrom(amount, byteUnit));
 
-        permitsSemaphore.permitsPerSec(ByteUnit.BYTE.convertFrom(amount, byteUnit));
+        U.log(log, "The file download speed has been set to: " + amount + " " + byteUnit.name() + " per sec.");
     }
 
     /**
@@ -177,7 +181,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 if (ioctx.nodeId.equals(leftNodeId)) {
                     ClusterTopologyCheckedException ex;
 
-                    ioctx.sesHndlr.onException(ex = new ClusterTopologyCheckedException("Failed to proceed download. " +
+                    ioctx.session.onException(ex = new ClusterTopologyCheckedException("Failed to proceed download. " +
                         "The remote node node left the grid: " + leftNodeId));
 
                     sessionContextMap.remove(sesEntry.getKey());
@@ -214,7 +218,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     if (readCtx == null)
                         return null;
                     else {
-                        ChunkedStream stream = readCtx.currIo;
+                        ChunkedStream stream = readCtx.stream;
 
                         if (stream == null)
                             return null;
@@ -231,30 +235,28 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                 @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
                     String sessionId = null;
-                    FileIoReadContext readCtx = null;
+                    FileIoReadContext sesCtx = null;
 
                     try {
-                        // A new channel established, read the transfer session id first.
-                        final TransmitInputChannel inChannel = new TransmitInputChannel(ctx, channel);
-
                         sessionId = Objects.requireNonNull(channel.attr(SESSION_ID_KEY));
 
-                        readCtx = sessionContextMap.computeIfAbsent(sessionId,
+                        sesCtx = sessionContextMap.computeIfAbsent(sessionId,
                             sesId -> new FileIoReadContext(nodeId, factory.create(), reconnectCnt));
 
-                        readCtx.currInputCh = inChannel;
+                        sesCtx.currInput = new TransmitInputChannel(ctx, channel);
+                        sesCtx.currOutput = new TransmitOutputChannel(ctx, channel);
 
-                        if (readCtx.started.compareAndSet(false, true))
-                            readCtx.sesHndlr.begin(nodeId, sessionId);
+                        if (sesCtx.started.compareAndSet(false, true))
+                            sesCtx.session.begin(nodeId, sessionId);
 
-                        onChannelCreated0(readCtx);
+                        onChannelCreated0(sessionId, sesCtx);
                     }
                     catch (Throwable t) {
                         log.error("Error processing channel creation event [topic=" + topic +
                             ", channel=" + channel + ", sessionId=" + sessionId + ']', t);
 
-                        if (readCtx != null)
-                            readCtx.sesHndlr.onException(t);
+                        if (sesCtx != null)
+                            sesCtx.session.onException(t);
                     }
                     finally {
                         U.closeQuiet(channel);
@@ -280,7 +282,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @return The current session chunked stream of {@code null} if session not found.
      */
     ChunkedStream sessionChunkedStream(String sessionId) {
-        return sessionContextMap.get(sessionId) == null ? null : sessionContextMap.get(sessionId).currIo;
+        return sessionContextMap.get(sessionId) == null ? null : sessionContextMap.get(sessionId).stream;
     }
 
     /**
@@ -288,7 +290,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @return The current session channel which is processing.
      */
     TransmitInputChannel sessionInputChannel(String sessionId) {
-        return sessionContextMap.get(sessionId) == null ? null : sessionContextMap.get(sessionId).currInputCh;
+        return sessionContextMap.get(sessionId) == null ? null : sessionContextMap.get(sessionId).currInput;
     }
 
     /**
@@ -299,95 +301,74 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     }
 
     /**
-     * @param readCtx The handler read context.
+     * @param sesCtx The handler read context.
      */
-    private void onChannelCreated0(FileIoReadContext readCtx) {
-        ChunkedStream inChunkStream = null;
+    private void onChannelCreated0(String sessionId, FileIoReadContext sesCtx) {
+        ChunkedInputStream inStream = null;
         TransmitMeta meta = null;
         boolean stopped = false;
 
         try {
             while (!Thread.currentThread().isInterrupted() && !stopped) {
-                readCtx.currInputCh.readMeta(meta = new TransmitMeta());
+                // Read current stream session policy
+                ReadPolicy currPlc = sesCtx.currInput.readPolicy();
 
-                if (meta.equals(TransmitMeta.tombstone())) {
-                    readCtx.sesHndlr.end();
+                if (currPlc == ReadPolicy.NONE) {
+                    sesCtx.session.end();
+                    sessionContextMap.remove(sessionId);
 
                     break;
                 }
 
-                readCtx.currPlc = meta.policy();
+                sesCtx.currPlc = currPlc;
 
-                // Loading the file the first time.
-                if (meta.initial()) {
-                    if (readCtx.currIo != null) {
-                        throw new IgniteCheckedException("Receive the offer to download a new file which was " +
-                            "previously not been fully loaded [file=" + meta.name() +
-                            ", unfinished=" + readCtx.currIo.name() + ']');
-                    }
+                if (sesCtx.stream == null)
+                    sesCtx.stream = streamFactory.createInputStream(sesCtx.currPlc, sesCtx.session, ioStreamChunkSize);
 
-                    inChunkStream = streamFactory.createChunkedStream(readCtx.currPlc, readCtx.sesHndlr, meta.name(),
-                        meta.offset(), meta.count(), ioStreamChunkSize, meta.params());
-
-                    readCtx.currIo = inChunkStream;
-                }
-                else {
-                    inChunkStream = readCtx.currIo;
-
-                    assert inChunkStream != null : "The file stream must be previously initialized [meta=" + meta +']';
-                    assert meta.policy() == readCtx.currPlc :
-                        "Attempt to process the same input with the different read policy: " + meta.policy();
-                    assert inChunkStream.name().equals(meta.name()) : "Attempt to load different file name " +
-                        "[name=" + inChunkStream.name() + ", meta=" + meta + ']';
-                    assert inChunkStream.startPosition() + inChunkStream.transferred() == meta.offset() :
-                        "The next segmented input is incorrect [postition=" + inChunkStream.startPosition() +
-                            ", transferred=" + inChunkStream.transferred() + ", meta=" + meta + ']';
-                    assert inChunkStream.count() == meta.count() &&
-                        (inChunkStream.startPosition() + inChunkStream.transferred()) == meta.offset():
-                        " The count of bytes to transfer for the next segment is incorrect " +
-                            "[count=" + inChunkStream.count() + ", transferred=" + inChunkStream.transferred() +
-                            ", startPos=" + inChunkStream.startPosition() + ", meta=" + meta + ']';
-                }
-
-                inChunkStream.init();
+                inStream = sesCtx.stream;
+                inStream.setup(sesCtx.currInput);
 
                 // Read data from the input.
-                while (!inChunkStream.endOfStream()) {
+                while (!inStream.endStream()) {
                     if (Thread.currentThread().isInterrupted())
                         throw new InterruptedException("The thread has been interrupted. Stop processing input stream.");
 
                     // If the limit of permits at appropriate period of time reached,
                     // the furhter invocations of the #acuqire(int) method will be blocked.
-                    permitsSemaphore.acquire(inChunkStream.chunkSize());
+                    permitsSemaphore.acquire(sesCtx.stream.chunkSize());
 
-                    inChunkStream.readChunk(readCtx.currInputCh);
+                    inStream.readChunk(sesCtx.currInput);
                 }
 
-                inChunkStream.close();
-                readCtx.currIo = null;
+                inStream.close();
+
+                sesCtx.stream = null;
+
+                // Write stream processing acknowledge.
+                sesCtx.currOutput.acknowledge((int)inStream.count());
             }
         }
         catch (RemoteTransmitException e) {
             // Waiting for re-establishing connection.
             log.warning("The connection lost. Waiting for the new one to continue file upload", e);
 
-            readCtx.reconnectsLeft--;
+            sesCtx.reconnectsLeft--;
 
-            if (readCtx.reconnectsLeft == 0) {
+            if (sesCtx.reconnectsLeft == 0) {
                 IOException ex = new IOException("The number of reconnect attempts exceeded the limit. " +
                     "Max attempts: " + reconnectCnt, e);
 
-                readCtx.sesHndlr.onException(ex);
+                sesCtx.session.onException(ex);
             }
         }
         catch (Throwable t) {
-            log.error("The download session cannot be finished due to unexpected error [ctx=" + readCtx +
-                ", channel=" + readCtx.currInputCh + ", lastMeta=" + meta + ']', t);
+            log.error("The download session cannot be finished due to unexpected error [ctx=" + sesCtx +
+                ", channel=" + sesCtx.currInput + ", lastMeta=" + meta + ']', t);
 
-            readCtx.sesHndlr.onException(t);
+            sesCtx.session.onException(t);
         }
         finally {
-            U.closeQuiet(inChunkStream);
+            U.closeQuiet(inStream);
         }
     }
 
@@ -422,7 +403,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         private String sessionId;
 
         /** */
-        private TransmitOutputChannel ch;
+        private TransmitOutputChannel out;
+
+        /** */
+        private TransmitInputChannel in;
 
         /**
          * @param remoteId The remote note to connect to.
@@ -445,10 +429,11 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
          */
         public void connect() throws IgniteCheckedException {
             try {
-                IgniteSocketChannel sock = ctx.io().channelToTopic(remoteId, topic, plc,
+                IgniteSocketChannel igCh = ctx.io().channelToTopic(remoteId, topic, plc,
                     Collections.singletonMap(SESSION_ID_KEY, sessionId));
 
-                ch = new TransmitOutputChannel(ctx, sock);
+                out = new TransmitOutputChannel(ctx, igCh);
+                in = new TransmitInputChannel(ctx, igCh);
             }
             catch (IOException e) {
                 throw new IgniteCheckedException("Error sending initial session meta to remote [remoteId=" + remoteId +
@@ -466,7 +451,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         ) throws IgniteCheckedException {
             int reconnects = 0;
 
-            ChunkedFileStream outChunkStream = new ChunkedFileStream(
+            ChunkedOutputStream fileStream = new ChunkedFileStream(
                 new FileHandler() {
                     @Override public String begin(
                         String name,
@@ -489,6 +474,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 params);
 
             try {
+                if (log.isDebugEnabled())
+                    log.debug("Start writing file to remote node [file=" + file.getName() +
+                        ", rmtNodeId=" + remoteId + ", topic=" + topic + ']');
+
                 while (true) {
                     if (Thread.currentThread().isInterrupted())
                         throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
@@ -497,35 +486,35 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         throw new IOException("The number of reconnect attempts exceeded the limit: " + reconnectCnt);
 
                     try {
-                        if (ch == null)
+                        if (out == null)
                             connect();
 
-                        String lastFileName = ch.igniteChannel().attr(LAST_FILE_NAME_KEY);
-                        Long receivedBytes = ch.igniteChannel().attr(RECEIVED_BYTES_KEY);
+                        String lastFileName = out.igniteChannel().attr(LAST_FILE_NAME_KEY);
+                        Long receivedBytes = out.igniteChannel().attr(RECEIVED_BYTES_KEY);
 
-                        assert lastFileName == null || outChunkStream.name().equals(lastFileName) :
-                            "Attempt to upload different file [local=" + outChunkStream.name() + ", remote=" + lastFileName + ']';
+                        assert lastFileName == null || fileStream.name().equals(lastFileName) :
+                            "Attempt to upload different file [local=" + fileStream.name() + ", remote=" + lastFileName + ']';
                         assert receivedBytes == null || receivedBytes >= 0;
 
-                        outChunkStream.transferred(ofNullable(receivedBytes).orElse(0L));
+                        fileStream.transferred(ofNullable(receivedBytes).orElse(0L));
 
-                        ch.writeMeta(new TransmitMeta(outChunkStream.name(),
-                            outChunkStream.startPosition() + outChunkStream.transferred(),
-                            outChunkStream.count(),
-                            outChunkStream.transferred() == 0,
-                            plc,
-                            outChunkStream.params()));
+                        // Write the policy how to handle input data.
+                        out.writePolicy(plc);
 
-                        outChunkStream.init();
+                        fileStream.setup(out);
 
-                        while (!outChunkStream.endOfStream()) {
+                        while (!fileStream.endStream()) {
                             if (Thread.currentThread().isInterrupted())
                                 throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
 
-                            outChunkStream.writeChunk(ch);
+                            fileStream.writeChunk(out);
                         }
 
-                        outChunkStream.close();
+                        fileStream.close();
+
+                        int hash = in.acknowledge();
+
+                        U.log(log, "File has been successfully written [name=" + file.getName() + ", hash=" + hash + ']');
 
                         break;
                     }
@@ -535,8 +524,8 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         // Re-establish the new connection to continue upload.
                         U.warn(log, "Exception while writing file to remote node. Re-establishing connection " +
                             " [remoteId=" + remoteId + ", file=" + file.getName() + ", sessionId=" + sessionId +
-                            ", reconnects=" + reconnects + ", transferred=" + outChunkStream.transferred() +
-                            ", count=" + outChunkStream.count() + ']', e);
+                            ", reconnects=" + reconnects + ", transferred=" + fileStream.transferred() +
+                            ", count=" + fileStream.count() + ']', e);
 
                         reconnects++;
                     }
@@ -549,17 +538,17 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     "[remoteId=" + remoteId + ", file=" + file.getName() + ", sessionId=" + sessionId + ']', e);
             }
             finally {
-                U.closeQuiet(outChunkStream);
+                U.closeQuiet(fileStream);
             }
         }
 
         /** {@inheritDoc} */
         @Override public void close() throws IOException {
             try {
-                if (ch != null) {
+                if (out != null) {
                     U.log(log, "Writing tombstone on close write session");
 
-                    ch.writeMeta(TransmitMeta.tombstone());
+                    out.writePolicy(ReadPolicy.NONE);
                 }
             }
             catch (IOException e) {
@@ -574,9 +563,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
          * Close channel and relese resources.
          */
         private void closeChannelQuiet() {
-            U.closeQuiet(ch);
+            U.closeQuiet(out);
 
-            ch = null;
+            out = null;
         }
     }
 
@@ -589,7 +578,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
         /** Current sesssion. */
         @GridToStringExclude
-        private final TransmitSession sesHndlr;
+        private final TransmitSession session;
 
         /** Flag indicates session started. */
         private final AtomicBoolean started = new AtomicBoolean();
@@ -597,24 +586,28 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         /** The number of reconnect attempts of current session. */
         private int reconnectsLeft;
 
-        /** The currently used input channel. */
+        /** The currently used input channel (updated on reconnect). */
         @GridToStringExclude
-        private TransmitInputChannel currInputCh;
+        private TransmitInputChannel currInput;
+
+        /** The currently used output channel (updated on reconnect). */
+        @GridToStringExclude
+        private TransmitOutputChannel currOutput;
 
         /** The read policy of handlind input data. */
         private ReadPolicy currPlc;
 
         /** The last infinished download. */
-        private ChunkedStream currIo;
+        private ChunkedInputStream stream;
 
         /**
          * @param nodeId The remote node id.
-         * @param sesHndlr The channel handler.
+         * @param session The channel handler.
          * @param reconnectsLeft The number of reconnect attempts.
          */
-        public FileIoReadContext(UUID nodeId, TransmitSession sesHndlr, int reconnectsLeft) {
+        public FileIoReadContext(UUID nodeId, TransmitSession session, int reconnectsLeft) {
             this.nodeId = nodeId;
-            this.sesHndlr = sesHndlr;
+            this.session = session;
             this.reconnectsLeft = reconnectsLeft;
         }
 

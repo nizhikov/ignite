@@ -42,7 +42,7 @@ public class ChunkedFileStream extends AbstractChunkedStream {
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
 
     /** */
-    private final FileHandler hndlr;
+    private final FileHandler handler;
 
     /** The destination object to transfer data to\from. */
     private String fileAbsPath;
@@ -56,23 +56,27 @@ public class ChunkedFileStream extends AbstractChunkedStream {
 
     /**
      * @param handler The file handler to process download result.
-     * @param name The unique file name within transfer process.
-     * @param position The position from which the transfer should start to.
-     * @param count The number of bytes to expect of transfer.
      * @param chunkSize The size of chunk to read.
-     * @param params Additional stream params.
      */
     public ChunkedFileStream(
         FileHandler handler,
         String name,
-        long position,
-        long count,
+        Long position,
+        Long count,
         int chunkSize,
         Map<String, Serializable> params
     ) {
         super(name, position, count, chunkSize, params);
 
-        this.hndlr = Objects.requireNonNull(handler);
+        this.handler = Objects.requireNonNull(handler);
+    }
+
+    /**
+     * @param handler The file handler to process download result.
+     * @param chunkSize The size of chunk to read.
+     */
+    public ChunkedFileStream(FileHandler handler, int chunkSize) {
+        this(handler, null, null, null, chunkSize, null);
     }
 
     /**
@@ -100,9 +104,9 @@ public class ChunkedFileStream extends AbstractChunkedStream {
     }
 
     /** {@inheritDoc} */
-    @Override public void init() throws IOException {
+    @Override protected void init() throws IOException {
         if (file == null) {
-            fileAbsPath = hndlr.begin(name(), startPosition(), count(), params());
+            fileAbsPath = handler.begin(name(), startPosition(), count(), params());
 
             file = new File(fileAbsPath);
         }
@@ -119,8 +123,8 @@ public class ChunkedFileStream extends AbstractChunkedStream {
         if (readed > 0)
             transferred.addAndGet(readed);
 
-        if (endOfStream())
-            hndlr.end(file, params());
+        if (endStream())
+            handler.end(file, params());
     }
 
     /** {@inheritDoc} */
@@ -134,8 +138,8 @@ public class ChunkedFileStream extends AbstractChunkedStream {
         if (sent > 0)
             transferred.addAndGet(sent);
 
-        if (endOfStream())
-            hndlr.end(file, params());
+        if (endStream())
+            handler.end(file, params());
     }
 
     /** {@inheritDoc} */

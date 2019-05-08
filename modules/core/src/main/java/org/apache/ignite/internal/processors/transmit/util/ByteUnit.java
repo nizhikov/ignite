@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit.rate;
+package org.apache.ignite.internal.processors.transmit.util;
 
 /**
  *

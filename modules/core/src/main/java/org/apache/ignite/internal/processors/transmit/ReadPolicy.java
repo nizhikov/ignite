@@ -21,6 +21,9 @@ package org.apache.ignite.internal.processors.transmit;
  *
  */
 public enum ReadPolicy {
+    /** Default read policy means the read session reached its end.*/
+    NONE,
+
     /** Read the source direcly info the FileChannel. */
     FILE,
 

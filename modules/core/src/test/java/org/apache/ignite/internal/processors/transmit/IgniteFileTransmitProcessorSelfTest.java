@@ -45,9 +45,9 @@ import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
 import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileStream;
-import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStream;
+import org.apache.ignite.internal.processors.transmit.chunk.ChunkedInputStream;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStreamFactory;
-import org.apache.ignite.internal.processors.transmit.rate.ByteUnit;
+import org.apache.ignite.internal.processors.transmit.util.ByteUnit;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.After;
@@ -65,7 +65,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
     private static final long CACHE_SIZE = 50_000L;
 
     /** */
-    private static final int FILE_SIZE_BYTES = 50 * 1024 * 1024;
+    private static final int FILE_SIZE_BYTES = ByteUnit.BYTE.convertFrom(50, ByteUnit.MB);
 
     /** */
     private static final String TEMP_FILES_DIR = "ctmp";
@@ -229,6 +229,8 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                 writer.write(file, 0, file.length(), new HashMap<>(), ReadPolicy.FILE);
         }
 
+        log.info("Writing test files finished. All Ignite instances will be stopped.");
+
         stopAllGrids();
 
         assertEquals(fileWithSizes.size(), tempStore.listFiles(fileBinFilter).length);
@@ -302,24 +304,20 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
         final AtomicInteger readedChunks = new AtomicInteger();
 
         receiver.context().fileTransmit().chunkedStreamFactory(new ChunkedStreamFactory() {
-            @Override public ChunkedStream createChunkedStream(
+            @Override public ChunkedInputStream createInputStream(
                 ReadPolicy policy,
                 TransmitSession session,
-                String name,
-                long position,
-                long count,
-                int chunkSize,
-                Map<String, Serializable> params
+                int chunkSize
             ) throws IgniteCheckedException {
                 assertEquals(policy, ReadPolicy.FILE);
 
-                return new ChunkedFileStream(session.fileHandler(), name, position, count, chunkSize, params) {
-                    @Override public void readChunk(TransmitInputChannel channel) throws IOException {
+                return new ChunkedFileStream(session.fileHandler(), chunkSize) {
+                    @Override public void readChunk(TransmitInputChannel in) throws IOException {
                         // Read 4 chunks than throw an exception to emulate error processing.
                         if (readedChunks.incrementAndGet() == 4)
                             throw new IOException(chunkDownloadExMsg);
 
-                        super.readChunk(channel);
+                        super.readChunk(in);
 
                         assertTrue(transferred.get() > 0);
                     }
