@@ -65,7 +65,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
     private static final long CACHE_SIZE = 50_000L;
 
     /** */
-    private static final int FILE_SIZE_BYTES = ByteUnit.BYTE.convertFrom(50, ByteUnit.MB);
+    private static final int FILE_SIZE_BYTES = (int)ByteUnit.BYTE.convertFrom(50, ByteUnit.MB);
 
     /** */
     private static final String TEMP_FILES_DIR = "ctmp";

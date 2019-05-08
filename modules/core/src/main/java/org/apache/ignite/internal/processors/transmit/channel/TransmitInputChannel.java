@@ -75,9 +75,9 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      * @return hash The hash of transmitted data.
      * @throws IOException If fails.
      */
-    public int acknowledge() throws IOException {
+    public long acknowledge() throws IOException {
         try {
-            return dis.readInt();
+            return dis.readLong();
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);

@@ -65,13 +65,13 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * What you're trying to achieve with larger transfer chunk sizes is fewer context
      * switches, and every time you double the transfer size you halve the context switch cost.
      */
-    public static final int DFLT_CHUNK_SIZE_BYTES = ByteUnit.BYTE.convertFrom(256, ByteUnit.KB);
+    public static final int DFLT_CHUNK_SIZE_BYTES = (int)ByteUnit.BYTE.convertFrom(256, ByteUnit.KB);
 
     /** Reconnect attempts count to send single file. */
     public static final int DFLT_RECONNECT_CNT = 5;
 
     /** The default file download rate. */
-    public static final int DFLT_DOWNLOAD_RATE = ByteUnit.BYTE.convertFrom(500, ByteUnit.MB);
+    public static final long DFLT_DOWNLOAD_RATE = ByteUnit.BYTE.convertFrom(500, ByteUnit.MB);
 
     /** The sessionId attribute map key. */
     private static final String SESSION_ID_KEY = "sessionId";
@@ -102,7 +102,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     /** The factory produces chunked stream to process an input data channel. */
     private volatile ChunkedStreamFactory streamFactory = new ChunkedStreamFactory();
 
-    /** The number of reconnects of current trasmission process (read or write attempts). */
+    /** The maximum number of reconnect attempts (read or write attempts). */
     private volatile int reconnectCnt = DFLT_RECONNECT_CNT;
 
     /** The size of stream chunks. */
@@ -150,11 +150,11 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @param amount The amount of transfer unit rate.
      * @param byteUnit The unit type transfer rate.
      */
-    public void downloadRatePerSecond(int amount, ByteUnit byteUnit) {
+    public void downloadRate(int amount, ByteUnit byteUnit) {
         if (amount <= 0)
             permitsSemaphore.permitsPerSec(TimedSemaphore.UNLIMITED_PERMITS);
         else
-            permitsSemaphore.permitsPerSec(ByteUnit.BYTE.convertFrom(amount, byteUnit));
+            permitsSemaphore.permitsPerSec(byteUnit.toBytes(amount));
 
         U.log(log, "The file download speed has been set to: " + amount + " " + byteUnit.name() + " per sec.");
     }
@@ -164,9 +164,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @return The total file download rate, by default {@link #DFLT_DOWNLOAD_RATE} or
      * {@link TimedSemaphore#UNLIMITED_PERMITS} if there is no limit.
      */
-    public int downloadRatePerSecond(ByteUnit unit) {
+    public long downloadRate(ByteUnit unit) {
         return permitsSemaphore.permitsPerSec() == TimedSemaphore.UNLIMITED_PERMITS ?
-            TimedSemaphore.UNLIMITED_PERMITS : unit.convertFrom(permitsSemaphore.permitsPerSec(), ByteUnit.BYTE);
+            TimedSemaphore.UNLIMITED_PERMITS : ByteUnit.BYTE.convertTo(permitsSemaphore.permitsPerSec(), unit);
     }
 
     /** {@inheritDoc} */
@@ -241,7 +241,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         sessionId = Objects.requireNonNull(channel.attr(SESSION_ID_KEY));
 
                         sesCtx = sessionContextMap.computeIfAbsent(sessionId,
-                            sesId -> new FileIoReadContext(nodeId, factory.create(), reconnectCnt));
+                            sesId -> new FileIoReadContext(nodeId, factory.create()));
 
                         sesCtx.currInput = new TransmitInputChannel(ctx, channel);
                         sesCtx.currOutput = new TransmitOutputChannel(ctx, channel);
@@ -320,6 +320,8 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     break;
                 }
 
+                long startTime = U.currentTimeMillis();
+
                 sesCtx.currPlc = currPlc;
 
                 if (sesCtx.stream == null)
@@ -345,16 +347,24 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 sesCtx.stream = null;
 
                 // Write stream processing acknowledge.
-                sesCtx.currOutput.acknowledge((int)inStream.count());
+                sesCtx.currOutput.acknowledge(inStream.count());
+
+                long downloadTime = U.currentTimeMillis() - startTime;
+
+                U.log(log, "The file has been successfully downloaded " +
+                    "[name=" + inStream.name() + ", transferred=" + ByteUnit.BYTE.toKB(inStream.transferred()) + " Kb" +
+                    ", time=" + (double)((downloadTime)/1000) + " sec" +
+                    ", rate=" + ByteUnit.BYTE.toKB(permitsSemaphore.permitsPerSec()) +" Kb/sec"+
+                    ", reconnects=" + sesCtx.reconnects);
             }
         }
         catch (RemoteTransmitException e) {
             // Waiting for re-establishing connection.
             log.warning("The connection lost. Waiting for the new one to continue file upload", e);
 
-            sesCtx.reconnectsLeft--;
+            sesCtx.reconnects++;
 
-            if (sesCtx.reconnectsLeft == 0) {
+            if (sesCtx.reconnects == reconnectCnt) {
                 IOException ex = new IOException("The number of reconnect attempts exceeded the limit. " +
                     "Max attempts: " + reconnectCnt, e);
 
@@ -478,6 +488,8 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     log.debug("Start writing file to remote node [file=" + file.getName() +
                         ", rmtNodeId=" + remoteId + ", topic=" + topic + ']');
 
+                long startTime = U.currentTimeMillis();
+
                 while (true) {
                     if (Thread.currentThread().isInterrupted())
                         throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
@@ -512,9 +524,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                         fileStream.close();
 
-                        int hash = in.acknowledge();
-
-                        U.log(log, "File has been successfully written [name=" + file.getName() + ", hash=" + hash + ']');
+                        in.acknowledge();
 
                         break;
                     }
@@ -530,6 +540,13 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         reconnects++;
                     }
                 }
+
+                long uploadTime = U.currentTimeMillis() - startTime;
+
+                U.log(log, "The file uploading operation has been completed " +
+                    "[name=" + file.getName() + ", uploadTime=" + (double)((uploadTime)/1000) + " sec" +
+                    ", reconnects=" + reconnects + ']');
+
             }
             catch (Exception e) {
                 closeChannelQuiet();
@@ -584,7 +601,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         private final AtomicBoolean started = new AtomicBoolean();
 
         /** The number of reconnect attempts of current session. */
-        private int reconnectsLeft;
+        private int reconnects;
 
         /** The currently used input channel (updated on reconnect). */
         @GridToStringExclude
@@ -603,12 +620,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         /**
          * @param nodeId The remote node id.
          * @param session The channel handler.
-         * @param reconnectsLeft The number of reconnect attempts.
          */
-        public FileIoReadContext(UUID nodeId, TransmitSession session, int reconnectsLeft) {
+        public FileIoReadContext(UUID nodeId, TransmitSession session) {
             this.nodeId = nodeId;
             this.session = session;
-            this.reconnectsLeft = reconnectsLeft;
         }
 
         /** {@inheritDoc} */

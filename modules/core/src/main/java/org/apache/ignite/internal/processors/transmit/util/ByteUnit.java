@@ -34,7 +34,7 @@ public enum ByteUnit {
     GB(1024 * 1024 * 1024);
 
     /** The amount of bytes. */
-    private final int amount;
+    private final long amount;
 
     /**
      * @param amount The amount of bytes per configured type.
@@ -51,7 +51,7 @@ public enum ByteUnit {
      * @param unit The unit type.
      * @return The amount of bytes corresponding to type.
      */
-    public int convertFrom(int amount, ByteUnit unit) {
+    public long convertFrom(long amount, ByteUnit unit) {
         return unit.convertTo(amount, this);
     }
 
@@ -62,9 +62,9 @@ public enum ByteUnit {
      * @param unit The unit type.
      * @return The amount of bytes corresponding to type.
      */
-    public int convertTo(int amount, ByteUnit unit) {
+    public long convertTo(long amount, ByteUnit unit) {
         if (this.amount > unit.amount) {
-            int ratio = this.amount / unit.amount;
+            long ratio = this.amount / unit.amount;
 
             if (Long.MAX_VALUE / ratio < amount)
                 throw new IllegalArgumentException("The calculated amount of bytes exceeds the Long.MAX_VALUE for the unit " +
@@ -90,7 +90,7 @@ public enum ByteUnit {
      * @param amount The amount of this type.
      * @return The amount of bytes corresponding to type.
      */
-    public int toKB(int amount) {
+    public long toKB(long amount) {
         return convertTo(amount, KB);
     }
 
@@ -98,7 +98,7 @@ public enum ByteUnit {
      * @param amount The amount of this type.
      * @return The amount of bytes corresponding to type.
      */
-    public int toMB(int amount) {
+    public long toMB(long amount) {
         return convertTo(amount, MB);
     }
 
@@ -106,7 +106,7 @@ public enum ByteUnit {
      * @param amount The amount of this type.
      * @return The amount of bytes corresponding to type.
      */
-    public int toGB(int amount) {
+    public long toGB(long amount) {
         return convertTo(amount, GB);
     }
 }

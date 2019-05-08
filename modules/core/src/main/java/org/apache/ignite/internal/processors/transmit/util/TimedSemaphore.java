@@ -43,7 +43,7 @@ public class TimedSemaphore {
     private ScheduledFuture<?> timerFut;
 
     /** The maximum number of permits available per second. */
-    private int permitsPerSec;
+    private long permitsPerSec;
 
     /** The current acquired permits during the configured period of time. */
     private int acquireCnt;
@@ -54,7 +54,7 @@ public class TimedSemaphore {
     /**
      * @param permitsPerSec The number of permits per second.
      */
-    public TimedSemaphore(int permitsPerSec) {
+    public TimedSemaphore(long permitsPerSec) {
         assert permitsPerSec >= 0;
 
         this.permitsPerSec = permitsPerSec;
@@ -69,7 +69,7 @@ public class TimedSemaphore {
     /**
      * @return The maximum number of available permits.
      */
-    public synchronized int permitsPerSec() {
+    public synchronized long permitsPerSec() {
         return permitsPerSec;
     }
 
@@ -80,7 +80,7 @@ public class TimedSemaphore {
      *
      * @param permitsPerSec The maximum number of available permits per second.
      */
-    public synchronized void permitsPerSec(final int permitsPerSec) {
+    public synchronized void permitsPerSec(final long permitsPerSec) {
         this.permitsPerSec = permitsPerSec;
     }
 
@@ -150,7 +150,7 @@ public class TimedSemaphore {
      * @return The current number of available permits during the current time
      * or {@link #UNLIMITED_PERMITS} if there is to permits limit.
      */
-    public synchronized int availablePermits() {
+    public synchronized long availablePermits() {
         return permitsPerSec == UNLIMITED_PERMITS ? permitsPerSec : permitsPerSec - acquireCnt;
     }
 

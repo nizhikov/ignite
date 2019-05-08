@@ -68,9 +68,9 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      * @param hash The hash of transmitted data.
      * @throws IOException If fails.
      */
-    public void acknowledge(int hash) throws IOException {
+    public void acknowledge(long hash) throws IOException {
         try {
-            dos.writeInt(hash);
+            dos.writeLong(hash);
 
             dos.flush();
         } catch (IOException e) {
