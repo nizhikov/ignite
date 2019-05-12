@@ -17,10 +17,10 @@
 
 package org.apache.ignite.internal.processors.transmit;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Map;
-import org.apache.ignite.IgniteCheckedException;
 
 /**
  *
@@ -32,14 +32,16 @@ public interface ChunkHandler {
      * @param count Total count of bytes to read from the original source.
      * @param params The additional transfer file description params.
      * @return The size of of {@link ByteBuffer} to read the input channel into.
+     * @throws IOException If fails.
      */
-    public int begin(String name, long position, long count, Map<String, Serializable> params);
+    public int begin(String name, long position, long count, Map<String, Serializable> params) throws IOException;
 
     /**
      * @param buff The data filled buffer.
      * @return {@code true} if the chunk of data have been successfully accepted.
+     * @throws IOException If fails.
      */
-    public boolean chunk(ByteBuffer buff);
+    public boolean chunk(ByteBuffer buff) throws IOException;
 
     /**
      * @param params The additional handling channel description params.

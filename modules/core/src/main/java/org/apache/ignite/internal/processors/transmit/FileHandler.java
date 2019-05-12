@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.transmit;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
 
@@ -31,8 +32,9 @@ public interface FileHandler {
      * @param count Total count of bytes readed from the original source.
      * @param params The additional transfer file description params.
      * @return The absolute pathname string denoting the file or {@code null} if there is no sense.
+     * @throws IOException If fails.
      */
-    public String begin(String name, long position, long count, Map<String, Serializable> params);
+    public String begin(String name, long position, long count, Map<String, Serializable> params) throws IOException;
 
     /**
      * @param file The file with fully downloaded data into.

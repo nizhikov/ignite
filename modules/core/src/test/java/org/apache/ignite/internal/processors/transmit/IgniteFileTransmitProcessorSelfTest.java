@@ -22,6 +22,8 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -42,7 +44,10 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
+import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
+import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
+import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
 import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileStream;
 import org.apache.ignite.internal.processors.transmit.chunk.ChunkedInputStream;
@@ -52,6 +57,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.PUBLIC_POOL;
@@ -67,15 +73,31 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
     /** */
     private static final String TEMP_FILES_DIR = "ctmp";
 
+    /** File io factory */
+    private static final FileIOFactory ioFactory = new RandomAccessFileIOFactory();
+
+    /** The topic to send files to. */
+    private static Object topic;
+
+    /** File filter. */
+    private static FilenameFilter fileBinFilter;
+
     /** The temporary directory to store files. */
     private File tempStore;
 
-    /** The topic to send files to. */
-    private Object topic;
+    /**
+     * @throws Exception If fails.
+     */
+    @BeforeClass
+    public static void beforeAll() throws Exception {
+        topic = GridTopic.TOPIC_CACHE.topic("test", 0);
 
-    /** File filter. */
-    private FilenameFilter fileBinFilter;
-
+        fileBinFilter = new FilenameFilter() {
+            @Override public boolean accept(File dir, String name) {
+                return name.endsWith(FILE_SUFFIX);
+            }
+        };
+    }
     /**
      * @throws Exception if failed.
      */
@@ -84,12 +106,6 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
         cleanPersistenceDir();
 
         tempStore = U.resolveWorkDirectory(U.defaultWorkDirectory(), TEMP_FILES_DIR, true);
-        topic = GridTopic.TOPIC_CACHE.topic("test", 0);
-        fileBinFilter = new FilenameFilter() {
-            @Override public boolean accept(File dir, String name) {
-                return name.endsWith(FILE_SUFFIX);
-            }
-        };
     }
 
     /**
@@ -169,10 +185,12 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
 
     /**
+     * Transmit all cache partition to particular topic on remote node.
+     *
      * @throws Exception If fails.
      */
     @Test
-    public void testTransmitCachePartitionsToTopic() throws Exception {
+    public void testFileHandlerBase() throws Exception {
         IgniteEx sender = startGrid(0);
         IgniteEx receiver = startGrid(1);
 
@@ -193,12 +211,17 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
                     @Override public FileHandler fileHandler() {
                         return new FileHandler() {
+                            /** */
+                            private final AtomicBoolean inited = new AtomicBoolean();
+
                             @Override public String begin(
                                 String name,
                                 long position,
                                 long count,
                                 Map<String, Serializable> params
                             ) {
+                                assertTrue(inited.compareAndSet(false, true));
+
                                 return new File(tempStore, name).getAbsolutePath();
                             }
 
@@ -408,6 +431,68 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         assertTrue("Download speed exceeded the limit [actual=" + totalTime + ", limit=" + limitMs + ']',
             totalTime <= limitMs);
+    }
+
+    /** */
+    @Test
+    public void testChuckHandler() throws Exception {
+        IgniteEx sender = startGrid(0);
+        IgniteEx receiver = startGrid(1);
+
+        sender.cluster().active(true);
+
+        File fileToSend = createFileRandomData("testFile", 10, ByteUnit.MB);
+
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
+            @Override public TransmitSession create() {
+                return new TransmitSessionAdapter() {
+                    /** {@inheritDoc} */
+                    @Override public ChunkHandler chunkHandler() {
+                        return new ChunkHandler() {
+                            /** */
+                            private File file;
+
+                            /** */
+                            private FileIO fileIo;
+
+                            @Override public int begin(
+                                String name,
+                                long position,
+                                long count,
+                                Map<String, Serializable> params
+                            ) throws IOException {
+                                file = new File(tempStore, name + "_" + receiver.localNode().id());
+
+                                fileIo = ioFactory.create(file);
+
+                                fileIo.position(position);
+
+                                return 4 * 1024; // Page size
+                            }
+
+                            @Override public boolean chunk(ByteBuffer buff) throws IOException {
+                                assertTrue(buff.order() == ByteOrder.nativeOrder());
+                                assertEquals(0, buff.position());
+
+                                fileIo.writeFully(buff);
+
+                                return true;
+                            }
+
+                            @Override public void end(Map<String, Serializable> params) {
+                                assertEquals(fileToSend.length(), file.length());
+                            }
+                        };
+                    }
+                };
+            }
+        });
+
+        try (FileWriter writer = sender.context()
+            .fileTransmit()
+            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.BUFF);
+        }
     }
 
     /**

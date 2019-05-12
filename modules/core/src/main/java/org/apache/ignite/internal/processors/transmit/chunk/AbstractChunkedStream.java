@@ -38,7 +38,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
  */
 abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutputStream {
     /** The size of segment for the read. */
-    private final int chunkSize;
+    private int chunkSize;
 
     /** The unique input name to identify particular transfer part.*/
     private String name;
@@ -116,6 +116,15 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
     /** {@inheritDoc} */
     @Override public int chunkSize() {
         return chunkSize;
+    }
+
+    /**
+     * @param chunkSize The size of chunk in bytes.
+     */
+    protected void chunkSize(int chunkSize) {
+        assert chunkSize > 0;
+
+        this.chunkSize = chunkSize;
     }
 
     /** {@inheritDoc} */

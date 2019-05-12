@@ -20,6 +20,7 @@ package org.apache.ignite.internal.processors.transmit.chunk;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.ignite.internal.processors.transmit.ChunkHandler;
@@ -74,12 +75,19 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
         if (buff == null) {
             buffSize = handler.begin(name(), startPosition(), count(), params());
 
+            assert buffSize > 0;
+
             buff = ByteBuffer.allocate(buffSize);
+            buff.order(ByteOrder.nativeOrder());
+
+            chunkSize(buffSize);
         }
     }
 
     /** {@inheritDoc} */
     @Override public void readChunk(TransmitInputChannel channel) throws IOException {
+        buff.rewind();
+
         long readed = channel.readInto(buff);
 
         if (readed > 0)
@@ -87,7 +95,12 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
         else if (readed < 0)
             checkChunkedIoEOF(this);
 
-        handler.chunk(buff);
+        buff.flip();
+
+        boolean accepted = handler.chunk(buff);
+
+        if (!accepted)
+            throw new IOException("The buffer was rejected by handler");
 
         if (endStream())
             handler.end(params());
@@ -95,15 +108,7 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
 
     /** {@inheritDoc} */
     @Override public void writeChunk(TransmitOutputChannel channel) throws IOException {
-        long written = channel.writeFrom(buff);
-
-        if (written > 0)
-            transferred.addAndGet(written);
-
-        handler.chunk(buff);
-
-        if (endStream())
-            handler.end(params());
+        throw new UnsupportedOperationException("Buffered chunked write is not supported yet");
     }
 
     /** {@inheritDoc} */

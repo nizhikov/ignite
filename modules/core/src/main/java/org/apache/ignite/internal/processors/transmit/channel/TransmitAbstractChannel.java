@@ -65,16 +65,13 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
  */
 public abstract class TransmitAbstractChannel implements Closeable {
     /** */
-    private static final int DFLT_IO_TIMEOUT_MILLIS = 15_000;
+    private static final int DFLT_IO_TIMEOUT_MILLIS = 5_000;
 
     /** */
     private static final String RESET_BY_PEER_MSG = "Connection reset by peer";
 
     /** */
     private static final String CLOSED_BY_REMOTE_MSG = "An existing connection was forcibly closed by the remote host";
-
-    /** */
-    private final GridKernalContext ktx;
 
     /** */
     private final IgniteSocketChannel igniteChannel;
@@ -112,7 +109,6 @@ public abstract class TransmitAbstractChannel implements Closeable {
         assert channel != null;
         assert unit != null;
 
-        this.ktx = ktx;
         igniteChannel = channel;
         log = ktx.log(getClass());
         timeoutMillis = timeout <= 0 ? 0 : Math.max((int)unit.toMillis(timeout), DFLT_IO_TIMEOUT_MILLIS);
