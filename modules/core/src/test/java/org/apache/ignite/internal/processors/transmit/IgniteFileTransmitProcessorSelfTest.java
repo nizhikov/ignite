@@ -436,6 +436,8 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
     /** */
     @Test
     public void testChuckHandler() throws Exception {
+        final FileIO[] fileIo = new FileIO[1];
+
         IgniteEx sender = startGrid(0);
         IgniteEx receiver = startGrid(1);
 
@@ -452,9 +454,6 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                             /** */
                             private File file;
 
-                            /** */
-                            private FileIO fileIo;
-
                             @Override public int begin(
                                 String name,
                                 long position,
@@ -463,9 +462,9 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                             ) throws IOException {
                                 file = new File(tempStore, name + "_" + receiver.localNode().id());
 
-                                fileIo = ioFactory.create(file);
+                                fileIo[0] = ioFactory.create(file);
 
-                                fileIo.position(position);
+                                fileIo[0].position(position);
 
                                 return 4 * 1024; // Page size
                             }
@@ -474,13 +473,15 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                                 assertTrue(buff.order() == ByteOrder.nativeOrder());
                                 assertEquals(0, buff.position());
 
-                                fileIo.writeFully(buff);
+                                fileIo[0].writeFully(buff);
 
                                 return true;
                             }
 
                             @Override public void end(Map<String, Serializable> params) {
                                 assertEquals(fileToSend.length(), file.length());
+
+                                U.closeQuiet(fileIo[0]);
                             }
                         };
                     }
@@ -492,6 +493,9 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
             .fileTransmit()
             .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.BUFF);
+        }
+        finally {
+            U.closeQuiet(fileIo[0]);
         }
     }
 

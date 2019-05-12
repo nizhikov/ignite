@@ -157,17 +157,19 @@ public class TimedSemaphoreSelfTest {
         /** */
         private final CountDownLatch successAcquireLatch;
 
-        /** The total number of repeats with calling {@link TimedSemaphore#acquire(int)} method. */
+        /** The total number of repeats with calling {@link TimedSemaphore#tryAcquire(int, int, TimeUnit)} method. */
         private final int repeats;
 
-        /** The number of permits to acquire per single {@link TimedSemaphore#acquire(int)} method call. */
+        /** The number of permits to acquire per single {@link TimedSemaphore#tryAcquire(int, int, TimeUnit)} method call. */
         private final int singleAcquirePermits;
 
         /**
          * @param semaphore The semaphore to test.
          * @param successAcquireLatch The latch from the main thread.
-         * @param repeats The total number of repeats with calling {@link TimedSemaphore#acquire(int)} method.
-         * @param singleAcquirePermits The number of permits to acquire per single {@link TimedSemaphore#acquire(int)} method call.
+         * @param repeats The total number of repeats with calling
+         * {@link TimedSemaphore#tryAcquire(int, int, TimeUnit)} method.
+         * @param singleAcquirePermits The number of permits to acquire per single
+         * {@link TimedSemaphore#tryAcquire(int, int, TimeUnit)} method call.
          */
         SemaphoreTestThread(
             TimedSemaphore semaphore,
@@ -185,7 +187,7 @@ public class TimedSemaphoreSelfTest {
         @Override public void run() {
             try {
                 for (int i = 0; i < repeats; i++) {
-                    semaphore.acquire(singleAcquirePermits);
+                    semaphore.tryAcquire(singleAcquirePermits, 0, TimeUnit.SECONDS);
 
                     successAcquireLatch.countDown();
                 }

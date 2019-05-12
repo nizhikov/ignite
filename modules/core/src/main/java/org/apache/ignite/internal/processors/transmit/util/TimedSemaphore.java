@@ -20,21 +20,24 @@ package org.apache.ignite.internal.processors.transmit.util;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.internal.util.typedef.internal.U;
 
 /**
  * The semaphore which releases the acquired permits when the configured period of time ends.
+ * <p>
+ * In the opposite to {@link Semaphore#acquire(int)} which acquires the given number of permits
+ * from the semaphore and block method called until all permits are available, the TimedSemaphore
+ * will allow to make a progress during 1-sec period configured amout of permits is not enough.
  */
 public class TimedSemaphore {
     /** The constant which represents unlimited number of permits being acquired. */
     public static final int UNLIMITED_PERMITS = -1;
 
-    /** The amount of time perdiod. */
-    private static final int DFLT_TIME_PERIOD_AMOUNT = 1;
-
-    /** The time period unit. */
-    private static final TimeUnit DFLT_TIME_PERIOD_UNIT = TimeUnit.SECONDS;
+    /** The time period to release all available permits when it ends. */
+    private static final int DFLT_TIME_PERIOD_SEC = 1;
 
     /** The service to release permits during the configured time of time. */
     private final ScheduledExecutorService scheduler;
@@ -102,19 +105,32 @@ public class TimedSemaphore {
      * At the first call of this method the timer will be started to monitor permits during current period.
      *
      * @param permits The total number of permits to acquire.
+     * @param timeout The maximum time to wait for the permits.
+     * @param unit The time unit of the {@code timeout} argument.
+     * @return {@code true} if all permits were acquired and {@code false} if the waiting time elapsed
+     * before all permits were acquired.
      * @throws InterruptedException If the thread gets interrupted.
      */
-    public synchronized void acquire(final int permits) throws InterruptedException {
+    public synchronized boolean tryAcquire(int permits, int timeout, TimeUnit unit) throws InterruptedException {
         assert permits > 0;
+        assert timeout >= 0;
 
         initTimePeriod();
 
+        long waitMillis = unit.toMillis(timeout);
+        long endTime = U.currentTimeMillis() + waitMillis;
+
         for (int i = 0; i < permits; ) {
+            if (endTime - U.currentTimeMillis() < 0)
+                return false;
+
             if (acquirePermit())
                 i++;
             else
-                wait();
+                wait(waitMillis);
         }
+
+        return true;
     }
 
     /**
@@ -160,9 +176,9 @@ public class TimedSemaphore {
     synchronized ScheduledFuture<?> scheduleTimePeriod() {
         // The time time ends - release all permits.
         return scheduler.scheduleAtFixedRate(this::release,
-            DFLT_TIME_PERIOD_AMOUNT,
-            DFLT_TIME_PERIOD_AMOUNT,
-            DFLT_TIME_PERIOD_UNIT);
+            DFLT_TIME_PERIOD_SEC,
+            DFLT_TIME_PERIOD_SEC,
+            TimeUnit.SECONDS);
     }
 
     /**
