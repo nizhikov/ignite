@@ -94,12 +94,12 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     private final GridSpinBusyLock busyLock = new GridSpinBusyLock();
 
     /**
-     * The total amount of permits for the configured period of time. To limit the download
-     * speed of reading the stream of data we should acuire a permit per byte.
+     * The total amount of permits for the 1 second period of time per download node instance.
+     * To limit the download speed of reading the stream of data we should acuire a permit per byte.
      * <p>
      * For instance, for the 128 Kb/sec rate you should specify total <tt>131_072</tt> permits.
      */
-    private final TimedSemaphore permitsSemaphore;
+    private final TimedSemaphore downloadPermits;
 
     /** */
     private DiscoveryEventListener discoLsnr;
@@ -119,7 +119,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     public IgniteFileTransmitProcessor(GridKernalContext ctx) {
         super(ctx);
 
-        permitsSemaphore = new TimedSemaphore(DFLT_DOWNLOAD_RATE);
+        downloadPermits = new TimedSemaphore(DFLT_DOWNLOAD_RATE);
     }
 
     /**
@@ -145,21 +145,21 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     /**
      * Set the download rate per second. It is possible to modify the download rate at runtime.
      * Reducing the speed takes effect immediately by blocking incoming requests on the
-     * semaphore {@link #permitsSemaphore}. If the speed is increased than waiting threads
+     * semaphore {@link #downloadPermits}. If the speed is increased than waiting threads
      * are not released immediately, but will be wake up when the next time period of
      * {@link TimedSemaphore} runs out.
      * <p>
      * Setting the amount to {@link TimedSemaphore#UNLIMITED_PERMITS} will switch off the
-     * configured {@link #permitsSemaphore} limit.
+     * configured {@link #downloadPermits} limit.
      *
      * @param amount The amount of transfer unit rate.
      * @param byteUnit The unit type transfer rate.
      */
     public void downloadRate(int amount, ByteUnit byteUnit) {
         if (amount <= 0)
-            permitsSemaphore.permitsPerSec(TimedSemaphore.UNLIMITED_PERMITS);
+            downloadPermits.permitsPerSec(TimedSemaphore.UNLIMITED_PERMITS);
         else
-            permitsSemaphore.permitsPerSec(byteUnit.toBytes(amount));
+            downloadPermits.permitsPerSec(byteUnit.toBytes(amount));
 
         U.log(log, "The file download speed has been set to: " + amount + " " + byteUnit.name() + " per sec.");
     }
@@ -170,8 +170,8 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * {@link TimedSemaphore#UNLIMITED_PERMITS} if there is no limit.
      */
     public long downloadRate(ByteUnit unit) {
-        return permitsSemaphore.permitsPerSec() == TimedSemaphore.UNLIMITED_PERMITS ?
-            TimedSemaphore.UNLIMITED_PERMITS : ByteUnit.BYTE.convertTo(permitsSemaphore.permitsPerSec(), unit);
+        return downloadPermits.permitsPerSec() == TimedSemaphore.UNLIMITED_PERMITS ?
+            TimedSemaphore.UNLIMITED_PERMITS : ByteUnit.BYTE.convertTo(downloadPermits.permitsPerSec(), unit);
     }
 
     /** {@inheritDoc} */
@@ -206,7 +206,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
             for (Object topic : topicFactoryMap.keySet())
                 removeFileIoChannelHandler(topic);
 
-            permitsSemaphore.shutdown();
+            downloadPermits.shutdown();
         }
         finally {
             busyLock.unblock();
@@ -365,7 +365,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                         // If the limit of permits at appropriate period of time reached,
                         // the furhter invocations of the #acuqire(int) method will be blocked.
-                        permitsSemaphore.acquire(sesCtx.stream.chunkSize());
+                        downloadPermits.acquire(sesCtx.stream.chunkSize());
 
                         inStream.readChunk(sesCtx.currInput);
                     }
@@ -382,7 +382,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     U.log(log, "The file has been successfully downloaded " +
                         "[name=" + inStream.name() + ", transferred=" + ByteUnit.BYTE.toKB(inStream.transferred()) + " Kb" +
                         ", time=" + (double)((downloadTime) / 1000) + " sec" +
-                        ", rate=" + ByteUnit.BYTE.toKB(permitsSemaphore.permitsPerSec()) + " Kb/sec" +
+                        ", rate=" + ByteUnit.BYTE.toKB(downloadPermits.permitsPerSec()) + " Kb/sec" +
                         ", reconnects=" + sesCtx.reconnects);
                 }
                 finally {
