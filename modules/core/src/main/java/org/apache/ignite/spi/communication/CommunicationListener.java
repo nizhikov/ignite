@@ -19,10 +19,8 @@ package org.apache.ignite.spi.communication;
 
 import java.io.Serializable;
 import java.util.EventListener;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 import org.apache.ignite.lang.IgniteRunnable;
 
 /**

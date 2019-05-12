@@ -18,12 +18,7 @@
 package org.apache.ignite.spi.communication.tcp.channel;
 
 import java.nio.channels.SocketChannel;
-import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.GridTopic;
-import org.apache.ignite.internal.managers.communication.GridIoPolicy;
-import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
 import org.apache.ignite.spi.communication.Channel;
-import org.apache.ignite.plugin.extensions.communication.Message;
 
 /**
  * Communication TCP/IP socket.

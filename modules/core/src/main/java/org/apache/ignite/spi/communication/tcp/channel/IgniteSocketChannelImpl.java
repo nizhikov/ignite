@@ -29,7 +29,6 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.spi.communication.ChannelId;
 import org.apache.ignite.spi.communication.ChannelListener;
 import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateRequestMessage;
