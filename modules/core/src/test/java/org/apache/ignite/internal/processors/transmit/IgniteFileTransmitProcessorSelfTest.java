@@ -65,9 +65,6 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
     private static final long CACHE_SIZE = 50_000L;
 
     /** */
-    private static final int FILE_SIZE_BYTES = (int)ByteUnit.BYTE.convertFrom(50, ByteUnit.MB);
-
-    /** */
     private static final String TEMP_FILES_DIR = "ctmp";
 
     /** The temporary directory to store files. */
@@ -155,13 +152,14 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
      * @param size The file size.
      * @throws IOException If fails.
      */
-    private File createFileRandomData(String name, final int size) throws IOException {
+    private File createFileRandomData(String name, final int size, ByteUnit unit) throws IOException {
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
 
         File out = new File(tempStore, name);
+        int fileSize = (int)ByteUnit.BYTE.convertFrom(size, unit);
 
         try (RandomAccessFile raf = new RandomAccessFile(out, "rw")) {
-            byte[] buf = new byte[size];
+            byte[] buf = new byte[fileSize];
             rnd.nextBytes(buf);
             raf.write(buf);
         }
@@ -249,7 +247,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         sender.cluster().active(true);
 
-        File fileToSend = createFileRandomData("50Mb", FILE_SIZE_BYTES);
+        File fileToSend = createFileRandomData("50Mb", 50, ByteUnit.MB);
 
         receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
             @Override public TransmitSession create() {
@@ -300,7 +298,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         sender.cluster().active(true);
 
-        File fileToSend = createFileRandomData("testFile", FILE_SIZE_BYTES);
+        File fileToSend = createFileRandomData("testFile", 5, ByteUnit.MB);
         final AtomicInteger readedChunks = new AtomicInteger();
 
         receiver.context().fileTransmit().chunkedStreamFactory(new ChunkedStreamFactory() {
@@ -357,6 +355,59 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
             .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
         }
+    }
+
+    /** */
+    @Test
+    public void testDownloadFileWithSpeedLimit() throws Exception {
+        final int fileSizeMb = 5;
+        final int donwloadSpeedMbSec = 1;
+
+        IgniteEx sender = startGrid(0);
+        IgniteEx receiver = startGrid(1);
+
+        sender.cluster().active(true);
+
+        File fileToSend = createFileRandomData("testFile", fileSizeMb, ByteUnit.MB);
+
+        receiver.context().fileTransmit().downloadRate(donwloadSpeedMbSec, ByteUnit.MB);
+
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
+            @Override public TransmitSession create() {
+                return new TransmitSessionAdapter() {
+                    @Override public FileHandler fileHandler() {
+                        return new FileHandler() {
+                            @Override public String begin(
+                                String name,
+                                long position,
+                                long count,
+                                Map<String, Serializable> params
+                            ) {
+                                return new File(tempStore, name + "_" + receiver.localNode().id()).getAbsolutePath();
+                            }
+
+                            @Override public void end(File file, Map<String, Serializable> params) {
+                                assertEquals(fileToSend.length(), file.length());
+                            }
+                        };
+                    }
+                };
+            }
+        });
+
+        long startTime = U.currentTimeMillis();
+
+        try (FileWriter writer = sender.context()
+            .fileTransmit()
+            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
+        }
+
+        long totalTime = U.currentTimeMillis() - startTime;
+        int limitMs = (fileSizeMb / donwloadSpeedMbSec) * 1000;
+
+        assertTrue("Download speed exceeded the limit [actual=" + totalTime + ", limit=" + limitMs + ']',
+            totalTime <= limitMs);
     }
 
     /**
