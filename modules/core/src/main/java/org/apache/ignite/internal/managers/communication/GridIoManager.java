@@ -305,9 +305,9 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                         lock0.unlock();
                     }
                 }
-                catch (Exception ignore) {
+                catch (Exception e) {
                     U.error(log, "The channel configure envent has been finished with exception. " +
-                        "Will be ignored.", ignore);
+                        "Will be ignored.", e);
                 }
 
                 return null;
