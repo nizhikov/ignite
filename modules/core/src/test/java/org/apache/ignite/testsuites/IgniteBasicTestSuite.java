@@ -81,6 +81,8 @@ import org.apache.ignite.internal.processors.metastorage.DistributedMetaStorageT
 import org.apache.ignite.internal.processors.metastorage.persistence.DistributedMetaStorageHistoryCacheTest;
 import org.apache.ignite.internal.processors.odbc.OdbcConfigurationValidationSelfTest;
 import org.apache.ignite.internal.processors.odbc.OdbcEscapeSequenceSelfTest;
+import org.apache.ignite.internal.processors.transmit.IgniteFileTransmitProcessor;
+import org.apache.ignite.internal.processors.transmit.util.TimedSemaphoreSelfTest;
 import org.apache.ignite.internal.product.GridProductVersionSelfTest;
 import org.apache.ignite.internal.util.BitSetIntSetTest;
 import org.apache.ignite.internal.util.GridCleanerTest;
@@ -233,6 +235,10 @@ import org.junit.runners.Suite;
         ConfigVariationsTestSuiteBuilderTest.class,
 
     DeadLockOnNodeLeftExchangeTest.class,
+
+    // Ignite's file transfer.
+    TimedSemaphoreSelfTest.class,
+    IgniteFileTransmitProcessor.class
 })
 public class IgniteBasicTestSuite {
 }
