@@ -21,12 +21,16 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import org.apache.ignite.internal.util.lang.GridAbsPredicate;
+import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -37,9 +41,16 @@ public class TimedSemaphoreSelfTest {
     private TimedSemaphore semaphore;
 
     /** */
+    @Before
+    public void beforeTest() throws Exception {
+        U.onGridStart();
+    }
+
+    /** */
     @After
     public void afterCleanup() throws Exception {
         semaphore.shutdown();
+        U.onGridStop();
     }
 
     /** */
@@ -60,9 +71,13 @@ public class TimedSemaphoreSelfTest {
         };
 
         final SemaphoreTestThread thread = new SemaphoreTestThread(semaphore,
-            latch,
             acquireRepeats,
-            permitsPerAcquire);
+            permitsPerAcquire,
+            0,
+            res -> {
+                if (res)
+                    latch.countDown();
+            });
 
         thread.start();
         assertTrue(latch.await(2, TimeUnit.SECONDS));
@@ -95,7 +110,14 @@ public class TimedSemaphoreSelfTest {
         final SemaphoreTestThread[] threads = new SemaphoreTestThread[threadsCnt];
 
         for (int i = 0; i < threadsCnt; i++) {
-            threads[i] = new SemaphoreTestThread(semaphore, latch, acquireRepeats, permitsPerAcquire);
+            threads[i] = new SemaphoreTestThread(semaphore,
+                acquireRepeats,
+                permitsPerAcquire,
+                0,
+                res -> {
+                    if (res)
+                        latch.countDown();
+                });
             threads[i].start();
         }
 
@@ -132,9 +154,13 @@ public class TimedSemaphoreSelfTest {
         };
 
         final SemaphoreTestThread thread = new SemaphoreTestThread(semaphore,
-            latch,
             acquireRepeats,
-            permitsPerAcquire);
+            permitsPerAcquire,
+            0,
+            res -> {
+                if (res)
+                    latch.countDown();
+            });
 
         thread.start();
 
@@ -147,6 +173,28 @@ public class TimedSemaphoreSelfTest {
         assertEquals(permitsPerAcquire, periodEndCount.get() + 1);
     }
 
+    /** */
+    @Test
+    public void testAcquirePermitsWithTimeout() throws Exception {
+        final int acquireRepeats = 1;
+        final int permitsPerAcquire = 10;
+        final int totalPermits = 1;
+        final int timeoutSec = 2;
+
+        semaphore = new TimedSemaphore(totalPermits);
+
+        final SemaphoreTestThread thread = new SemaphoreTestThread(semaphore,
+            acquireRepeats,
+            permitsPerAcquire,
+            timeoutSec,
+            res -> {
+                assertFalse("tryAcquire must fail due to wait period ended", res);
+            });
+
+        thread.start();
+        thread.join();
+    }
+
     /**
      *
      */
@@ -154,42 +202,49 @@ public class TimedSemaphoreSelfTest {
         /** The testing instance of semaphore. */
         private final TimedSemaphore semaphore;
 
-        /** */
-        private final CountDownLatch successAcquireLatch;
-
         /** The total number of repeats with calling {@link TimedSemaphore#tryAcquire(int, int, TimeUnit)} method. */
         private final int repeats;
 
         /** The number of permits to acquire per single {@link TimedSemaphore#tryAcquire(int, int, TimeUnit)} method call. */
         private final int singleAcquirePermits;
 
+        /** Timeout in seconds to wait permits. */
+        private final int timeoutSec;
+
+        /** Permits acquire result consumer. */
+        private final Consumer<Boolean> onAcquire;
+
         /**
          * @param semaphore The semaphore to test.
-         * @param successAcquireLatch The latch from the main thread.
          * @param repeats The total number of repeats with calling
          * {@link TimedSemaphore#tryAcquire(int, int, TimeUnit)} method.
          * @param singleAcquirePermits The number of permits to acquire per single
          * {@link TimedSemaphore#tryAcquire(int, int, TimeUnit)} method call.
+         * @param timeoutSec Time in seconds to wait permits.
+         * @param onAcquire Permits acquire result consumer.
          */
         SemaphoreTestThread(
             TimedSemaphore semaphore,
-            CountDownLatch successAcquireLatch,
             int repeats,
-            int singleAcquirePermits
+            int singleAcquirePermits,
+            int timeoutSec,
+            Consumer<Boolean> onAcquire
         ) {
             this.semaphore = semaphore;
-            this.successAcquireLatch = successAcquireLatch;
             this.repeats = repeats;
             this.singleAcquirePermits = singleAcquirePermits;
+            this.timeoutSec = timeoutSec;
+            this.onAcquire = onAcquire;
         }
 
         /** */
         @Override public void run() {
             try {
                 for (int i = 0; i < repeats; i++) {
-                    semaphore.tryAcquire(singleAcquirePermits, 0, TimeUnit.SECONDS);
-
-                    successAcquireLatch.countDown();
+                    if (semaphore.tryAcquire(singleAcquirePermits, timeoutSec, TimeUnit.SECONDS))
+                        onAcquire.accept(true);
+                    else
+                        onAcquire.accept(false);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

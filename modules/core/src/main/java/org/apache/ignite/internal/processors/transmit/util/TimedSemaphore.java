@@ -118,16 +118,16 @@ public class TimedSemaphore {
         initTimePeriod();
 
         long waitMillis = unit.toMillis(timeout);
-        long endTime = U.currentTimeMillis() + waitMillis;
+        long endTime = timeout == 0 ? Long.MAX_VALUE : U.currentTimeMillis() + waitMillis;
 
         for (int i = 0; i < permits; ) {
-            if (endTime - U.currentTimeMillis() < 0)
+            if (endTime - U.currentTimeMillis() <= 0)
                 return false;
 
             if (acquirePermit())
                 i++;
             else
-                wait(waitMillis);
+                wait();
         }
 
         return true;

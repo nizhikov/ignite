@@ -67,14 +67,16 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * more than <tt>1 MB</tt> is meaningless because there is no asymptotic benefit.
      * What you're trying to achieve with larger transfer chunk sizes is fewer context
      * switches, and every time you double the transfer size you halve the context switch cost.
+     * <p>
+     * Default value is {@code 256Kb}.
      */
     public static final int DFLT_CHUNK_SIZE_BYTES = (int)ByteUnit.BYTE.convertFrom(256, ByteUnit.KB);
 
-    /** Reconnect attempts count to send single file. */
+    /** Reconnect attempts count to send single file (value is {@code 5}). */
     public static final int DFLT_RECONNECT_CNT = 5;
 
-    /** The default file download rate. */
-    public static final long DFLT_DOWNLOAD_RATE = ByteUnit.BYTE.convertFrom(500, ByteUnit.MB);
+    /** The default file limit transmittion rate per node instance (value is {@code 500 MB/sec}). */
+    public static final long DFLT_RATE_LIMIT_BYTES = ByteUnit.BYTE.convertFrom(500, ByteUnit.MB);
 
     /** The default timeout for waiting the permits. */
     private static final int DFLT_ACQUIRE_TIMEOUT_MS = 5000;
@@ -98,12 +100,18 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     private final GridSpinBusyLock busyLock = new GridSpinBusyLock();
 
     /**
-     * The total amount of permits for the 1 second period of time per download node instance.
-     * To limit the download speed of reading the stream of data we should acuire a permit per byte.
+     * The total amount of permits for the 1 second period of time per the node instance for download.
+     * To limit the download speed of reading the stream of data we will acuire a permit per byte.
      * <p>
      * For instance, for the 128 Kb/sec rate you should specify total <tt>131_072</tt> permits.
      */
-    private final TimedSemaphore bytePermits;
+    private final TimedSemaphore inBytePermits;
+
+    /**
+     * The total amount of permits for the 1 second period of time per the node instance for upload.
+     * See for details descriptoin of {@link #inBytePermits}.
+     */
+    private final TimedSemaphore outBytePermits;
 
     /** */
     private DiscoveryEventListener discoLsnr;
@@ -123,7 +131,8 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     public IgniteFileTransmitProcessor(GridKernalContext ctx) {
         super(ctx);
 
-        bytePermits = new TimedSemaphore(DFLT_DOWNLOAD_RATE);
+        inBytePermits = new TimedSemaphore(DFLT_RATE_LIMIT_BYTES);
+        outBytePermits = new TimedSemaphore(DFLT_RATE_LIMIT_BYTES);
     }
 
     /**
@@ -147,35 +156,75 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     }
 
     /**
-     * Set the download rate per second. It is possible to modify the download rate at runtime.
+     * Set the download rate per second in bytes. It is possible to modify the download rate at runtime.
      * Reducing the speed takes effect immediately by blocking incoming requests on the
-     * semaphore {@link #bytePermits}. If the speed is increased than waiting threads
+     * semaphore {@link #inBytePermits}. If the speed is increased than waiting threads
      * are not released immediately, but will be wake up when the next time period of
      * {@link TimedSemaphore} runs out.
      * <p>
      * Setting the count to {@link TimedSemaphore#UNLIMITED_PERMITS} will switch off the
-     * configured {@link #bytePermits} limit.
+     * configured {@link #inBytePermits} limit.
      *
      * @param count New count of transfer speed per second.
      * @param unit The unit type of {@code count} transfer speed.
      */
     public void downloadRate(int count, ByteUnit unit) {
         if (count <= 0)
-            bytePermits.permitsPerSec(TimedSemaphore.UNLIMITED_PERMITS);
+            inBytePermits.permitsPerSec(TimedSemaphore.UNLIMITED_PERMITS);
         else
-            bytePermits.permitsPerSec(unit.toBytes(count));
+            inBytePermits.permitsPerSec(unit.toBytes(count));
 
         U.log(log, "The file download speed has been set to: " + count + " " + unit.name() + " per sec.");
     }
 
     /**
      * @param unit The unit to convert download rate to.
-     * @return The total file download rate, by default {@link #DFLT_DOWNLOAD_RATE} or
+     * @return The total file download rate, by default {@link #DFLT_RATE_LIMIT_BYTES} or
      * {@link TimedSemaphore#UNLIMITED_PERMITS} if there is no limit.
      */
     public long downloadRate(ByteUnit unit) {
-        return bytePermits.permitsPerSec() == TimedSemaphore.UNLIMITED_PERMITS ?
-            TimedSemaphore.UNLIMITED_PERMITS : ByteUnit.BYTE.convertTo(bytePermits.permitsPerSec(), unit);
+        return permitsToRate(inBytePermits, unit);
+    }
+
+    /**
+     * Set the upload rate per second in bytes. It is possible to modify the download rate at runtime.
+     * Reducing the speed takes effect immediately by blocking incoming requests on the
+     * semaphore {@link #outBytePermits}. If the speed is increased than waiting threads
+     * are not released immediately, but will be wake up when the next time period of
+     * {@link TimedSemaphore} runs out.
+     * <p>
+     * Setting the count to {@link TimedSemaphore#UNLIMITED_PERMITS} will switch off the configured
+     * {@link #outBytePermits} limit.
+     *
+     * @param count New count of transfer speed per second.
+     * @param unit The unit type of {@code count} transfer speed.
+     */
+    public void uploadRate(int count, ByteUnit unit) {
+        if (count <= 0)
+            outBytePermits.permitsPerSec(TimedSemaphore.UNLIMITED_PERMITS);
+        else
+            outBytePermits.permitsPerSec(unit.toBytes(count));
+
+        U.log(log, "The file upload speed has been set to: " + count + " " + unit.name() + " per sec.");
+    }
+
+    /**
+     * @param unit The unit to convert download rate to.
+     * @return The total file upload rate, by default {@link #DFLT_RATE_LIMIT_BYTES} or
+     * {@link TimedSemaphore#UNLIMITED_PERMITS} if there is no limit.
+     */
+    public long uploadRate(ByteUnit unit) {
+        return permitsToRate(outBytePermits, unit);
+    }
+
+    /**
+     * @param semaphore The semaphore to convert permits.
+     * @param unit The unit to convert to.
+     * @return The rate amount or {@link TimedSemaphore#UNLIMITED_PERMITS} in there is no limit.
+     */
+    private long permitsToRate(TimedSemaphore semaphore, ByteUnit unit) {
+        return semaphore.permitsPerSec() == TimedSemaphore.UNLIMITED_PERMITS ?
+            TimedSemaphore.UNLIMITED_PERMITS : ByteUnit.BYTE.convertTo(semaphore.permitsPerSec(), unit);
     }
 
     /** {@inheritDoc} */
@@ -210,7 +259,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
             for (Object topic : topicFactoryMap.keySet())
                 removeFileIoChannelHandler(topic);
 
-            bytePermits.shutdown();
+            inBytePermits.shutdown();
         }
         finally {
             busyLock.unblock();
@@ -369,12 +418,12 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                         // If the limit of permits at appropriate period of time reached,
                         // the furhter invocations of the #acuqire(int) method will be blocked.
-                        boolean acquired = bytePermits.tryAcquire(sesCtx.stream.chunkSize(),
+                        boolean acquired = inBytePermits.tryAcquire(sesCtx.stream.chunkSize(),
                             DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
                         if (!acquired)
                             throw new RemoteTransmitException("Download speed is too slow " +
-                                "[rate=" + ByteUnit.BYTE.toKB(bytePermits.permitsPerSec()) + " Kb/sec]");
+                                "[rate=" + ByteUnit.BYTE.toKB(inBytePermits.permitsPerSec()) + " Kb/sec]");
 
                         inStream.readChunk(sesCtx.currInput);
                     }
@@ -391,7 +440,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     U.log(log, "The file has been successfully downloaded " +
                         "[name=" + inStream.name() + ", transferred=" + ByteUnit.BYTE.toKB(inStream.transferred()) + " Kb" +
                         ", time=" + (double)((downloadTime) / 1000) + " sec" +
-                        ", rate=" + ByteUnit.BYTE.toKB(bytePermits.permitsPerSec()) + " Kb/sec" +
+                        ", rate=" + ByteUnit.BYTE.toKB(inBytePermits.permitsPerSec()) + " Kb/sec" +
                         ", reconnects=" + sesCtx.reconnects);
                 }
                 finally {
@@ -479,16 +528,16 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
          * @throws IgniteCheckedException If fails.
          */
         public void connect() throws IgniteCheckedException {
-            try {
-                IgniteSocketChannel igCh = ctx.io().channelToTopic(remoteId, topic, plc,
-                    Collections.singletonMap(SESSION_ID_KEY, sessionId));
+            IgniteSocketChannel igCh = ctx.io().channelToTopic(remoteId, topic, plc,
+                Collections.singletonMap(SESSION_ID_KEY, sessionId));
 
+            try {
                 out = new TransmitOutputChannel(ctx, igCh);
                 in = new TransmitInputChannel(ctx, igCh);
             }
             catch (IOException e) {
-                throw new IgniteCheckedException("Error sending initial session meta to remote [remoteId=" + remoteId +
-                    ", topic=" + topic + ", plc=" + plc + ']', e);
+                throw new IgniteCheckedException("Unable to initialize an i\\o connection to the remote node " +
+                    "[remoteId=" + remoteId + ", topic=" + topic + ", plc=" + plc + ']', e);
             }
         }
 
@@ -564,6 +613,15 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                             if (Thread.currentThread().isInterrupted())
                                 throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
 
+                            // If the limit of permits at appropriate period of time reached,
+                            // the furhter invocations of the #acuqire(int) method will be blocked.
+                            boolean acquired = outBytePermits.tryAcquire(fileStream.chunkSize(),
+                                DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+
+                            if (!acquired)
+                                throw new RemoteTransmitException("Upload speed is too slow " +
+                                    "[rate=" + ByteUnit.BYTE.toKB(inBytePermits.permitsPerSec()) + " Kb/sec]");
+
                             fileStream.writeChunk(out);
                         }
 
@@ -572,6 +630,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         in.acknowledge();
 
                         break;
+                    }
+                    catch (ClusterTopologyCheckedException e) {
+                        // Node left the grid, no reason to reconnect.
+                        throw e;
                     }
                     catch (IOException | IgniteCheckedException e) {
                         closeChannelQuiet();

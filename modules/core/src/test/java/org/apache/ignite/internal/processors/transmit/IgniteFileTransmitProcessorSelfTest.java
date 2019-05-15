@@ -36,7 +36,6 @@ import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.IgniteException;
-import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.DataRegionConfiguration;
 import org.apache.ignite.configuration.DataStorageConfiguration;
@@ -67,10 +66,10 @@ import static org.apache.ignite.internal.processors.cache.persistence.file.FileP
  *
  */
 public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest {
-    /** */
+    /** Number of cache keys to generate. */
     private static final long CACHE_SIZE = 50_000L;
 
-    /** */
+    /** Temporary directory to store files. */
     private static final String TEMP_FILES_DIR = "ctmp";
 
     /** File io factory */
@@ -98,6 +97,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
             }
         };
     }
+
     /**
      * @throws Exception if failed.
      */
@@ -123,69 +123,11 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                 .setDefaultDataRegionConfiguration(new DataRegionConfiguration()
                     .setPersistenceEnabled(true)
                     .setMaxSize(500L * 1024 * 1024)))
-            .setCacheConfiguration(new CacheConfiguration<Integer, Integer>(DEFAULT_CACHE_NAME)
-                .setBackups(1)
-                .setAffinity(new RendezvousAffinityFunction(false)
-                    .setPartitions(8)));
-
+            .setCacheConfiguration(new CacheConfiguration<Integer, Integer>(DEFAULT_CACHE_NAME));
     }
 
     /**
-     * @param ignite Ignite.
-     * @param cacheName Cache name.
-     */
-    private void addCacheData(Ignite ignite, String cacheName) {
-        try (IgniteDataStreamer<Integer, Integer> dataStreamer = ignite.dataStreamer(cacheName)) {
-            dataStreamer.allowOverwrite(true);
-
-            for (int i = 0; i < CACHE_SIZE; i++) {
-                if ((i + 1) % (CACHE_SIZE / 10) == 0)
-                    log.info("Prepared " + (i + 1) * 100 / (CACHE_SIZE) + "% entries.");
-
-                dataStreamer.addData(i, i + cacheName.hashCode());
-            }
-        }
-    }
-
-    /**
-     * @param ignite The ignite instance.
-     * @param cacheName Cache name string representation.
-     * @return The cache working directory.
-     */
-    private File cacheWorkDir(IgniteEx ignite, String cacheName) {
-        // Resolve cache directory
-        IgniteInternalCache<?, ?> cache = ignite.cachex(cacheName);
-
-        FilePageStoreManager pageStoreMgr = (FilePageStoreManager)cache.context()
-            .shared()
-            .pageStore();
-
-        return pageStoreMgr.cacheWorkDir(cache.configuration());
-    }
-
-    /**
-     * @param name The file name to create.
-     * @param size The file size.
-     * @throws IOException If fails.
-     */
-    private File createFileRandomData(String name, final int size, ByteUnit unit) throws IOException {
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
-
-        File out = new File(tempStore, name);
-        int fileSize = (int)ByteUnit.BYTE.convertFrom(size, unit);
-
-        try (RandomAccessFile raf = new RandomAccessFile(out, "rw")) {
-            byte[] buf = new byte[fileSize];
-            rnd.nextBytes(buf);
-            raf.write(buf);
-        }
-
-        return out;
-    }
-
-
-    /**
-     * Transmit all cache partition to particular topic on remote node.
+     * Transmit all cache partition to particular topic on the remote node.
      *
      * @throws Exception If fails.
      */
@@ -241,7 +183,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
             .fileTransmit()
             .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
             // Iterate over cache partition files.
-            File [] files = cacheDirIg0.listFiles(fileBinFilter);
+            File[] files = cacheDirIg0.listFiles(fileBinFilter);
 
             for (File file : files)
                 fileWithSizes.put(file.getName(), file.length());
@@ -261,7 +203,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
      * @throws Exception If fails.
      */
     @Test
-    public void testReconnectBeginSessionThrowsEx() throws Exception {
+    public void testFileHandlerBeginSessionThrowsEx() throws Exception {
         final AtomicBoolean failFirstTime = new AtomicBoolean();
         final String exTestMessage = "Test exception. Session initialization failed. Connection will be reestablished.";
 
@@ -281,20 +223,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                     }
 
                     @Override public FileHandler fileHandler() {
-                        return new FileHandler() {
-                            @Override public String begin(
-                                String name,
-                                long position,
-                                long count,
-                                Map<String, Serializable> params
-                            ) {
-                                return new File(tempStore, name + "_" + receiver.localNode().id()).getAbsolutePath();
-                            }
-
-                            @Override public void end(File file, Map<String, Serializable> params) {
-                                assertEquals(fileToSend.length(), file.length());
-                            }
-                        };
+                        return getDefaultFileHandler(receiver, fileToSend);
                     }
 
                     @Override public void onException(Throwable cause) {
@@ -311,9 +240,11 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
         }
     }
 
-    /** */
+    /**
+     *
+     */
     @Test
-    public void testReconnectInTheMiddleOfTransmission() throws Exception {
+    public void testFileHandlerReconnectIfDownload() throws Exception {
         final String chunkDownloadExMsg = "Test exception. Chunk processing error.";
 
         IgniteEx sender = startGrid(0);
@@ -350,20 +281,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
             @Override public TransmitSession create() {
                 return new TransmitSessionAdapter() {
                     @Override public FileHandler fileHandler() {
-                        return new FileHandler() {
-                            @Override public String begin(
-                                String name,
-                                long position,
-                                long count,
-                                Map<String, Serializable> params
-                            ) {
-                                return new File(tempStore, name + "_" + receiver.localNode().id()).getAbsolutePath();
-                            }
-
-                            @Override public void end(File file, Map<String, Serializable> params) {
-                                assertEquals(fileToSend.length(), file.length());
-                            }
-                        };
+                        return getDefaultFileHandler(receiver, fileToSend);
                     }
 
                     @Override public void onException(Throwable cause) {
@@ -380,9 +298,11 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
         }
     }
 
-    /** */
+    /**
+     *
+     */
     @Test
-    public void testDownloadFileWithSpeedLimit() throws Exception {
+    public void testFileHandlerWithDownloadLimit() throws Exception {
         final int fileSizeMb = 5;
         final int donwloadSpeedMbSec = 1;
 
@@ -399,20 +319,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
             @Override public TransmitSession create() {
                 return new TransmitSessionAdapter() {
                     @Override public FileHandler fileHandler() {
-                        return new FileHandler() {
-                            @Override public String begin(
-                                String name,
-                                long position,
-                                long count,
-                                Map<String, Serializable> params
-                            ) {
-                                return new File(tempStore, name + "_" + receiver.localNode().id()).getAbsolutePath();
-                            }
-
-                            @Override public void end(File file, Map<String, Serializable> params) {
-                                assertEquals(fileToSend.length(), file.length());
-                            }
-                        };
+                        return getDefaultFileHandler(receiver, fileToSend);
                     }
                 };
             }
@@ -429,13 +336,61 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
         long totalTime = U.currentTimeMillis() - startTime;
         int limitMs = (fileSizeMb / donwloadSpeedMbSec) * 1000;
 
-        assertTrue("Download speed exceeded the limit [actual=" + totalTime + ", limit=" + limitMs + ']',
+        log.info("Register the file download time  [total=" + totalTime + ", limit=" + limitMs + ']');
+
+        assertTrue("Download speed exceeded the limit [total=" + totalTime + ", limit=" + limitMs + ']',
             totalTime <= limitMs);
     }
 
-    /** */
+    /**
+     *
+     */
     @Test
-    public void testChuckHandler() throws Exception {
+    public void testFileHandlerWithUploadLimit() throws Exception {
+        final int fileSizeMb = 5;
+        final int uploadSpeedRateMbSec = 1;
+
+        IgniteEx sender = startGrid(0);
+        IgniteEx receiver = startGrid(1);
+
+        sender.cluster().active(true);
+
+        File fileToSend = createFileRandomData("testFile", fileSizeMb, ByteUnit.MB);
+
+        sender.context().fileTransmit().uploadRate(uploadSpeedRateMbSec, ByteUnit.MB);
+
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
+            @Override public TransmitSession create() {
+                return new TransmitSessionAdapter() {
+                    @Override public FileHandler fileHandler() {
+                        return getDefaultFileHandler(receiver, fileToSend);
+                    }
+                };
+            }
+        });
+
+        long startTime = U.currentTimeMillis();
+
+        try (FileWriter writer = sender.context()
+            .fileTransmit()
+            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
+        }
+
+        long totalTime = U.currentTimeMillis() - startTime;
+        int limitMs = (fileSizeMb / uploadSpeedRateMbSec) * 1000;
+
+        log.info("Register the file upload time  [total=" + totalTime + ", limit=" + limitMs + ']');
+
+        assertTrue("Upload speed exceeded the limit [total=" + totalTime + ", limit=" + limitMs + ']',
+            totalTime <= limitMs);
+    }
+
+    /**
+     *
+     */
+    @Test
+    public void testChuckHandlerBase() throws Exception {
         final FileIO[] fileIo = new FileIO[1];
 
         IgniteEx sender = startGrid(0);
@@ -497,6 +452,81 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
         finally {
             U.closeQuiet(fileIo[0]);
         }
+    }
+
+    /**
+     * @param ignite Ignite instance.
+     * @param cacheName Cache name to add data to.
+     */
+    private void addCacheData(Ignite ignite, String cacheName) {
+        try (IgniteDataStreamer<Integer, Integer> dataStreamer = ignite.dataStreamer(cacheName)) {
+            dataStreamer.allowOverwrite(true);
+
+            for (int i = 0; i < CACHE_SIZE; i++) {
+                if ((i + 1) % (CACHE_SIZE / 10) == 0)
+                    log.info("Prepared " + (i + 1) * 100 / (CACHE_SIZE) + "% entries.");
+
+                dataStreamer.addData(i, i + cacheName.hashCode());
+            }
+        }
+    }
+
+    /**
+     * @param ignite The ignite instance.
+     * @param cacheName Cache name string representation.
+     * @return The cache working directory.
+     */
+    private File cacheWorkDir(IgniteEx ignite, String cacheName) {
+        // Resolve cache directory
+        IgniteInternalCache<?, ?> cache = ignite.cachex(cacheName);
+
+        FilePageStoreManager pageStoreMgr = (FilePageStoreManager)cache.context()
+            .shared()
+            .pageStore();
+
+        return pageStoreMgr.cacheWorkDir(cache.configuration());
+    }
+
+    /**
+     * @param name The file name to create.
+     * @param size The file size.
+     * @throws IOException If fails.
+     */
+    private File createFileRandomData(String name, final int size, ByteUnit unit) throws IOException {
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+        File out = new File(tempStore, name);
+        int fileSize = (int)ByteUnit.BYTE.convertFrom(size, unit);
+
+        try (RandomAccessFile raf = new RandomAccessFile(out, "rw")) {
+            byte[] buf = new byte[fileSize];
+            rnd.nextBytes(buf);
+            raf.write(buf);
+        }
+
+        return out;
+    }
+
+    /**
+     * @param receiver The node instance.
+     * @param fileToSend The file to send.
+     * @return Default file handler.
+     */
+    private FileHandler getDefaultFileHandler(IgniteEx receiver, File fileToSend) {
+        return new FileHandler() {
+            @Override public String begin(
+                String name,
+                long position,
+                long count,
+                Map<String, Serializable> params
+            ) {
+                return new File(tempStore, name + "_" + receiver.localNode().id()).getAbsolutePath();
+            }
+
+            @Override public void end(File file, Map<String, Serializable> params) {
+                assertEquals(fileToSend.length(), file.length());
+            }
+        };
     }
 
     /**
