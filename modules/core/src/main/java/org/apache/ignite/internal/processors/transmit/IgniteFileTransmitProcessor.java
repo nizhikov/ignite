@@ -63,10 +63,10 @@ import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
  */
 public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     /**
-     * The default transfer chunk size transfer in bytes. Setting the transfer chunk size
+     * The default transfer chunk size in bytes. Setting the transfer chunk size
      * more than <tt>1 MB</tt> is meaningless because there is no asymptotic benefit.
-     * What you're trying to achieve with larger transfer chunk sizes is fewer context
-     * switches, and every time you double the transfer size you halve the context switch cost.
+     * What we're trying to achieve with larger transfer chunk sizes is fewer context
+     * switches, and every time we double the transfer size you halve the context switch cost.
      * <p>
      * Default value is {@code 256Kb}.
      */
