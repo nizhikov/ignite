@@ -612,7 +612,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     checkProcessorNotStopped();
 
                     try {
-                        if (out == null)
+                        if (out == null && in == null)
                             connect();
 
                         String lastFileName = out.igniteChannel().attr(LAST_FILE_NAME_KEY);
@@ -710,8 +710,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
          */
         private void closeChannelQuiet() {
             U.closeQuiet(out);
+            U.closeQuiet(in);
 
             out = null;
+            in = null;
         }
     }
 
