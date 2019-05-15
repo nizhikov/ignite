@@ -115,6 +115,9 @@ public class TimedSemaphore {
         assert permits > 0;
         assert timeout >= 0;
 
+        if (shutdown)
+            throw new IgniteException("The semaphore has been stopped.");
+
         initTimePeriod();
 
         long waitMillis = unit.toMillis(timeout);
@@ -185,9 +188,6 @@ public class TimedSemaphore {
      * Checks if the semaphore can be used and starts the internal process for time monitoring.
      */
     private void initTimePeriod() {
-        if (shutdown)
-            throw new IgniteException("The semaphore has been shutdowned.");
-
         if (timerFut == null)
             timerFut = scheduleTimePeriod();
     }

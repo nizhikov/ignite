@@ -302,6 +302,55 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
      *
      */
     @Test
+    public void testFileHandlerReconnectOnInitFail() throws Exception {
+        final int fileSizeMb = 5;
+        final AtomicBoolean throwFirstTime = new AtomicBoolean();
+
+        IgniteEx sender = startGrid(0);
+        IgniteEx receiver = startGrid(1);
+
+        sender.cluster().active(true);
+
+        File fileToSend = createFileRandomData("testFile", fileSizeMb, ByteUnit.MB);
+
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
+            @Override public TransmitSession create() {
+                return new TransmitSessionAdapter() {
+                    @Override public FileHandler fileHandler() {
+                        return new FileHandler() {
+                            @Override public String begin(
+                                String name,
+                                long position,
+                                long count,
+                                Map<String, Serializable> params
+                            ) throws IOException {
+                                if (throwFirstTime.compareAndSet(false, true))
+                                    throw new IOException("Test exception. Initialization fail.");
+
+                                return new File(tempStore, name + "_" + receiver.localNode().id())
+                                    .getAbsolutePath();
+                            }
+
+                            @Override public void end(File file, Map<String, Serializable> params) {
+                                assertEquals(fileToSend.length(), file.length());
+                            }
+                        };
+                    }
+                 };
+            }
+        });
+
+        try (FileWriter writer = sender.context()
+            .fileTransmit()
+            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
+        }
+    }
+
+    /**
+     *
+     */
+    @Test
     public void testFileHandlerWithDownloadLimit() throws Exception {
         final int fileSizeMb = 5;
         final int donwloadSpeedMbSec = 1;
@@ -437,6 +486,70 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                                 assertEquals(fileToSend.length(), file.length());
 
                                 U.closeQuiet(fileIo[0]);
+                            }
+                        };
+                    }
+                };
+            }
+        });
+
+        try (FileWriter writer = sender.context()
+            .fileTransmit()
+            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.BUFF);
+        }
+        finally {
+            U.closeQuiet(fileIo[0]);
+        }
+    }
+
+    /**
+     *
+     */
+    @Test
+    public void testChuckHandlerReconnectOnInitFail() throws Exception {
+        final FileIO[] fileIo = new FileIO[1];
+        final AtomicBoolean throwFirstTime = new AtomicBoolean();
+
+        IgniteEx sender = startGrid(0);
+        IgniteEx receiver = startGrid(1);
+
+        sender.cluster().active(true);
+
+        File fileToSend = createFileRandomData("testFile", 10, ByteUnit.MB);
+
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
+            @Override public TransmitSession create() {
+                return new TransmitSessionAdapter() {
+                    /** {@inheritDoc} */
+                    @Override public ChunkHandler chunkHandler() {
+                        return new ChunkHandler() {
+                            /** */
+                            private File file;
+
+                            @Override public int begin(
+                                String name,
+                                long position,
+                                long count,
+                                Map<String, Serializable> params
+                            ) throws IOException {
+                                if (throwFirstTime.compareAndSet(false, true))
+                                    throw new IOException("Test exception. Initialization failed");
+
+                                file = new File(tempStore, name + "_" + receiver.localNode().id());
+                                fileIo[0] = ioFactory.create(file);
+
+                                return 16 * 1024;
+                            }
+
+                            @Override public boolean chunk(ByteBuffer buff) throws IOException {
+                                fileIo[0].writeFully(buff);
+
+                                return true;
+                            }
+
+                            @Override public void end(Map<String, Serializable> params) {
+                                assertEquals(fileToSend.length(), file.length());
                             }
                         };
                     }

@@ -116,6 +116,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     /** */
     private DiscoveryEventListener discoLsnr;
 
+    /** Processor stopping flag. */
+    private volatile boolean stopped;
+
     /** The factory produces chunked stream to process an input data channel. */
     private volatile ChunkedStreamFactory streamFactory = new ChunkedStreamFactory();
 
@@ -230,20 +233,28 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     /** {@inheritDoc} */
     @Override public void start() throws IgniteCheckedException {
         ctx.event().addDiscoveryEventListener(discoLsnr = (evt, disco) -> {
-            UUID leftNodeId = evt.eventNode().id();
+            if (!busyLock.enterBusy())
+                return;
 
-            // Clear the context on the uploader node left.
-            for (Map.Entry<String, FileIoReadContext> sesEntry : sessionContextMap.entrySet()) {
-                FileIoReadContext ioctx = sesEntry.getValue();
+            try {
+                UUID leftNodeId = evt.eventNode().id();
 
-                if (ioctx.nodeId.equals(leftNodeId)) {
-                    ClusterTopologyCheckedException ex;
+                // Clear the context on the uploader node left.
+                for (Map.Entry<String, FileIoReadContext> sesEntry : sessionContextMap.entrySet()) {
+                    FileIoReadContext ioctx = sesEntry.getValue();
 
-                    ioctx.session.onException(ex = new ClusterTopologyCheckedException("Failed to proceed download. " +
-                        "The remote node node left the grid: " + leftNodeId));
+                    if (ioctx.nodeId.equals(leftNodeId)) {
+                        ClusterTopologyCheckedException ex;
 
-                    sessionContextMap.remove(sesEntry.getKey());
+                        ioctx.session.onException(ex = new ClusterTopologyCheckedException("Failed to proceed download. " +
+                            "The remote node node left the grid: " + leftNodeId));
+
+                        sessionContextMap.remove(sesEntry.getKey());
+                    }
                 }
+            }
+            finally {
+                busyLock.leaveBusy();
             }
         }, EVT_NODE_LEFT, EVT_NODE_FAILED);
     }
@@ -253,6 +264,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         busyLock.block();
 
         try {
+            stopped = true;
 
             ctx.event().removeDiscoveryEventListener(discoLsnr, EVT_NODE_LEFT, EVT_NODE_FAILED);
 
@@ -260,10 +272,19 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 removeFileIoChannelHandler(topic);
 
             inBytePermits.shutdown();
+            outBytePermits.shutdown();
         }
         finally {
             busyLock.unblock();
         }
+    }
+
+    /**
+     * @throws NodeStoppingException If node stopping.
+     */
+    private void checkProcessorNotStopped() throws NodeStoppingException {
+        if (stopped)
+            throw new NodeStoppingException("The local node is stopping. Transmission aborted.");
     }
 
     /**
@@ -312,16 +333,23 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     FileIoReadContext sesCtx = null;
 
                     try {
-                        sessionId = Objects.requireNonNull(channel.attr(SESSION_ID_KEY));
+                        if (!busyLock.enterBusy())
+                            return;
 
-                        sesCtx = sessionContextMap.computeIfAbsent(sessionId,
-                            sesId -> new FileIoReadContext(nodeId, factory.create()));
+                        try {
+                            sessionId = Objects.requireNonNull(channel.attr(SESSION_ID_KEY));
 
-                        sesCtx.currInput = new TransmitInputChannel(ctx, channel);
-                        sesCtx.currOutput = new TransmitOutputChannel(ctx, channel);
+                            sesCtx = sessionContextMap.computeIfAbsent(sessionId,
+                                sesId -> new FileIoReadContext(nodeId, factory.create()));
 
-                        if (sesCtx.started.compareAndSet(false, true))
-                            sesCtx.session.begin(nodeId, sessionId);
+                            sesCtx.currInput = new TransmitInputChannel(ctx, channel);
+                            sesCtx.currOutput = new TransmitOutputChannel(ctx, channel);
+
+                            if (sesCtx.started.compareAndSet(false, true))
+                                sesCtx.session.begin(nodeId, sessionId);
+                        }finally {
+                            busyLock.leaveBusy();
+                        }
 
                         onChannelCreated0(sessionId, sesCtx);
                     }
@@ -346,8 +374,6 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @param topic The topic to erase handler from.
      */
     public void removeFileIoChannelHandler(Object topic) {
-        assert busyLock.blockedByCurrentThread();
-
         topicFactoryMap.remove(topic);
 
         ctx.io().removeChannelListener(topic);
@@ -382,70 +408,66 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     private void onChannelCreated0(String sessionId, FileIoReadContext sesCtx) {
         ChunkedInputStream inStream = null;
         TransmitMeta meta = null;
-        boolean stopped = false;
 
         try {
-            while (!Thread.currentThread().isInterrupted() && !stopped) {
-                if (!busyLock.enterBusy())
-                    throw new NodeStoppingException("The node is stopping. Download session cannot be finished " +
-                        "[sessionId=" + sessionId + ']');
+            while (!Thread.currentThread().isInterrupted()) {
+                checkProcessorNotStopped();
 
-                try {
-                    // Read current stream session policy
-                    ReadPolicy currPlc = sesCtx.currInput.readPolicy();
+                // Read current stream session policy
+                ReadPolicy currPlc = sesCtx.currInput.readPolicy();
 
-                    if (currPlc == ReadPolicy.NONE) {
-                        sesCtx.session.end();
-                        sessionContextMap.remove(sessionId);
+                if (currPlc == ReadPolicy.NONE) {
+                    sesCtx.session.end();
+                    sessionContextMap.remove(sessionId);
 
-                        break;
-                    }
-
-                    long startTime = U.currentTimeMillis();
-
-                    sesCtx.currPlc = currPlc;
-
-                    if (sesCtx.stream == null)
-                        sesCtx.stream = streamFactory.createInputStream(sesCtx.currPlc, sesCtx.session, ioStreamChunkSize);
-
-                    inStream = sesCtx.stream;
-                    inStream.setup(sesCtx.currInput);
-
-                    // Read data from the input.
-                    while (!inStream.endStream()) {
-                        if (Thread.currentThread().isInterrupted())
-                            throw new InterruptedException("The thread has been interrupted. Stop processing input stream.");
-
-                        // If the limit of permits at appropriate period of time reached,
-                        // the furhter invocations of the #acuqire(int) method will be blocked.
-                        boolean acquired = inBytePermits.tryAcquire(sesCtx.stream.chunkSize(),
-                            DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-
-                        if (!acquired)
-                            throw new RemoteTransmitException("Download speed is too slow " +
-                                "[rate=" + ByteUnit.BYTE.toKB(inBytePermits.permitsPerSec()) + " Kb/sec]");
-
-                        inStream.readChunk(sesCtx.currInput);
-                    }
-
-                    inStream.close();
-
-                    sesCtx.stream = null;
-
-                    // Write stream processing acknowledge.
-                    sesCtx.currOutput.acknowledge(inStream.count());
-
-                    long downloadTime = U.currentTimeMillis() - startTime;
-
-                    U.log(log, "The file has been successfully downloaded " +
-                        "[name=" + inStream.name() + ", transferred=" + ByteUnit.BYTE.toKB(inStream.transferred()) + " Kb" +
-                        ", time=" + (double)((downloadTime) / 1000) + " sec" +
-                        ", rate=" + ByteUnit.BYTE.toKB(inBytePermits.permitsPerSec()) + " Kb/sec" +
-                        ", reconnects=" + sesCtx.reconnects);
+                    break;
                 }
-                finally {
-                    busyLock.leaveBusy();
+
+                long startTime = U.currentTimeMillis();
+
+                sesCtx.currPlc = currPlc;
+
+                if (sesCtx.stream == null)
+                    sesCtx.stream = streamFactory.createInputStream(sesCtx.currPlc, sesCtx.session, ioStreamChunkSize);
+
+                inStream = sesCtx.stream;
+
+                inStream.setup(sesCtx.currInput);
+
+                // Read data from the input.
+                while (!inStream.endStream()) {
+                    if (Thread.currentThread().isInterrupted())
+                        throw new InterruptedException("The thread has been interrupted. Stop processing input stream.");
+
+                    checkProcessorNotStopped();
+
+                    // If the limit of permits at appropriate period of time reached,
+                    // the furhter invocations of the #acuqire(int) method will be blocked.
+                    boolean acquired = inBytePermits.tryAcquire(sesCtx.stream.chunkSize(),
+                        DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+
+                    if (!acquired)
+                        throw new RemoteTransmitException("Download speed is too slow " +
+                            "[rate=" + ByteUnit.BYTE.toKB(inBytePermits.permitsPerSec()) + " Kb/sec]");
+
+                    inStream.readChunk(sesCtx.currInput);
                 }
+
+                inStream.checkStreamEOF();
+                inStream.close();
+
+                sesCtx.stream = null;
+
+                // Write stream processing acknowledge.
+                sesCtx.currOutput.acknowledge(inStream.count());
+
+                long downloadTime = U.currentTimeMillis() - startTime;
+
+                U.log(log, "The file has been successfully downloaded " +
+                    "[name=" + inStream.name() + ", transferred=" + ByteUnit.BYTE.toKB(inStream.transferred()) + " Kb" +
+                    ", time=" + (double)((downloadTime) / 1000) + " sec" +
+                    ", rate=" + ByteUnit.BYTE.toKB(inBytePermits.permitsPerSec()) + " Kb/sec" +
+                    ", reconnects=" + sesCtx.reconnects);
             }
         }
         catch (RemoteTransmitException e) {
@@ -587,9 +609,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     if (reconnects > reconnectCnt)
                         throw new IOException("The number of reconnect attempts exceeded the limit: " + reconnectCnt);
 
-                    if (!busyLock.enterBusy())
-                        throw new NodeStoppingException("The node is stopping. Upload session cannot be finished " +
-                            "[sessionId=" + sessionId + ']');
+                    checkProcessorNotStopped();
 
                     try {
                         if (out == null)
@@ -612,6 +632,8 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         while (!fileStream.endStream()) {
                             if (Thread.currentThread().isInterrupted())
                                 throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
+
+                            checkProcessorNotStopped();
 
                             // If the limit of permits at appropriate period of time reached,
                             // the furhter invocations of the #acuqire(int) method will be blocked.
@@ -645,9 +667,6 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                             ", count=" + fileStream.count() + ']', e);
 
                         reconnects++;
-                    }
-                    finally {
-                        busyLock.leaveBusy();
                     }
                 }
 

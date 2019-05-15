@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.transmit.chunk;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
 
@@ -49,6 +50,11 @@ public interface ChunkedStream extends Closeable {
      * @return Additional stream params
      */
     public Map<String, Serializable> params();
+
+    /**
+     * @throws IOException If the check fails.
+     */
+    public void checkStreamEOF() throws IOException;
 
     /**
      * @return {@code true} if and only if the chunked stream received all the data it expected.

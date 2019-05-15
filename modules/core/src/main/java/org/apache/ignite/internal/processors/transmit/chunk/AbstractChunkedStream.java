@@ -23,10 +23,8 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.processors.transmit.channel.RemoteTransmitException;
 import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
 import org.apache.ignite.internal.processors.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
@@ -37,6 +35,14 @@ import org.apache.ignite.internal.util.typedef.internal.S;
  *
  */
 abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutputStream {
+    /** Additional stream params. */
+    @GridToStringInclude
+    private final Map<String, Serializable> params = new HashMap<>();
+
+    /** The number of bytes successfully transferred druring iteration. */
+    @GridToStringInclude
+    protected final AtomicLong transferred = new AtomicLong();
+
     /** The size of segment for the read. */
     private int chunkSize;
 
@@ -52,16 +58,8 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
     /** The total number of bytes to send. */
     private Long count;
 
-    /** Additional stream params. */
-    @GridToStringInclude
-    private final Map<String, Serializable> params = new HashMap<>();
-
     /** Initialization flag. */
-    private final AtomicBoolean inited = new AtomicBoolean();
-
-    /** The number of bytes successfully transferred druring iteration. */
-    @GridToStringInclude
-    protected final AtomicLong transferred = new AtomicLong();
+    private boolean inited;
 
     /**
      * @param name The unique file name within transfer process.
@@ -144,18 +142,22 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
         in.readMeta(meta);
 
         if (meta.initial()) {
-            if (inited.compareAndSet(false, true)) {
+            if (!inited) {
                 name = meta.name();
                 startPos = meta.offset();
                 count = meta.count();
                 params.putAll(meta.params());
+
+                init();
+
+                inited = true;
             }
             else
                 throw new IgniteCheckedException("Attempt to read a new file from channel, but previous was not fully " +
                     "loaded [new=" + meta.name() + ", old=" + name() + ']');
         }
         else {
-            if (inited.get()) {
+            if (inited) {
                 if (!name().equals(meta.name()))
                     throw new IgniteCheckedException("Attempt to load different file name [name=" + name() +
                         ", meta=" + meta + ']');
@@ -171,8 +173,6 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
                 throw new IgniteCheckedException("The setup of previous stream read failed [new=" + meta.name() +
                     ", old=" + name() + ']');
         }
-
-        init();
     }
 
     /** {@inheritDoc} */
@@ -186,14 +186,11 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
             params()));
     }
 
-    /**
-     * @param io The file object to check.
-     * @throws IOException If the check fails.
-     */
-    public void checkChunkedIoEOF(ChunkedStream io) throws IOException {
-        if (io.transferred() < io.count()) {
-            throw new RemoteTransmitException("Socket channel EOF received, but the file is not fully transferred " +
-                "[count=" + io.count() + ", transferred=" + io.transferred() + ']');
+    /** {@inheritDoc} */
+    @Override public void checkStreamEOF() throws IOException {
+        if (transferred() < count()) {
+            throw new IOException("Stream EOF occurred, but the file is not fully transferred " +
+                "[count=" + count() + ", transferred=" + transferred() + ']');
         }
     }
 
