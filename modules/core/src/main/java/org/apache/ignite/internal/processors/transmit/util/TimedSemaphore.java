@@ -78,8 +78,8 @@ public class TimedSemaphore {
 
     /**
      * Sets the maximum number of available permits. In the other words, the number of times the
-     * {@link ##acquire(int)()} method can be called within the given time time without being blocked.
-     * To disbale the limit, set {@link #UNLIMITED_PERMITS}.
+     * {@link TimedSemaphore#tryAcquire(int, int, TimeUnit)} method can be called within the given
+     * time time without being blocked. To disbale the limit, set {@link #UNLIMITED_PERMITS}.
      *
      * @param permitsPerSec The maximum number of available permits per second.
      */
