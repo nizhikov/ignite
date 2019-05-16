@@ -362,16 +362,6 @@ public class GridIoMessageFactory implements MessageFactory {
 
                 break;
 
-            case ChannelCreateRequestMessage.CHANNEL_REQUEST_MSG_TYPE:
-                msg = new ChannelCreateRequestMessage();
-
-                break;
-
-            case ChannelCreateResponseMessage.CHANNEL_RESPONSE_MSG_TYPE:
-                msg = new ChannelCreateResponseMessage();
-
-                break;
-
             case 0:
                 msg = new GridJobCancelRequest();
 
@@ -1170,6 +1160,16 @@ public class GridIoMessageFactory implements MessageFactory {
 
             case GridIoSecurityAwareMessage.TYPE_CODE:
                 msg = new GridIoSecurityAwareMessage();
+
+                break;
+
+            case ChannelCreateResponseMessage.TYPE_CODE:
+                msg = new ChannelCreateResponseMessage();
+
+                break;
+
+            case ChannelCreateRequestMessage.TYPE_CODE:
+                msg = new ChannelCreateRequestMessage();
 
                 break;
 

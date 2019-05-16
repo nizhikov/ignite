@@ -23,18 +23,18 @@ import java.util.HashMap;
 import java.util.Map;
 import org.apache.ignite.internal.GridDirectTransient;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
+import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
 /**
  * Message response for creation of {@link IgniteSocketChannel}.
  */
 public class ChannelCreateResponseMessage implements Message {
-    /** Request message type */
-    public static final int CHANNEL_RESPONSE_MSG_TYPE = -30;
+    /** Response message type */
+    public static final short TYPE_CODE = 175;
 
     /** */
     private static final long serialVersionUID = 0L;
@@ -122,7 +122,7 @@ public class ChannelCreateResponseMessage implements Message {
 
     /** {@inheritDoc} */
     @Override public short directType() {
-        return CHANNEL_RESPONSE_MSG_TYPE;
+        return TYPE_CODE;
     }
 
     /** {@inheritDoc} */

@@ -34,7 +34,7 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
  */
 public class ChannelCreateRequestMessage implements Message {
     /** Request message type */
-    public static final int CHANNEL_REQUEST_MSG_TYPE = -29;
+    public static final short TYPE_CODE = 176;
 
     /** */
     private static final long serialVersionUID = 0L;
@@ -122,7 +122,7 @@ public class ChannelCreateRequestMessage implements Message {
 
     /** {@inheritDoc} */
     @Override public short directType() {
-        return CHANNEL_REQUEST_MSG_TYPE;
+        return TYPE_CODE;
     }
 
     /** {@inheritDoc} */

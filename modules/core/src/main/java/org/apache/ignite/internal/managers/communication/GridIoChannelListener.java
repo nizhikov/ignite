@@ -21,7 +21,6 @@ import java.io.Serializable;
 import java.util.EventListener;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
 /**
@@ -31,9 +30,8 @@ public interface GridIoChannelListener extends EventListener {
     /**
      * @param channel The channel instance created locally.
      * @return Additional attributes to send to remote node.
-     * @throws IgniteCheckedException If fails.
      */
-    public default Map<String, Serializable> onChannelConfigure(IgniteSocketChannel channel) throws IgniteCheckedException {
+    public default Map<String, Serializable> onChannelConfigure(IgniteSocketChannel channel) {
         return null;
     };
 
