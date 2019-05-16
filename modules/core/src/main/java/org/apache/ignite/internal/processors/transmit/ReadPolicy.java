@@ -24,7 +24,7 @@ public enum ReadPolicy {
     /** Default read policy means the read session reached its end.*/
     NONE,
 
-    /** Read the source direcly info the FileChannel. */
+    /** Read the source direcly into the FileChannel. */
     FILE,
 
     /** Read the source into the appropriate ByteBuffer. */
