@@ -33,7 +33,7 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
  * Message requesting to creation of {@link IgniteSocketChannel}.
  */
 public class ChannelCreateRequestMessage implements Message {
-    /** Request message type */
+    /** Request message type (value is {@code 176}). */
     public static final short TYPE_CODE = 176;
 
     /** */

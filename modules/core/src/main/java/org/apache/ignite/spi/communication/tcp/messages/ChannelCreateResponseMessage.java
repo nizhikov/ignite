@@ -33,7 +33,7 @@ import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
  * Message response for creation of {@link IgniteSocketChannel}.
  */
 public class ChannelCreateResponseMessage implements Message {
-    /** Response message type */
+    /** Response message type (value is {@code 175}). */
     public static final short TYPE_CODE = 175;
 
     /** */
