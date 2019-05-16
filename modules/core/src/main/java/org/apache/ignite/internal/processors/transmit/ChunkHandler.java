@@ -23,7 +23,8 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 /**
- *
+ * The {@code ChunkHandler} represents by itself the way of input data stream processing.
+ * It accepts within each chunk a {@link ByteBuffer} with data from input for further processing.
  */
 public interface ChunkHandler {
     /**

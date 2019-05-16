@@ -22,7 +22,7 @@ import org.apache.ignite.internal.processors.transmit.ReadPolicy;
 import org.apache.ignite.internal.processors.transmit.TransmitSession;
 
 /**
- *
+ * Factory to create a new stream of chunks when the file read or write events happened.
  */
 public class ChunkedStreamFactory {
     /**

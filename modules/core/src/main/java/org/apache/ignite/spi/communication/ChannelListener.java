@@ -20,7 +20,7 @@ package org.apache.ignite.spi.communication;
 import java.util.EventListener;
 
 /**
- * Listener for the channel events.
+ * Listener for the channel state change events.
  */
 public interface ChannelListener extends EventListener {
     /**

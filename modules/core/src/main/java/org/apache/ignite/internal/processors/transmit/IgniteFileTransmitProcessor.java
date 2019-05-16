@@ -59,7 +59,7 @@ import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
 import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 
 /**
- *
+ * Class represents a file transfer manager implementation to send or receive files between grid nodes.
  */
 public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     /**

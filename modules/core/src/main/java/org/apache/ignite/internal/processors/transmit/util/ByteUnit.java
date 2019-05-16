@@ -18,7 +18,12 @@
 package org.apache.ignite.internal.processors.transmit.util;
 
 /**
- *
+ * A {@code ByteUnit} represents the number of bytes at a given unit of
+ * granularity and provides utility methods to convert across units,
+ * and to perform setting amount of bytes for some operations over these
+ * units.  A {@code ByteUnit} does not maintain byte information itself,
+ * but only helps organize and use the given amount of bytes representations
+ * that may be maintained separately across various contexts.
  */
 public enum ByteUnit {
     /** Byte type. */

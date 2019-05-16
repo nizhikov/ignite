@@ -23,7 +23,7 @@ import java.io.Serializable;
 import java.util.Map;
 
 /**
- *
+ * Class represents a stream of chunks, can be closed when the stream ends.
  */
 public interface ChunkedStream extends Closeable {
     /**

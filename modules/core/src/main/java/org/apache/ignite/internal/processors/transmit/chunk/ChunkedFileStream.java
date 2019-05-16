@@ -34,7 +34,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 
 /**
- *
+ * File stream implementation of chunked stream which supports zero-copy streaming algorithm.
  */
 public class ChunkedFileStream extends AbstractChunkedStream {
     /** The default factory to provide IO oprations over underlying file. */

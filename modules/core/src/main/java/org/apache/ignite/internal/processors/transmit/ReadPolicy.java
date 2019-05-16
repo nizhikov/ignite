@@ -18,7 +18,7 @@
 package org.apache.ignite.internal.processors.transmit;
 
 /**
- *
+ * Enumeration of ways how to handle the input data of chunked stream.
  */
 public enum ReadPolicy {
     /** Default read policy means the read session reached its end.*/

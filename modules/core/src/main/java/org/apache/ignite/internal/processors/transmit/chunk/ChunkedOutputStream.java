@@ -22,7 +22,7 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
 
 /**
- *
+ * Output stream of chunks to write to the remote node.
  */
 public interface ChunkedOutputStream extends ChunkedStream {
     /**

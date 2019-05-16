@@ -32,7 +32,7 @@ import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
- *
+ * The chunked stream with the basic behaviour.
  */
 abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutputStream {
     /** Additional stream params. */

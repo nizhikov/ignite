@@ -30,7 +30,7 @@ import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChan
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
- *
+ * Buffered chunked stream to handle data input by chunks delivered to {@link ByteBuffer}.
  */
 public class ChunkedBufferStream extends AbstractChunkedStream {
     /** */

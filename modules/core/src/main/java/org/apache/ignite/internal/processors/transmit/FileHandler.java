@@ -23,7 +23,9 @@ import java.io.Serializable;
 import java.util.Map;
 
 /**
- *
+ * The {@code FileHandler} represents by itself the way of input data stream processing. All the data will
+ * be processed under the hood using zero-copy transferring algorithm and only start file processing and
+ * the end of processing will be provided.
  */
 public interface FileHandler {
     /**

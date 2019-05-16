@@ -24,7 +24,8 @@ import java.util.Map;
 import org.apache.ignite.IgniteCheckedException;
 
 /**
- *
+ * The class represents a session file writer to write a batch of files to the remote node. The writer
+ * must be closed explicitly when all the set of desired files have been written to remote.
  */
 public interface FileWriter extends Closeable {
     /**

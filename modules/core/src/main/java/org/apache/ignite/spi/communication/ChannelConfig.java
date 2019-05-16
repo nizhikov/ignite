@@ -18,7 +18,7 @@
 package org.apache.ignite.spi.communication;
 
 /**
- *
+ * The {@link Channel} configuration.
  */
 public interface ChannelConfig {
     /**

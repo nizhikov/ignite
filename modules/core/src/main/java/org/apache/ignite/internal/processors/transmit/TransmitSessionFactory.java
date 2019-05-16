@@ -18,7 +18,7 @@
 package org.apache.ignite.internal.processors.transmit;
 
 /**
- *
+ * Factory to create a new session implementation on each input file transmission request.
  */
 public interface TransmitSessionFactory {
     /**

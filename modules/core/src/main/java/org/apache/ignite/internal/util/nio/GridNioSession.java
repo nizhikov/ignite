@@ -78,7 +78,7 @@ public interface GridNioSession {
     }
 
     /**
-     * @return {@code True} to close SocketChannel on session close.
+     * @return {@code True} to close SocketChannel on current session close occured.
      */
     public default boolean closeSocketOnSessionClose() {
         return true;

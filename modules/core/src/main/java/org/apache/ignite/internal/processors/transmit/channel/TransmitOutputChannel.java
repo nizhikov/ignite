@@ -30,7 +30,9 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
 /**
- *
+ * Class represents an output transmission connection channel.
+ * <p>
+ * Please, see {@link TransmitAbstractChannel} fot details.
  */
 public class TransmitOutputChannel extends TransmitAbstractChannel {
     /** */

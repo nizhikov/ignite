@@ -24,12 +24,12 @@ import java.util.UUID;
 import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
 /**
- * Listener for connections established from remote nodes.
+ * Listener for a new {@link IgniteSocketChannel} connections established from remote nodes.
  */
 public interface GridIoChannelListener extends EventListener {
     /**
      * @param channel The channel instance created locally.
-     * @return Additional attributes to send to remote node.
+     * @return Additional attributes to send back to remote node.
      */
     public default Map<String, Serializable> onChannelConfigure(IgniteSocketChannel channel) {
         return null;

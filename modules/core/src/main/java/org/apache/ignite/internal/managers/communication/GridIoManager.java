@@ -1663,10 +1663,10 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     }
 
     /**
-     * @param node Destination node.
-     * @param topic Topic to send the message to.
+     * @param node Destination node to connect to.
+     * @param topic Topic to send the request to.
      * @param topicOrd GridTopic enumeration ordinal.
-     * @param plc Thread policy to execute on.
+     * @param plc Processing thread policy to execute on.
      * @param attrs Addtitional attributes to send.
      * @return Established {@link IgniteSocketChannel} to use.
      * @throws IgniteCheckedException If fails.
@@ -1705,9 +1705,9 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     }
 
     /**
-     * @param nodeId Destination node.
-     * @param topic Topic to send the message to.
-     * @param plc Thread policy to execute on.
+     * @param nodeId Destination node to connect to.
+     * @param topic Topic to send the request to.
+     * @param plc Processing thread policy to execute on.
      * @param attrs Additional attributes to send.
      * @return Established {@link IgniteSocketChannel} to use.
      * @throws IgniteCheckedException If fails.
