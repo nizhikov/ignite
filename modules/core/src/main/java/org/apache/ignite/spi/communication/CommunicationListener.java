@@ -19,7 +19,6 @@ package org.apache.ignite.spi.communication;
 
 import java.io.Serializable;
 import java.util.EventListener;
-import java.util.Map;
 import java.util.UUID;
 import org.apache.ignite.lang.IgniteRunnable;
 
@@ -46,20 +45,4 @@ public interface CommunicationListener<T extends Serializable> extends EventList
      * @param nodeId Node ID.
      */
     public void onDisconnected(UUID nodeId);
-
-    /**
-     * @param ch A channel instance to process configure request.
-     * @return Additional attributes to send to remote node.
-     */
-    public default Map<String, Serializable> onChannelConfigure(Channel ch) {
-        return null;
-    }
-
-    /**
-     * @param nodeId Remote node id.
-     * @param ch Locally created channel endpoint.
-     */
-    public default void onChannelCreated(UUID nodeId, Channel ch) {
-        // No-op.
-    }
 }

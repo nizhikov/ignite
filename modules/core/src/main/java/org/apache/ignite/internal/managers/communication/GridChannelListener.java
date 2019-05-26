@@ -15,16 +15,21 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.spi.communication;
+package org.apache.ignite.internal.managers.communication;
 
+import java.nio.channels.Channel;
 import java.util.EventListener;
+import java.util.UUID;
+import org.apache.ignite.plugin.extensions.communication.Message;
 
 /**
- * Listener for the channel state change events.
+ * Listener for a new {@link Channel} connections established from remote nodes.
  */
-public interface ChannelListener extends EventListener {
+public interface GridChannelListener extends EventListener {
     /**
-     * @param channel The channel source of close event.
+     * @param nodeId The remote node id.
+     * @param initMsg Channel initialization message.
+     * @param channel Local created nio channel endpoint.
      */
-    public void onChannelClose(Channel channel);
+    public void onChannelOpened(UUID nodeId, Message initMsg, Channel channel);
 }

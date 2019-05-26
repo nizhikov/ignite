@@ -20,7 +20,6 @@ package org.apache.ignite.spi.communication.tcp;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.Serializable;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -28,9 +27,9 @@ import java.net.SocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.Channel;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SocketChannel;
-import java.nio.channels.spi.AbstractInterruptibleChannel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -122,9 +121,6 @@ import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.lang.IgniteProductVersion;
 import org.apache.ignite.lang.IgniteRunnable;
 import org.apache.ignite.lang.IgniteUuid;
-import org.apache.ignite.marshaller.Marshaller;
-import org.apache.ignite.marshaller.MarshallerUtils;
-import org.apache.ignite.marshaller.jdk.JdkMarshaller;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageFactory;
 import org.apache.ignite.plugin.extensions.communication.MessageFormatter;
@@ -146,13 +142,9 @@ import org.apache.ignite.spi.IgniteSpiOperationTimeoutHelper;
 import org.apache.ignite.spi.IgniteSpiThread;
 import org.apache.ignite.spi.IgniteSpiTimeoutObject;
 import org.apache.ignite.spi.TimeoutStrategy;
-import org.apache.ignite.spi.communication.Channel;
-import org.apache.ignite.spi.communication.ChannelId;
-import org.apache.ignite.spi.communication.ChannelListener;
 import org.apache.ignite.spi.communication.CommunicationListener;
 import org.apache.ignite.spi.communication.CommunicationSpi;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannelImpl;
+import org.apache.ignite.spi.communication.tcp.internal.CommunicationListenerEx;
 import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 import org.apache.ignite.spi.communication.tcp.internal.HandshakeException;
 import org.apache.ignite.spi.communication.tcp.internal.TcpCommunicationConnectionCheckFuture;
@@ -289,8 +281,7 @@ import static org.apache.ignite.spi.communication.tcp.messages.RecoveryLastRecei
  */
 @IgniteSpiMultipleInstancesSupport(true)
 @IgniteSpiConsistencyChecked(optional = false)
-public class TcpCommunicationSpi extends IgniteSpiAdapter
-    implements CommunicationSpi<Message>, ChannelListener {
+public class TcpCommunicationSpi extends IgniteSpiAdapter implements CommunicationSpi<Message> {
     /** Time threshold to log too long connection establish. */
     private static final int CONNECTION_ESTABLISH_THRESHOLD_MS = 100;
 
@@ -391,7 +382,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
     /** Maximum {@link GridNioSession} connections per node. */
     public static final int MAX_CONN_PER_NODE = 1024;
 
-    /** Maximum {@link IgniteSocketChannel} connections per node. */
+    /** Maximum {@link Channel} connections per node. */
     public static final int MAX_CHANNEL_CONN_PER_NODE = 256;
 
     /** No-op runnable. */
@@ -421,9 +412,6 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
     /** */
     private ConnectionPolicy sockConnPlc = new ChannelRandomConnectionPolicy();
-
-    /** Marshaller. */
-    private Marshaller marsh;
 
     /** */
     private boolean enableForcibleNodeKill = IgniteSystemProperties
@@ -771,35 +759,32 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                 ConnectionKey connKey,
                 ChannelCreateResponseMessage msg
             ) {
-                IgniteSocketChannel ch = socketChannel(connKey.nodeId(), connKey.connectionIndex());
+                GridFutureAdapter<Channel> reqFut = channelReqs.remove(connKey);
 
-                assert ch != null : "Channel doesnt' exist for key: " + connKey;
+                if (reqFut == null) {
+                    U.error(log, "There is not corresponding channel request to the received channel create " +
+                        "response message. Message will be ignored [remoteId=" + connKey.nodeId() +
+                        ", idx=" + connKey.connectionIndex() + ']');
 
-                try {
-                    if (msg.getAttrsBytes() != null) {
-                        Map<String, Serializable> attrs = U.unmarshal(marshaller(), msg.getAttrsBytes(),
-                            U.resolveClassLoader(ignite.configuration()));
-
-                        for (Map.Entry<String, Serializable> attr : attrs.entrySet())
-                            ch.attr(attr.getKey(), attr.getValue());
-                    }
-                } catch (IgniteCheckedException e) {
-                    log.error("Fail to unmarshall additional channel attibutes from remote node " +
-                        "(will ignore) [nodeId=" + connKey.nodeId() + ']', e);
+                    return;
                 }
 
                 ses.closeSocketOnSessionClose(false);
 
                 ses.close().listen(f -> {
                     try {
+                        f.get(); // Exception not ocurred.
+
                         cleanupLocalNodeRecoveryDescriptor(connKey);
 
-                        ch.channel().configureBlocking(true);
+                        SelectableChannel nioChannel = ses.key().channel();
 
-                        ch.activate();
+                        nioChannel.configureBlocking(true);
+
+                        reqFut.onDone(nioChannel);
                     }
-                    catch (IOException e) {
-                        U.error(log, "Unable to configure blocking mode", e);
+                    catch (IgniteCheckedException | IOException e) {
+                        reqFut.onDone(e);
                     }
                 });
             }
@@ -809,64 +794,41 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                 ConnectionKey connKey,
                 ChannelCreateRequestMessage msg
             ) {
-                IgniteSocketChannel ch = createIgniteSocketChannel(connKey.nodeId(),
-                    connKey.connectionIndex(),
-                    (SocketChannel)ses.key().channel());
-
-                try {
-                    if (msg.getAttrs() == null) {
-                        Map<String, Serializable> attrs = U.unmarshal(marshaller(), msg.getAttrsBytes(),
-                            U.resolveClassLoader(ignite.configuration()));
-
-                        for (Map.Entry<String, Serializable> attr : attrs.entrySet())
-                            ch.attr(attr.getKey(), attr.getValue());
-                    }
-
-                    Map<String, Serializable> outAttrs = null;
-
-                    if (lsnr != null)
-                        outAttrs = lsnr.onChannelConfigure(ch);
-
-                    ChannelCreateResponseMessage resp0 = new ChannelCreateResponseMessage();
-
+                ses.send(new ChannelCreateResponseMessage()).listen(c1 -> {
                     try {
-                        if (outAttrs != null) {
-                            byte[] attrsBytes = U.marshal(marshaller(), outAttrs);
+                        c1.get(); // Exception not ocurred.
 
-                            resp0.setAttrsBytes(attrsBytes);
-                        }
-                    }
-                    catch (IgniteCheckedException e) {
-                        log.error("Fail to marshall channel attributes to send to remote(will ignore) " +
-                            "[attrs=" + outAttrs + ']');
-                    }
-
-                    ses.send(resp0).listen(c1 -> {
-                        // Close session and send response.
                         ses.closeSocketOnSessionClose(false);
 
+                        // Close session and send response.
                         ses.close().listen(c2 -> {
                             try {
                                 cleanupLocalNodeRecoveryDescriptor(connKey);
 
-                                ch.channel().configureBlocking(true);
+                                SelectableChannel channel = ses.key().channel();
 
-                                ch.activate();
+                                channel.configureBlocking(true);
 
-                                notifyChannelEvtListener(connKey.nodeId(), ch);
+                                notifyChannelEvtListener(connKey.nodeId(), channel, msg.message());
                             }
                             catch (IOException e) {
-                                U.error(log, "Unable to configure blocking mode.", e);
+                                U.error(log, "Configure blocking mode to the qequested channel failed. " +
+                                    "Session will be closed [nodeId=" + connKey.nodeId() +
+                                    ", idx=" + connKey.connectionIndex() + ']', e);
+
+                                ses.closeSocketOnSessionClose(true);
+                                ses.close();
                             }
                         });
-                    });
-                }
-                catch (IgniteCheckedException e) {
-                    log.error("Fail to unmarshall additional channel attributes from remote node. " +
-                        "Channel will be closed [nodeId=" + connKey.nodeId() + ", channel="  + ch + ']', e);
+                    }
+                    catch (IgniteCheckedException e) {
+                        U.error(log, "Fail to send channel creation response to the remote node. " +
+                            "Session will be closed [nodeId=" + connKey.nodeId() +
+                            ", idx=" + connKey.connectionIndex() + ']', e);
 
-                    U.closeQuiet(ch);
-                }
+                        ses.close();
+                    }
+                });
             }
 
             @Override public void onMessage(final GridNioSession ses, Message msg) {
@@ -1325,7 +1287,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
     private final ConcurrentMap<UUID, GridCommunicationClient[]> clients = GridConcurrentFactory.newMap();
 
     /** Java NIO channels. */
-    private final ConcurrentMap<ChannelId, IgniteSocketChannel> channels = new ConcurrentHashMap<>();
+    private final ConcurrentMap<ConnectionKey, GridFutureAdapter<Channel>> channelReqs = new ConcurrentHashMap<>();
 
     /** SPI listener. */
     private volatile CommunicationListener<Message> lsnr;
@@ -1417,20 +1379,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
         if (ignite != null) {
             setAddressResolver(ignite.configuration().getAddressResolver());
             setLocalAddress(ignite.configuration().getLocalHost());
-
-            // IgniteMock instance can be injected from tests.
-            marsh = ignite instanceof IgniteEx ?
-                ((IgniteEx)ignite).context().marshallerContext().jdkMarshaller() : new JdkMarshaller();
         }
-    }
-
-    /**
-     * @return The local marshaller instance.
-     */
-    private Marshaller marshaller() {
-        MarshallerUtils.setNodeName(marsh, igniteInstanceName);
-
-        return marsh;
     }
 
     /**
@@ -4091,16 +4040,17 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
     /**
      * @param nodeId The remote node id.
-     * @param ch The configured channel to notify listeners with.
+     * @param channel The configured channel to notify listeners with.
+     * @param initMsg Channel initialization message with additional channel params.
      */
-    private void notifyChannelEvtListener(UUID nodeId, IgniteSocketChannel ch) {
+    private void notifyChannelEvtListener(UUID nodeId, Channel channel, Message initMsg) {
         if (log.isDebugEnabled())
-            log.debug("Notify corresponding listeners due to the new channel created: " + ch);
+            log.debug("Notify corresponding listeners due to the new channel opened: " + channel);
 
         CommunicationListener<Message> lsnr0 = lsnr;
 
-        if (lsnr0 != null)
-            lsnr0.onChannelCreated(nodeId, ch);
+        if (lsnr0 instanceof CommunicationListenerEx)
+            ((CommunicationListenerEx)lsnr0).onChannelOpened(nodeId, initMsg, channel);
     }
 
     /**
@@ -4394,47 +4344,18 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
         return ignite instanceof IgniteEx ? ((IgniteEx)ignite).context().workersRegistry() : null;
     }
 
-    /** {@inheritDoc} */
-    @Override public void onChannelClose(Channel channel) {
-        assert channel != null;
-
-        channels.remove(channel.id());
-    }
-
     /**
-     * @param ch An underlying nio channel.
-     * @param remoteId The remote node to connect to.
-     * @param idx Unique channel connection key.
-     * @return Created, but not configured channel.
+     * @param remote Destination cluster node to communicate with.
+     * @param initMsg Configuration channel attributes wrapped into the message.
+     * @return The future, which will be finished on channel ready.
+     * @throws IgniteSpiException If fails.
      */
-    private IgniteSocketChannelImpl createIgniteSocketChannel(
-        UUID remoteId,
-        int idx,
-        SocketChannel ch
-    ) {
-        IgniteSocketChannelImpl sockCh = new IgniteSocketChannelImpl(remoteId, idx, ch, this);
-
-        IgniteSocketChannel ch0 = channels.putIfAbsent(sockCh.id(), sockCh);
-
-        assert ch0 == null : "A connection key already exists: " + sockCh.id();
-
-        U.log(log, "The channel has been successfully created: " + sockCh);
-
-        return sockCh;
-    }
-
-    /**
-     * @param remoteId The remote node id.
-     * @param idx The unique connection key of socket channel.
-     * @return The corresponding channel.
-     */
-    private IgniteSocketChannel socketChannel(UUID remoteId, int idx) {
-        return channels.get(new ChannelId(remoteId, idx));
-    }
-
-    /** {@inheritDoc} */
-    @Override public IgniteSocketChannel channel(ClusterNode remote, Map<String, Serializable> attrs) throws IgniteSpiException {
+    public IgniteInternalFuture<Channel> openChannel(
+        ClusterNode remote,
+        Message initMsg
+    ) throws IgniteSpiException {
         assert !remote.isLocal() : remote;
+        assert initMsg != null;
 
         if (!nodeSupports(remote, CHANNEL_COMMUNICATION)) {
             throw new IgniteSpiException("The remote node doesn't support communication via socket channels " +
@@ -4443,64 +4364,58 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
 
         connectGate.enter();
 
-        int newConnId = sockConnPlc.connectionIndex();
+        ConnectionKey key = new ConnectionKey(remote.id(), sockConnPlc.connectionIndex());
 
-        IgniteSocketChannelImpl sockCh = null;
         GridSelectorNioSession ses = null;
+        final GridFutureAdapter<Channel> result = new GridFutureAdapter<>();
 
         try {
-            if (socketChannel(remote.id(), newConnId) != null) {
+            if (channelReqs.get(key) != null) {
                 throw new IgniteSpiException("The channel connection cannot be established to remote node. " +
-                    "Connection key already in use [remoteId=" + remote.id() + ", idx=" + newConnId + ']');
+                    "Connection key already in use [key=" + key + ']');
             }
 
-            ses = (GridSelectorNioSession)createNioSession(remote, newConnId);
+            ses = (GridSelectorNioSession)createNioSession(remote, key.connectionIndex());
 
-            assert ses != null : "Session must be established [remoteId=" + remote.id() + ", key=" + newConnId + ']';
+            assert ses != null : "Session must be established [remoteId=" + remote.id() + ", key=" + key + ']';
 
-            sockCh = createIgniteSocketChannel(remote.id(), newConnId, (SocketChannel)ses.key().channel());
+            final GridSelectorNioSession finalSes = ses;
+
+            channelReqs.put(key, result);
 
             // Send configuration message over the created session.
-            ChannelCreateRequestMessage req0 = new ChannelCreateRequestMessage();
+            ses.send(new ChannelCreateRequestMessage(initMsg))
+                .listen(f -> {
+                    try {
+                        f.get(); // Check exception not thrown.
 
-            if (attrs != null) {
-                byte[] attrsBytes = U.marshal(marshaller(), attrs);
+                        addTimeoutObject(new IgniteSpiTimeoutObject() {
+                            @Override public IgniteUuid id() {
+                                return IgniteUuid.randomUuid();
+                            }
 
-                req0.setAttrsBytes(attrsBytes);
-            }
+                            @Override public long endTime() {
+                                return U.currentTimeMillis() + DFLT_CONN_TIMEOUT;
+                            }
 
-            sockCh.configure(ses, req0);
+                            @Override public void onTimeout() {
+                                // Close session if request not complete yet.
+                                if (result.onDone(handshakeTimeoutException()))
+                                    finalSes.close();
+                            }
+                        });
+                    }
+                    catch (IgniteCheckedException e) {
+                        result.onDone(e);
+                    }
+                });
 
-            // Synchronous wait for the reply (channel created and configured on the remote side)
-            long curTime = U.currentTimeMillis();
-
-            long endTime = curTime + DFLT_CONN_TIMEOUT;
-
-            while (!sockCh.active()) {
-                if (Thread.currentThread().isInterrupted())
-                    throw new InterruptedException("The thread has been interrupted during waiting channel configure response");
-
-                U.sleep(200);
-
-                curTime = U.currentTimeMillis();
-
-                if (curTime >= endTime)
-                    throw new IgniteCheckedException("Failed to perform channel configuration due to timeout");
-            }
-
-            assert ses.closed();
-
-            return sockCh;
+            return result;
         }
-        catch (IgniteCheckedException | InterruptedException e) {
-            U.closeQuiet(sockCh);
-
+        catch (IgniteCheckedException e) {
             throw new IgniteSpiException("Unable to create new channel connection to the remote node: " + remote, e);
         }
         finally {
-            if (ses != null)
-                ses.close();
-
             connectGate.leave();
         }
     }
@@ -4952,7 +4867,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter
                 if (obj instanceof GridCommunicationClient)
                     ((GridCommunicationClient)obj).forceClose();
                 else
-                    U.closeQuiet((AbstractInterruptibleChannel)obj);
+                    U.closeQuiet((AutoCloseable)obj);
             }
         }
 

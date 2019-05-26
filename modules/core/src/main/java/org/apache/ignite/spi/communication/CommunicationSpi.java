@@ -19,7 +19,6 @@ package org.apache.ignite.spi.communication;
 
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.Map;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.spi.IgniteSpi;
 import org.apache.ignite.spi.IgniteSpiException;
@@ -110,13 +109,4 @@ public interface CommunicationSpi<T extends Serializable> extends IgniteSpi {
      * @param lsnr Listener to set or {@code null} to unset the listener.
      */
     public void setListener(@Nullable CommunicationListener<T> lsnr);
-
-    /**
-     * @param remote Destination cluster node to communicate with.
-     * @param attrs Configuration channel attributes.
-     * @throws IgniteSpiException If fails.
-     */
-    public default Channel channel(ClusterNode remote, Map<String, Serializable> attrs) throws IgniteSpiException {
-        throw new UnsupportedOperationException();
-    }
 }

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.spi.communication.tcp.channel;
+package org.apache.ignite.spi.communication.tcp.internal.channel;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -23,12 +23,11 @@ import java.net.SocketException;
 import java.nio.channels.SocketChannel;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.util.typedef.internal.S;
-import org.apache.ignite.spi.communication.ChannelConfig;
 
 /**
- * A channel configuration for the {@link IgniteSocketChannel}.
+ * A channel configuration for the {@link Channel}.
  */
-public final class IgniteSocketChannelConfig implements ChannelConfig {
+public final class ChannelConfig {
     /** */
     private final SocketChannel channel;
 
@@ -38,18 +37,23 @@ public final class IgniteSocketChannelConfig implements ChannelConfig {
     /**
      * @param channel The socket channel to create configuration from.
      */
-    public IgniteSocketChannelConfig(SocketChannel channel) {
+    public ChannelConfig(SocketChannel channel) {
         this.channel = channel;
         this.socket = channel.socket();
     }
 
-    /** {@inheritDoc} */
-    @Override public boolean blocking() {
+    /**
+     * @return
+     */
+    public boolean blocking() {
         return channel.isBlocking();
     }
 
-    /** {@inheritDoc} */
-    @Override public ChannelConfig blocking(boolean blocking) {
+    /**
+     * @param blocking
+     * @return
+     */
+    public ChannelConfig blocking(boolean blocking) {
         try {
             channel.configureBlocking(blocking);
         }
@@ -60,8 +64,10 @@ public final class IgniteSocketChannelConfig implements ChannelConfig {
         return this;
     }
 
-    /** {@inheritDoc} */
-    @Override public int timeout() {
+    /**
+     * @return
+     */
+    public int timeout() {
         try {
             return socket.getSoTimeout();
         }
@@ -70,8 +76,11 @@ public final class IgniteSocketChannelConfig implements ChannelConfig {
         }
     }
 
-    /** {@inheritDoc} */
-    @Override public IgniteSocketChannelConfig timeout(int millis) {
+    /**
+     * @param millis
+     * @return
+     */
+    public ChannelConfig timeout(int millis) {
         try {
             socket.setSoTimeout(millis);
         }
@@ -84,6 +93,6 @@ public final class IgniteSocketChannelConfig implements ChannelConfig {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(IgniteSocketChannelConfig.class, this);
+        return S.toString(ChannelConfig.class, this);
     }
 }

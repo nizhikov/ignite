@@ -17,20 +17,15 @@
 
 package org.apache.ignite.spi.communication.tcp.messages;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Map;
-import org.apache.ignite.internal.GridDirectTransient;
-import org.apache.ignite.internal.util.tostring.GridToStringExclude;
+import java.nio.channels.Channel;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
 /**
- * Message response for creation of {@link IgniteSocketChannel}.
+ * Message response for creation of {@link Channel}.
  */
 public class ChannelCreateResponseMessage implements Message {
     /** Response message type (value is {@code 175}). */
@@ -38,42 +33,6 @@ public class ChannelCreateResponseMessage implements Message {
 
     /** */
     private static final long serialVersionUID = 0L;
-
-    /** The map of channel attributes. */
-    @GridDirectTransient
-    private Map<String, Serializable> attrs;
-
-    /** Message. */
-    @GridToStringExclude
-    private byte[] attrsBytes;
-
-    /**
-     * @return The map of channel attributes.
-     */
-    public Map<String, Serializable> getAttrs() {
-        return attrs;
-    }
-
-    /**
-     * @param attrs The map of channel attributes.
-     */
-    public void setAttrs(Map<String, Serializable> attrs) {
-        this.attrs = new HashMap<>(attrs);
-    }
-
-    /**
-     * @return The serialized channel attributes byte array.
-     */
-    public byte[] getAttrsBytes() {
-        return attrsBytes;
-    }
-
-    /**
-     * @param attrsBytes The serialized channel attributes byte array.
-     */
-    public void setAttrsBytes(byte[] attrsBytes) {
-        this.attrsBytes = attrsBytes;
-    }
 
     /** {@inheritDoc} */
     @Override public void onAckReceived() {
@@ -91,13 +50,6 @@ public class ChannelCreateResponseMessage implements Message {
             writer.onHeaderWritten();
         }
 
-        if (writer.state() == 0) {
-            if (!writer.writeByteArray("attrsBytes", attrsBytes))
-                return false;
-
-            writer.incrementState();
-        }
-
         return true;
     }
 
@@ -107,15 +59,6 @@ public class ChannelCreateResponseMessage implements Message {
 
         if (!reader.beforeMessageRead())
             return false;
-
-        if (reader.state() == 0) {
-            attrsBytes = reader.readByteArray("attrsBytes");
-
-            if (!reader.isLastRead())
-                return false;
-
-            reader.incrementState();
-        }
 
         return reader.afterMessageRead(ChannelCreateResponseMessage.class);
     }
@@ -127,7 +70,7 @@ public class ChannelCreateResponseMessage implements Message {
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 1;
+        return 0;
     }
 
     /** {@inheritDoc} */

@@ -15,35 +15,33 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.spi.communication.tcp;
+package org.apache.ignite.internal.managers.communication;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channel;
 import java.nio.channels.ReadableByteChannel;
-import java.util.HashMap;
-import java.util.Map;
+import java.nio.channels.SocketChannel;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.configuration.IgniteConfiguration;
-import org.apache.ignite.internal.managers.communication.GridIoChannelListener;
-import org.apache.ignite.internal.managers.communication.GridIoManager;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
+import org.apache.ignite.plugin.extensions.communication.Message;
+import org.apache.ignite.plugin.extensions.communication.MessageReader;
+import org.apache.ignite.plugin.extensions.communication.MessageWriter;
+import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
-import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.Test;
 
 import static org.apache.ignite.internal.GridTopic.TOPIC_CACHE;
-import static org.apache.ignite.internal.managers.communication.GridIoPolicy.PUBLIC_POOL;
 
 /**
- *
+ * Test for {@link GridIoManager}.
  */
-public class TcpCommunicationSpiChannelSelfTest extends GridCommonAbstractTest {
+public class GridIoManagerChannelSelfTest extends GridCommonAbstractTest {
     /** Default IP finder. */
     private static final TcpDiscoveryIpFinder IP_FINDER = new TcpDiscoveryVmIpFinder(true);
 
@@ -75,30 +73,16 @@ public class TcpCommunicationSpiChannelSelfTest extends GridCommonAbstractTest {
     public void testChannelCreationOnDemandToTopic() throws Exception {
         startGrids(NODES_CNT);
 
-        final IgniteSocketChannel[] nioCh = new IgniteSocketChannel[1];
+        final SocketChannel[] nioCh = new SocketChannel[1];
         final CountDownLatch waitChLatch = new CountDownLatch(1);
-        final String channelKey = "testKey";
-        final String channelValue = "testValue";
 
         Object topic = TOPIC_CACHE.topic("channel", 0);
 
-        grid(1).context().io().addChannelListener(topic, new GridIoChannelListener() {
-            /**
-             * @param channel The channel instance created locally.
-             * @return Additional attributes to send to remote node.
-             */
-            @Override public Map<String, Serializable> onChannelConfigure(IgniteSocketChannel channel) {
-                Map<String, Serializable> attrs = new HashMap<>();
-
-                attrs.put(channelKey, channelValue);
-
-                return attrs;
-            }
-
-            @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
+        grid(1).context().io().addChannelListener(topic, new GridChannelListener() {
+            @Override public void onChannelOpened(UUID nodeId, Message initMsg, Channel channel) {
                 // Created from ignite node with index = 0;
-                if (channel.id().remoteId().equals(grid(0).localNode().id())) {
-                    nioCh[0] = channel;
+                if (nodeId.equals(grid(0).localNode().id())) {
+                    nioCh[0] = (SocketChannel)channel;
 
                     waitChLatch.countDown();
                 }
@@ -107,17 +91,13 @@ public class TcpCommunicationSpiChannelSelfTest extends GridCommonAbstractTest {
 
         GridIoManager ioMgr = grid(0).context().io();
 
-        IgniteSocketChannel senderCh = ioMgr.channelToTopic(grid(1).localNode().id(), topic, PUBLIC_POOL, null);
+        SocketChannel nioChannel = (SocketChannel)ioMgr.openChannel(grid(1).localNode().id(), topic, new TestMessage())
+            .get(5, TimeUnit.SECONDS);
 
         // Wait for the channel connection established.
         assertTrue(waitChLatch.await(5_000L, TimeUnit.MILLISECONDS));
 
         assertNotNull(nioCh[0]);
-
-        // Wait for the senders channel will be ready.
-        GridTestUtils.waitForCondition(senderCh::active, 5_000L);
-
-        assertEquals(channelValue, senderCh.attr(channelKey));
 
         // Prepare ping bytes to check connection.
         final int pingNum = 777_777;
@@ -129,12 +109,12 @@ public class TcpCommunicationSpiChannelSelfTest extends GridCommonAbstractTest {
         writeBuf.flip();
 
         // Write ping bytes to the channel.
-        int cnt = senderCh.channel().write(writeBuf);
+        int cnt = nioChannel.write(writeBuf);
 
         assertEquals(pingBuffSize, cnt);
 
         // Read test bytes from channel on remote node.
-        ReadableByteChannel readCh = nioCh[0].channel();
+        ReadableByteChannel readCh = nioCh[0];
 
         ByteBuffer readBuf = ByteBuffer.allocate(pingBuffSize);
 
@@ -153,4 +133,33 @@ public class TcpCommunicationSpiChannelSelfTest extends GridCommonAbstractTest {
         assertEquals(pingNum, readBuf.getInt());
     }
 
+    /**
+     *
+     */
+    private static class TestMessage implements Message {
+        /** {@inheritDoc} */
+        @Override public void onAckReceived() {
+            // No-op.
+        }
+
+        /** {@inheritDoc} */
+        @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
+            return true;
+        }
+
+        /** {@inheritDoc} */
+        @Override public boolean readFrom(ByteBuffer buf, MessageReader reader) {
+            return true;
+        }
+
+        /** {@inheritDoc} */
+        @Override public short directType() {
+            return 0;
+        }
+
+        /** {@inheritDoc} */
+        @Override public byte fieldsCount() {
+            return 0;
+        }
+    }
 }

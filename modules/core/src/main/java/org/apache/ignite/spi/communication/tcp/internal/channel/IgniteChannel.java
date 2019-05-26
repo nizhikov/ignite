@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.spi.communication.tcp.channel;
+package org.apache.ignite.spi.communication.tcp.internal.channel;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -23,23 +23,17 @@ import java.nio.channels.SocketChannel;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.spi.communication.Channel;
-import org.apache.ignite.spi.communication.ChannelId;
-import org.apache.ignite.spi.communication.ChannelListener;
-import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateRequestMessage;
+import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 
 /**
  * The default implementation of the {@link Channel} comminication between grid nodes.
  */
-public class IgniteSocketChannelImpl implements IgniteSocketChannel {
+public class IgniteChannel implements Channel {
     /** */
-    private final ChannelId id;
+    private final ConnectionKey connKey;
 
     /** */
     private final SocketChannel channel;
@@ -48,7 +42,7 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     private final ChannelListener lsnr;
 
     /** */
-    private final IgniteSocketChannelConfig config;
+    private final ChannelConfig config;
 
     /** */
     private final AtomicBoolean active = new AtomicBoolean();
@@ -59,36 +53,27 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
     /**
      * @param channel The {@link SocketChannel} which will be used.
      */
-    public IgniteSocketChannelImpl(UUID remoteId, int idx, SocketChannel channel, ChannelListener lsnr) {
-        this.id = new ChannelId(remoteId, idx);
+    public IgniteChannel(ConnectionKey connKey, SocketChannel channel, ChannelListener lsnr) {
+        this.connKey = connKey;
         this.channel = channel;
-        this.config = new IgniteSocketChannelConfig(channel);
+        this.config = new ChannelConfig(channel);
         this.lsnr = lsnr;
     }
 
-    /** {@inheritDoc} */
-    @Override public ChannelId id() {
-        return id;
+    /**
+     * @return The unique connection key.
+     */
+    public ConnectionKey connKey() {
+        return connKey;
     }
 
     /** {@inheritDoc} */
-    @Override public SocketChannel channel() {
+    @Override public SocketChannel socket() {
         return channel;
     }
 
-    /**
-     * @param ses The nio session to send configure request over it.
-     * @param msg The configuration channel message.
-     * @throws IgniteCheckedException If fails.
-     */
-    public void configure(GridSelectorNioSession ses, ChannelCreateRequestMessage msg) throws IgniteCheckedException {
-        assert ses.key().channel() == channel;
-
-        ses.send(msg).get();
-    }
-
     /** {@inheritDoc} */
-    @Override public IgniteSocketChannelConfig config() {
+    @Override public ChannelConfig config() {
         return config;
     }
 
@@ -121,7 +106,7 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
 
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
-        lsnr.onChannelClose(this);
+        lsnr.onClose(connKey);
 
         U.closeQuiet(channel);
     }
@@ -134,18 +119,18 @@ public class IgniteSocketChannelImpl implements IgniteSocketChannel {
         if (o == null || getClass() != o.getClass())
             return false;
 
-        IgniteSocketChannelImpl channel = (IgniteSocketChannelImpl)o;
+        IgniteChannel channel = (IgniteChannel)o;
 
-        return id.equals(channel.id);
+        return connKey.equals(channel.connKey);
     }
 
     /** {@inheritDoc} */
     @Override public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(connKey);
     }
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(IgniteSocketChannelImpl.class, this);
+        return S.toString(IgniteChannel.class, this);
     }
 }

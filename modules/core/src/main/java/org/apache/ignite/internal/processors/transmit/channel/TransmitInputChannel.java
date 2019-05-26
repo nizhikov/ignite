@@ -29,7 +29,7 @@ import org.apache.ignite.internal.processors.transmit.ReadPolicy;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
+import org.apache.ignite.spi.communication.tcp.internal.channel.Channel;
 
 /**
  * Class represents an input transmission connection channel.
@@ -48,11 +48,11 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      */
     public TransmitInputChannel(
         GridKernalContext ktx,
-        IgniteSocketChannel igniteChannel
+        Channel igniteChannel
     ) throws IOException {
         super(ktx, igniteChannel);
 
-        dis = new ObjectInputStream(igniteChannel.channel().socket().getInputStream());
+        dis = new ObjectInputStream(igniteChannel.socket().socket().getInputStream());
     }
 
     /**
@@ -114,7 +114,7 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      */
     public long readInto(FileIO fileIO, long position, long count) throws IOException {
         try {
-            return fileIO.transferFrom((ReadableByteChannel)igniteChannel().channel(), position, count);
+            return fileIO.transferFrom((ReadableByteChannel)igniteChannel().socket(), position, count);
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);
@@ -127,7 +127,7 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      * @throws IOException If fails.
      */
     public long readInto(ByteBuffer buff) throws IOException {
-        return igniteChannel().channel().read(buff);
+        return igniteChannel().socket().read(buff);
     }
 
     /** {@inheritDoc} */

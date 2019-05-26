@@ -20,10 +20,7 @@ package org.apache.ignite.internal.processors.transmit;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -34,7 +31,6 @@ import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
-import org.apache.ignite.internal.managers.communication.GridIoChannelListener;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
 import org.apache.ignite.internal.processors.GridProcessorAdapter;
 import org.apache.ignite.internal.processors.transmit.channel.RemoteTransmitException;
@@ -52,7 +48,6 @@ import org.apache.ignite.internal.util.GridSpinBusyLock;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
 
 import static java.util.Optional.ofNullable;
 import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
@@ -292,82 +287,86 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @param factory The factory will create a new handler for each created channel.
      */
     public void addFileIoChannelHandler(Object topic, TransmitSessionFactory factory) {
-        if (topicFactoryMap.putIfAbsent(topic, factory) == null) {
-            ctx.io().addChannelListener(topic, new GridIoChannelListener() {
-                @Override public Map<String, Serializable> onChannelConfigure(IgniteSocketChannel channel) {
-                    if (!busyLock.enterBusy())
-                        return null;
-
-                    try {
-                        // Restore the last received session state on remote node.
-                        String sessionId = channel.attr(SESSION_ID_KEY);
-
-                        assert sessionId != null;
-
-                        FileIoReadContext readCtx = sessionContextMap.get(sessionId);
-
-                        if (readCtx == null)
-                            return null;
-                        else {
-                            ChunkedStream stream = readCtx.stream;
-
-                            if (stream == null)
-                                return null;
-                            else {
-                                Map<String, Serializable> attrs = new HashMap<>();
-
-                                attrs.put(RECEIVED_BYTES_KEY, stream.transferred());
-                                attrs.put(LAST_FILE_NAME_KEY, stream.name());
-
-                                return attrs;
-                            }
-                        }
-                    }
-                    finally {
-                        busyLock.leaveBusy();
-                    }
-                }
-
-                @Override public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel) {
-                    String sessionId = null;
-                    FileIoReadContext sesCtx = null;
-
-                    try {
-                        if (!busyLock.enterBusy())
-                            return;
-
-                        try {
-                            sessionId = Objects.requireNonNull(channel.attr(SESSION_ID_KEY));
-
-                            sesCtx = sessionContextMap.computeIfAbsent(sessionId,
-                                sesId -> new FileIoReadContext(nodeId, factory.create()));
-
-                            sesCtx.currInput = new TransmitInputChannel(ctx, channel);
-                            sesCtx.currOutput = new TransmitOutputChannel(ctx, channel);
-
-                            if (sesCtx.started.compareAndSet(false, true))
-                                sesCtx.session.begin(nodeId, sessionId);
-                        }finally {
-                            busyLock.leaveBusy();
-                        }
-
-                        onChannelCreated0(sessionId, sesCtx);
-                    }
-                    catch (Throwable t) {
-                        log.error("Error processing channel creation event [topic=" + topic +
-                            ", channel=" + channel + ", sessionId=" + sessionId + ']', t);
-
-                        if (sesCtx != null)
-                            sesCtx.session.onException(t);
-                    }
-                    finally {
-                        U.closeQuiet(channel);
-                    }
-                }
-            });
-        }
-        else
-            U.warn(log, "The topic already have an appropriate channel handler factory [topic=" + topic + ']');
+//        if (topicFactoryMap.putIfAbsent(topic, factory) == null) {
+//            ctx.io().addChannelListener(topic, new GridChannelListener() {
+//                @Override public Map<String, Serializable> onChannelConfigure(Channel channel) {
+//                    if (!busyLock.enterBusy())
+//                        return null;
+//
+//                    try {
+//                        // Restore the last received session state on remote node.
+//                        String sessionId = channel.attr(SESSION_ID_KEY);
+//
+//                        assert sessionId != null;
+//
+//                        FileIoReadContext readCtx = sessionContextMap.get(sessionId);
+//
+//                        if (readCtx == null)
+//                            return null;
+//                        else {
+//                            ChunkedStream stream = readCtx.stream;
+//
+//                            if (stream == null)
+//                                return null;
+//                            else {
+//                                Map<String, Serializable> attrs = new HashMap<>();
+//
+//                                attrs.put(RECEIVED_BYTES_KEY, stream.transferred());
+//                                attrs.put(LAST_FILE_NAME_KEY, stream.name());
+//
+//                                return attrs;
+//                            }
+//                        }
+//                    }
+//                    finally {
+//                        busyLock.leaveBusy();
+//                    }
+//                }
+//
+//                @Override public void onChannelCreated(UUID nodeId, Channel channel) {
+//                    String sessionId = null;
+//                    FileIoReadContext sesCtx = null;
+//
+//                    try {
+//                        if (!busyLock.enterBusy())
+//                            return;
+//
+//                        try {
+//                            sessionId = Objects.requireNonNull(channel.attr(SESSION_ID_KEY));
+//
+//                            sesCtx = sessionContextMap.computeIfAbsent(sessionId,
+//                                sesId -> new FileIoReadContext(nodeId, factory.create()));
+//
+//                            sesCtx.currInput = new TransmitInputChannel(ctx, channel);
+//                            sesCtx.currOutput = new TransmitOutputChannel(ctx, channel);
+//
+//                            if (sesCtx.started.compareAndSet(false, true))
+//                                sesCtx.session.begin(nodeId, sessionId);
+//                        }finally {
+//                            busyLock.leaveBusy();
+//                        }
+//
+//                        onChannelCreated0(sessionId, sesCtx);
+//                    }
+//                    catch (Throwable t) {
+//                        log.error("Error processing channel creation event [topic=" + topic +
+//                            ", channel=" + channel + ", sessionId=" + sessionId + ']', t);
+//
+//                        if (sesCtx != null)
+//                            sesCtx.session.onException(t);
+//                    }
+//                    finally {
+//                        U.closeQuiet(channel);
+//                    }
+//                }
+//
+//                @Override public void onChannelOpened(UUID nodeId, Channel channel) {
+//
+//                }
+//            });
+//        }
+//        else
+//            U.warn(log, "The topic already have an appropriate channel handler factory [topic=" + topic + ']');
     }
 
     /**
@@ -550,17 +549,17 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
          * @throws IgniteCheckedException If fails.
          */
         public void connect() throws IgniteCheckedException {
-            IgniteSocketChannel igCh = ctx.io().channelToTopic(remoteId, topic, plc,
-                Collections.singletonMap(SESSION_ID_KEY, sessionId));
-
-            try {
-                out = new TransmitOutputChannel(ctx, igCh);
-                in = new TransmitInputChannel(ctx, igCh);
-            }
-            catch (IOException e) {
-                throw new IgniteCheckedException("Unable to initialize an i\\o connection to the remote node " +
-                    "[remoteId=" + remoteId + ", topic=" + topic + ", plc=" + plc + ']', e);
-            }
+//            Channel igCh = ctx.io().openChannel(remoteId, topic, plc,
+//                Collections.singletonMap(SESSION_ID_KEY, sessionId)).get();
+//
+//            try {
+//                out = new TransmitOutputChannel(ctx, igCh);
+//                in = new TransmitInputChannel(ctx, igCh);
+//            }
+//            catch (IOException e) {
+//                throw new IgniteCheckedException("Unable to initialize an i\\o connection to the remote node " +
+//                    "[remoteId=" + remoteId + ", topic=" + topic + ", plc=" + plc + ']', e);
+//            }
         }
 
         /** {@inheritDoc} */

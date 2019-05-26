@@ -34,7 +34,7 @@ import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
+import org.apache.ignite.spi.communication.tcp.internal.channel.Channel;
 
 /**
  * <p>
@@ -74,7 +74,7 @@ public abstract class TransmitAbstractChannel implements Closeable {
     private static final String CLOSED_BY_REMOTE_MSG = "An existing connection was forcibly closed by the remote host";
 
     /** */
-    private final IgniteSocketChannel igniteChannel;
+    private final Channel igniteChannel;
 
     /** */
     protected final IgniteLogger log;
@@ -88,7 +88,7 @@ public abstract class TransmitAbstractChannel implements Closeable {
      */
     protected TransmitAbstractChannel(
         GridKernalContext ktx,
-        IgniteSocketChannel channel
+        Channel channel
     ) {
         this(ktx, channel, DFLT_IO_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
     }
@@ -101,7 +101,7 @@ public abstract class TransmitAbstractChannel implements Closeable {
      */
     protected TransmitAbstractChannel(
         GridKernalContext ktx,
-        IgniteSocketChannel channel,
+        Channel channel,
         int timeout,
         TimeUnit unit
     ) {
@@ -136,16 +136,14 @@ public abstract class TransmitAbstractChannel implements Closeable {
             // Return the new one with detailed message.
             return new RemoteTransmitException(
                 "Lost connection to the remote node. The connection will be re-established according " +
-                    "to the manager's transmission configuration [remoteId=" + igniteChannel.id().remoteId() +
-                    ", index=" + igniteChannel.id().idx() + ']', cause);
+                    "to the manager's transmission configuration [igniteChannel=" + igniteChannel + ']', cause);
         }
         // Connection timeout issues.
         else if (cause instanceof SocketTimeoutException ||
             cause instanceof AsynchronousCloseException) {
             return new RemoteTransmitException(
                 "The connection has been timeouted. The connection will be re-established according " +
-                    "to the manager's transmission configuration [remoteId=" + igniteChannel.id().remoteId() +
-                    ", index=" + igniteChannel.id().idx() + ", timeout=" + timeoutMillis + ']', cause);
+                    "to the manager's transmission configuration [remoteId=" + igniteChannel + ']', cause);
         }
         else if (cause instanceof IOException) {
             // Improve IOException connection error handling
@@ -155,7 +153,7 @@ public abstract class TransmitAbstractChannel implements Closeable {
                 CLOSED_BY_REMOTE_MSG.equals(causeMsg)) {
                 return new RemoteTransmitException("Connection has been dropped by remote due to unhandled error. " +
                     "The connection will be re-established according to the manager's transmission configuration " +
-                    "[remoteId=" + igniteChannel.id().remoteId() + ", index=" + igniteChannel.id().idx() + ']', cause);
+                    "[igniteChannel=" + igniteChannel + ']', cause);
             };
         }
 
@@ -165,7 +163,7 @@ public abstract class TransmitAbstractChannel implements Closeable {
     /**
      * @return The corresponding ignite channel.
      */
-    public IgniteSocketChannel igniteChannel() {
+    public Channel igniteChannel() {
         return igniteChannel;
     }
 

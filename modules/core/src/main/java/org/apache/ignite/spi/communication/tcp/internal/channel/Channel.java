@@ -15,21 +15,17 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.spi.communication;
+package org.apache.ignite.spi.communication.tcp.internal.channel;
 
 import java.io.Closeable;
 import java.io.Serializable;
+import java.nio.channels.SocketChannel;
 import java.util.Map;
 
 /**
  * A hub to a direct communication between ignite components which is capable of I/O operations such as read, write.
  */
 public interface Channel extends Closeable {
-    /**
-     * @return Connection id to remote node.
-     */
-    public ChannelId id();
-
     /**
      * @return The channel's configuration.
      */
@@ -53,6 +49,11 @@ public interface Channel extends Closeable {
      * @param <T> The attribute type.
      */
     public <T extends Serializable> void attr(String name, T obj);
+
+    /**
+     * @return The underlying java nio {@link SocketChannel} used by the current channel.
+     */
+    public SocketChannel socket();
 
     /**
      * @return <tt>true</tt> if the channel is configured and ready to use.

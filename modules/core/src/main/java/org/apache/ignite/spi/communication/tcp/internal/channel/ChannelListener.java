@@ -15,17 +15,16 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.spi.communication.tcp.channel;
+package org.apache.ignite.spi.communication.tcp.internal.channel;
 
-import java.nio.channels.SocketChannel;
-import org.apache.ignite.spi.communication.Channel;
+import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 
 /**
- * Communication TCP/IP socket.
+ * Listener for the channel state change events.
  */
-public interface IgniteSocketChannel extends Channel {
+public interface ChannelListener {
     /**
-     * @return The underlying java nio {@link SocketChannel} used by the current channel.
+     * @param key The channel connection key to close.
      */
-    public SocketChannel channel();
+    public void onClose(ConnectionKey key);
 }

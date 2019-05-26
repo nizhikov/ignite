@@ -15,31 +15,22 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.managers.communication;
+package org.apache.ignite.spi.communication.tcp.internal;
 
 import java.io.Serializable;
-import java.util.EventListener;
-import java.util.Map;
+import java.nio.channels.Channel;
 import java.util.UUID;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
+import org.apache.ignite.plugin.extensions.communication.Message;
+import org.apache.ignite.spi.communication.CommunicationListener;
 
 /**
- * Listener for a new {@link IgniteSocketChannel} connections established from remote nodes.
+ *
  */
-public interface GridIoChannelListener extends EventListener {
+public interface CommunicationListenerEx<T extends Serializable> extends CommunicationListener<T> {
     /**
-     * @param channel The channel instance created locally.
-     * @return Additional attributes to send back to remote node.
+     * @param nodeId Remote node id.
+     * @param initMsg Init channel message.
+     * @param channel Locally created channel endpoint.
      */
-    public default Map<String, Serializable> onChannelConfigure(IgniteSocketChannel channel) {
-        return null;
-    };
-
-    /**
-     * The creation event of {@link IgniteSocketChannel} from remote connection.
-     *
-     * @param nodeId The remote node id.
-     * @param channel Local created channel endpoint.
-     */
-    public void onChannelCreated(UUID nodeId, IgniteSocketChannel channel);
+    public void onChannelOpened(UUID nodeId, Message initMsg, Channel channel);
 }

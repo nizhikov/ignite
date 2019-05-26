@@ -27,7 +27,7 @@ import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.transmit.ReadPolicy;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.spi.communication.tcp.channel.IgniteSocketChannel;
+import org.apache.ignite.spi.communication.tcp.internal.channel.Channel;
 
 /**
  * Class represents an output transmission connection channel.
@@ -45,11 +45,11 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public TransmitOutputChannel(
         GridKernalContext ktx,
-        IgniteSocketChannel igniteChannel
+        Channel igniteChannel
     ) throws IOException {
         super(ktx, igniteChannel);
 
-        dos = new ObjectOutputStream(igniteChannel.channel().socket().getOutputStream());
+        dos = new ObjectOutputStream(igniteChannel.socket().socket().getOutputStream());
     }
 
     /**
@@ -106,7 +106,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public long writeFrom(long position, long count, FileIO fileIO) throws IOException {
         try {
-            return fileIO.transferTo(position, count, (WritableByteChannel)igniteChannel().channel());
+            return fileIO.transferTo(position, count, (WritableByteChannel)igniteChannel().socket());
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);
@@ -120,7 +120,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public long writeFrom(ByteBuffer buff) throws IOException {
         try {
-            return igniteChannel().channel().write(buff);
+            return igniteChannel().socket().write(buff);
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);
