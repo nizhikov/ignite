@@ -59,7 +59,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static org.apache.ignite.internal.managers.communication.GridIoPolicy.PUBLIC_POOL;
 import static org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager.FILE_SUFFIX;
 
 /**
@@ -144,9 +143,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         ConcurrentMap<String, Long> fileWithSizes = new ConcurrentHashMap<>();
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
-            @Override public TransmitSession create() {
-                return new TransmitSessionAdapter() {
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
                     @Override public void begin(UUID nodeId, String sessionId) {
                         assertTrue(sender.localNode().id().equals(nodeId));
                     }
@@ -173,15 +170,13 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
                             }
                         };
                     }
-                };
-            }
-        });
+                });
 
         File cacheDirIg0 = cacheWorkDir(sender, DEFAULT_CACHE_NAME);
 
         try (FileWriter writer = sender.context()
             .fileTransmit()
-            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            .fileWriter(receiver.localNode().id(), topic)) {
             // Iterate over cache partition files.
             File[] files = cacheDirIg0.listFiles(fileBinFilter);
 
@@ -214,28 +209,24 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         File fileToSend = createFileRandomData("50Mb", 50, ByteUnit.MB);
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
-            @Override public TransmitSession create() {
-                return new TransmitSessionAdapter() {
-                    @Override public void begin(UUID nodeId, String sessionId) {
-                        if (failFirstTime.compareAndSet(false, true))
-                            throw new IgniteException(exTestMessage);
-                    }
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+            @Override public void begin(UUID nodeId, String sessionId) {
+                if (failFirstTime.compareAndSet(false, true))
+                    throw new IgniteException(exTestMessage);
+            }
 
-                    @Override public FileHandler fileHandler() {
-                        return getDefaultFileHandler(receiver, fileToSend);
-                    }
+            @Override public FileHandler fileHandler() {
+                return getDefaultFileHandler(receiver, fileToSend);
+            }
 
-                    @Override public void onException(Throwable cause) {
-                        assertEquals(exTestMessage, cause.getMessage());
-                    }
-                };
+            @Override public void onException(Throwable cause) {
+                assertEquals(exTestMessage, cause.getMessage());
             }
         });
 
         try (FileWriter writer = sender.context()
             .fileTransmit()
-            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            .fileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
         }
     }
@@ -277,23 +268,19 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
             }
         });
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
-            @Override public TransmitSession create() {
-                return new TransmitSessionAdapter() {
-                    @Override public FileHandler fileHandler() {
-                        return getDefaultFileHandler(receiver, fileToSend);
-                    }
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+            @Override public FileHandler fileHandler() {
+                return getDefaultFileHandler(receiver, fileToSend);
+            }
 
-                    @Override public void onException(Throwable cause) {
-                        assertEquals(chunkDownloadExMsg, cause.getMessage());
-                    }
-                };
+            @Override public void onException(Throwable cause) {
+                assertEquals(chunkDownloadExMsg, cause.getMessage());
             }
         });
 
         try (FileWriter writer = sender.context()
             .fileTransmit()
-            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            .fileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
         }
     }
@@ -313,36 +300,32 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         File fileToSend = createFileRandomData("testFile", fileSizeMb, ByteUnit.MB);
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
-            @Override public TransmitSession create() {
-                return new TransmitSessionAdapter() {
-                    @Override public FileHandler fileHandler() {
-                        return new FileHandler() {
-                            @Override public String begin(
-                                String name,
-                                long position,
-                                long count,
-                                Map<String, Serializable> params
-                            ) throws IOException {
-                                if (throwFirstTime.compareAndSet(false, true))
-                                    throw new IOException("Test exception. Initialization fail.");
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+            @Override public FileHandler fileHandler() {
+                return new FileHandler() {
+                    @Override public String begin(
+                        String name,
+                        long position,
+                        long count,
+                        Map<String, Serializable> params
+                    ) throws IOException {
+                        if (throwFirstTime.compareAndSet(false, true))
+                            throw new IOException("Test exception. Initialization fail.");
 
-                                return new File(tempStore, name + "_" + receiver.localNode().id())
-                                    .getAbsolutePath();
-                            }
-
-                            @Override public void end(File file, Map<String, Serializable> params) {
-                                assertEquals(fileToSend.length(), file.length());
-                            }
-                        };
+                        return new File(tempStore, name + "_" + receiver.localNode().id())
+                            .getAbsolutePath();
                     }
-                 };
+
+                    @Override public void end(File file, Map<String, Serializable> params) {
+                        assertEquals(fileToSend.length(), file.length());
+                    }
+                };
             }
         });
 
         try (FileWriter writer = sender.context()
             .fileTransmit()
-            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            .fileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
         }
     }
@@ -364,13 +347,9 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         receiver.context().fileTransmit().downloadRate(donwloadSpeedMbSec, ByteUnit.MB);
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
-            @Override public TransmitSession create() {
-                return new TransmitSessionAdapter() {
-                    @Override public FileHandler fileHandler() {
-                        return getDefaultFileHandler(receiver, fileToSend);
-                    }
-                };
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+            @Override public FileHandler fileHandler() {
+                return getDefaultFileHandler(receiver, fileToSend);
             }
         });
 
@@ -378,7 +357,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         try (FileWriter writer = sender.context()
             .fileTransmit()
-            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            .fileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
         }
 
@@ -408,13 +387,9 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         sender.context().fileTransmit().uploadRate(uploadSpeedRateMbSec, ByteUnit.MB);
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
-            @Override public TransmitSession create() {
-                return new TransmitSessionAdapter() {
-                    @Override public FileHandler fileHandler() {
-                        return getDefaultFileHandler(receiver, fileToSend);
-                    }
-                };
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+            @Override public FileHandler fileHandler() {
+                return getDefaultFileHandler(receiver, fileToSend);
             }
         });
 
@@ -422,7 +397,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         try (FileWriter writer = sender.context()
             .fileTransmit()
-            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            .fileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
         }
 
@@ -449,45 +424,41 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         File fileToSend = createFileRandomData("testFile", 10, ByteUnit.MB);
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
-            @Override public TransmitSession create() {
-                return new TransmitSessionAdapter() {
-                    /** {@inheritDoc} */
-                    @Override public ChunkHandler chunkHandler() {
-                        return new ChunkHandler() {
-                            /** */
-                            private File file;
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+            /** {@inheritDoc} */
+            @Override public ChunkHandler chunkHandler() {
+                return new ChunkHandler() {
+                    /** */
+                    private File file;
 
-                            @Override public int begin(
-                                String name,
-                                long position,
-                                long count,
-                                Map<String, Serializable> params
-                            ) throws IOException {
-                                file = new File(tempStore, name + "_" + receiver.localNode().id());
+                    @Override public int begin(
+                        String name,
+                        long position,
+                        long count,
+                        Map<String, Serializable> params
+                    ) throws IOException {
+                        file = new File(tempStore, name + "_" + receiver.localNode().id());
 
-                                fileIo[0] = ioFactory.create(file);
+                        fileIo[0] = ioFactory.create(file);
 
-                                fileIo[0].position(position);
+                        fileIo[0].position(position);
 
-                                return 4 * 1024; // Page size
-                            }
+                        return 4 * 1024; // Page size
+                    }
 
-                            @Override public boolean chunk(ByteBuffer buff) throws IOException {
-                                assertTrue(buff.order() == ByteOrder.nativeOrder());
-                                assertEquals(0, buff.position());
+                    @Override public boolean chunk(ByteBuffer buff) throws IOException {
+                        assertTrue(buff.order() == ByteOrder.nativeOrder());
+                        assertEquals(0, buff.position());
 
-                                fileIo[0].writeFully(buff);
+                        fileIo[0].writeFully(buff);
 
-                                return true;
-                            }
+                        return true;
+                    }
 
-                            @Override public void end(Map<String, Serializable> params) {
-                                assertEquals(fileToSend.length(), file.length());
+                    @Override public void end(Map<String, Serializable> params) {
+                        assertEquals(fileToSend.length(), file.length());
 
-                                U.closeQuiet(fileIo[0]);
-                            }
-                        };
+                        U.closeQuiet(fileIo[0]);
                     }
                 };
             }
@@ -495,7 +466,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         try (FileWriter writer = sender.context()
             .fileTransmit()
-            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            .fileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.BUFF);
         }
         finally {
@@ -518,40 +489,36 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         File fileToSend = createFileRandomData("testFile", 10, ByteUnit.MB);
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionFactory() {
-            @Override public TransmitSession create() {
-                return new TransmitSessionAdapter() {
-                    /** {@inheritDoc} */
-                    @Override public ChunkHandler chunkHandler() {
-                        return new ChunkHandler() {
-                            /** */
-                            private File file;
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+            /** {@inheritDoc} */
+            @Override public ChunkHandler chunkHandler() {
+                return new ChunkHandler() {
+                    /** */
+                    private File file;
 
-                            @Override public int begin(
-                                String name,
-                                long position,
-                                long count,
-                                Map<String, Serializable> params
-                            ) throws IOException {
-                                if (throwFirstTime.compareAndSet(false, true))
-                                    throw new IOException("Test exception. Initialization failed");
+                    @Override public int begin(
+                        String name,
+                        long position,
+                        long count,
+                        Map<String, Serializable> params
+                    ) throws IOException {
+                        if (throwFirstTime.compareAndSet(false, true))
+                            throw new IOException("Test exception. Initialization failed");
 
-                                file = new File(tempStore, name + "_" + receiver.localNode().id());
-                                fileIo[0] = ioFactory.create(file);
+                        file = new File(tempStore, name + "_" + receiver.localNode().id());
+                        fileIo[0] = ioFactory.create(file);
 
-                                return 16 * 1024;
-                            }
+                        return 16 * 1024;
+                    }
 
-                            @Override public boolean chunk(ByteBuffer buff) throws IOException {
-                                fileIo[0].writeFully(buff);
+                    @Override public boolean chunk(ByteBuffer buff) throws IOException {
+                        fileIo[0].writeFully(buff);
 
-                                return true;
-                            }
+                        return true;
+                    }
 
-                            @Override public void end(Map<String, Serializable> params) {
-                                assertEquals(fileToSend.length(), file.length());
-                            }
-                        };
+                    @Override public void end(Map<String, Serializable> params) {
+                        assertEquals(fileToSend.length(), file.length());
                     }
                 };
             }
@@ -559,7 +526,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         try (FileWriter writer = sender.context()
             .fileTransmit()
-            .fileWriter(receiver.localNode().id(), topic, PUBLIC_POOL)) {
+            .fileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.BUFF);
         }
         finally {

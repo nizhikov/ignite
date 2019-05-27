@@ -31,6 +31,11 @@ public interface ChunkedOutputStream extends ChunkedStream {
     public void transferred(long cnt);
 
     /**
+     * @return The start stream position.
+     */
+    public long startPosition();
+
+    /**
      * @param out The channel to write data to.
      * @throws IOException If failed.
      * @throws IgniteCheckedException If failed.

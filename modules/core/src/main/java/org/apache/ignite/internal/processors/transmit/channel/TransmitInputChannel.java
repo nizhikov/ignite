@@ -114,7 +114,7 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      */
     public long readInto(FileIO fileIO, long position, long count) throws IOException {
         try {
-            return fileIO.transferFrom((ReadableByteChannel)socket().socket(), position, count);
+            return fileIO.transferFrom((ReadableByteChannel)socket(), position, count);
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);

@@ -106,7 +106,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public long writeFrom(long position, long count, FileIO fileIO) throws IOException {
         try {
-            return fileIO.transferTo(position, count, (WritableByteChannel)socket().socket());
+            return fileIO.transferTo(position, count, (WritableByteChannel)socket());
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);

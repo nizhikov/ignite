@@ -190,6 +190,7 @@ import org.apache.ignite.internal.processors.rest.handlers.task.GridTaskResultRe
 import org.apache.ignite.internal.processors.service.ServiceDeploymentProcessId;
 import org.apache.ignite.internal.processors.service.ServiceSingleNodeDeploymentResult;
 import org.apache.ignite.internal.processors.service.ServiceSingleNodeDeploymentResultBatch;
+import org.apache.ignite.internal.processors.transmit.util.InitChannelMessage;
 import org.apache.ignite.internal.util.GridByteArrayList;
 import org.apache.ignite.internal.util.GridIntList;
 import org.apache.ignite.internal.util.GridLongList;
@@ -1170,6 +1171,11 @@ public class GridIoMessageFactory implements MessageFactory {
 
             case ChannelCreateRequest.TYPE_CODE:
                 msg = new ChannelCreateRequest();
+
+                break;
+
+            case InitChannelMessage.TYPE_CODE:
+                msg = new InitChannelMessage();
 
                 break;
 

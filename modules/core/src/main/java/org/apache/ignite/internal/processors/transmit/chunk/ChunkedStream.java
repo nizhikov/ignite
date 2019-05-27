@@ -21,6 +21,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
+import org.apache.ignite.internal.processors.transmit.channel.TransmitMeta;
 
 /**
  * Class represents a stream of chunks, can be closed when the stream ends.
@@ -50,6 +51,11 @@ public interface ChunkedStream extends Closeable {
      * @return Additional stream params
      */
     public Map<String, Serializable> params();
+
+    /**
+     * @return Stream meta information.
+     */
+    public TransmitMeta meta();
 
     /**
      * @throws IOException If the check fails.

@@ -84,10 +84,8 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
             this.params.putAll(params);
     }
 
-    /**
-     * @return The start stream position.
-     */
-    public long startPosition() {
+    /** {@inheritDoc} */
+    @Override public long startPosition() {
         return Objects.requireNonNull(startPos);
     }
 
@@ -179,11 +177,16 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
     @Override public void setup(TransmitOutputChannel out) throws IOException {
         init();
 
-        out.writeMeta(new TransmitMeta(name(),
+        out.writeMeta(meta());
+    }
+
+    /** {@inheritDoc} */
+    @Override public TransmitMeta meta() {
+        return new TransmitMeta(name(),
             startPosition() + transferred(),
             count(),
             transferred() == 0,
-            params()));
+            params());
     }
 
     /** {@inheritDoc} */

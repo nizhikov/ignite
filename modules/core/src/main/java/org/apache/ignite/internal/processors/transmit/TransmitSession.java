@@ -31,6 +31,16 @@ public interface TransmitSession {
     public void begin(UUID nodeId, String sessionId);
 
     /**
+     * @param cause The cause of fail handling process.
+     */
+    public void onException(Throwable cause);
+
+    /**
+     * The end of session transmission process.
+     */
+    public void end();
+
+    /**
      * @return The instance of read handler to process incoming data by chunks.
      */
     public ChunkHandler chunkHandler();
@@ -39,14 +49,4 @@ public interface TransmitSession {
      * @return The intance of read handler to process incoming data like the {@link FileChannel} manner.
      */
     public FileHandler fileHandler();
-
-    /**
-     * The end of session transmission process.
-     */
-    public void end();
-
-    /**
-     * @param cause The cause of fail handling process.
-     */
-    public void onException(Throwable cause);
 }

@@ -33,11 +33,14 @@ import org.apache.ignite.internal.util.typedef.internal.S;
  * process or to continue the previous unfinished from the last transmission point.
  */
 public class TransmitMeta implements Externalizable {
+    /** Default transmit meta. */
+    public static final TransmitMeta DFLT_TRANSMIT_META = new TransmitMeta();
+
     /** Serial version uid. */
     private static final long serialVersionUID = 0L;
 
     /** */
-    private static final String DFLT_UNNAMED_META = "null";
+    private static final String UNNAMED_META = "unnamed";
 
     /**
      * The name to associate particular meta with.
@@ -61,7 +64,7 @@ public class TransmitMeta implements Externalizable {
      *
      */
     public TransmitMeta() {
-        this(DFLT_UNNAMED_META);
+        this(UNNAMED_META);
     }
 
     /**
