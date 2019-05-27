@@ -28,28 +28,28 @@ import org.apache.ignite.plugin.extensions.communication.MessageWriter;
 /**
  * Message requesting to creation of {@link Channel}.
  */
-public class ChannelCreateRequestMessage implements Message {
+public class ChannelCreateRequest implements Message {
     /** Request message type (value is {@code 176}). */
     public static final short TYPE_CODE = 176;
 
     /** Serialization version. */
     private static final long serialVersionUID = 0L;
 
-    /** Initialization channel message. */
+    /** Initialization channel message which contains channel params. */
     private Message msg;
 
     /**
      * No-op constructor to support {@link Externalizable} interface.
      * This constructor is not meant to be used for other purposes.
      */
-    public ChannelCreateRequestMessage() {
+    public ChannelCreateRequest() {
         // No-op.
     }
 
     /**
      * @param msg Initial channel message, containing channel attributes.
      */
-    public ChannelCreateRequestMessage(Message msg) {
+    public ChannelCreateRequest(Message msg) {
         this.msg = msg;
     }
 
@@ -64,7 +64,7 @@ public class ChannelCreateRequestMessage implements Message {
      * @param msg Channel initialization message.
      * @return {@code this} for chaining.
      */
-    public ChannelCreateRequestMessage message(Message msg) {
+    public ChannelCreateRequest message(Message msg) {
         this.msg = msg;
         return this;
     }
@@ -111,7 +111,7 @@ public class ChannelCreateRequestMessage implements Message {
             reader.incrementState();
         }
 
-        return reader.afterMessageRead(ChannelCreateRequestMessage.class);
+        return reader.afterMessageRead(ChannelCreateRequest.class);
     }
 
     /** {@inheritDoc} */
@@ -126,7 +126,7 @@ public class ChannelCreateRequestMessage implements Message {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(ChannelCreateRequestMessage.class, this);
+        return S.toString(ChannelCreateRequest.class, this);
     }
 
 }

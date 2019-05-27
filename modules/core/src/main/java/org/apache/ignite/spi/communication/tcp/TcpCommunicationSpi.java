@@ -149,8 +149,8 @@ import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 import org.apache.ignite.spi.communication.tcp.internal.HandshakeException;
 import org.apache.ignite.spi.communication.tcp.internal.TcpCommunicationConnectionCheckFuture;
 import org.apache.ignite.spi.communication.tcp.internal.TcpCommunicationNodeConnectionCheckFuture;
-import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateRequestMessage;
-import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateResponseMessage;
+import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateRequest;
+import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateResponse;
 import org.apache.ignite.spi.communication.tcp.messages.HandshakeMessage;
 import org.apache.ignite.spi.communication.tcp.messages.HandshakeMessage2;
 import org.apache.ignite.spi.communication.tcp.messages.HandshakeWaitMessage;
@@ -757,7 +757,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
             private void handleChannelCreateResponse(
                 GridSelectorNioSession ses,
                 ConnectionKey connKey,
-                ChannelCreateResponseMessage msg
+                ChannelCreateResponse msg
             ) {
                 GridFutureAdapter<Channel> reqFut = channelReqs.remove(connKey);
 
@@ -792,43 +792,46 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
             private void handleChannelCreateRequest(
                 GridSelectorNioSession ses,
                 ConnectionKey connKey,
-                ChannelCreateRequestMessage msg
+                ChannelCreateRequest msg
             ) {
-                ses.send(new ChannelCreateResponseMessage()).listen(c1 -> {
-                    try {
-                        c1.get(); // Exception not ocurred.
+                ses.send(new ChannelCreateResponse(new NodeIdMessage(safeLocalNodeId())))
+                    .listen(sendFut -> {
+                        try {
+                            sendFut.get(); // Exception not ocurred.
 
-                        ses.closeSocketOnSessionClose(false);
+                            ses.closeSocketOnSessionClose(false);
 
-                        // Close session and send response.
-                        ses.close().listen(c2 -> {
-                            try {
-                                cleanupLocalNodeRecoveryDescriptor(connKey);
+                            // Close session and send response.
+                            ses.close().listen(closeFut -> {
+                                try {
+                                    closeFut.get(); // Exception not ocurred.
 
-                                SelectableChannel channel = ses.key().channel();
+                                    cleanupLocalNodeRecoveryDescriptor(connKey);
 
-                                channel.configureBlocking(true);
+                                    SelectableChannel channel = ses.key().channel();
 
-                                notifyChannelEvtListener(connKey.nodeId(), channel, msg.message());
-                            }
-                            catch (IOException e) {
-                                U.error(log, "Configure blocking mode to the qequested channel failed. " +
-                                    "Session will be closed [nodeId=" + connKey.nodeId() +
-                                    ", idx=" + connKey.connectionIndex() + ']', e);
+                                    channel.configureBlocking(true);
 
-                                ses.closeSocketOnSessionClose(true);
-                                ses.close();
-                            }
-                        });
-                    }
-                    catch (IgniteCheckedException e) {
-                        U.error(log, "Fail to send channel creation response to the remote node. " +
-                            "Session will be closed [nodeId=" + connKey.nodeId() +
-                            ", idx=" + connKey.connectionIndex() + ']', e);
+                                    notifyChannelEvtListener(connKey.nodeId(), channel, msg.message());
+                                }
+                                catch (IgniteCheckedException | IOException e) {
+                                    U.error(log, "Configure blocking mode to the qequested channel failed. " +
+                                        "Session will be closed [nodeId=" + connKey.nodeId() +
+                                        ", idx=" + connKey.connectionIndex() + ']', e);
 
-                        ses.close();
-                    }
-                });
+                                    ses.closeSocketOnSessionClose(true);
+                                    U.closeQuiet(ses.key().channel());
+                                }
+                            });
+                        }
+                        catch (IgniteCheckedException e) {
+                            U.error(log, "Fail to send channel creation response to the remote node. " +
+                                "Session will be closed [nodeId=" + connKey.nodeId() +
+                                ", idx=" + connKey.connectionIndex() + ']', e);
+
+                            ses.close();
+                        }
+                    });
             }
 
             @Override public void onMessage(final GridNioSession ses, Message msg) {
@@ -931,16 +934,16 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                     else
                         c = NOOP;
 
-                    if (msg instanceof ChannelCreateRequestMessage) {
+                    if (msg instanceof ChannelCreateRequest) {
                         handleChannelCreateRequest((GridSelectorNioSession)ses, connKey,
-                            (ChannelCreateRequestMessage)msg);
+                            (ChannelCreateRequest)msg);
 
                         if (c != null)
                             c.run();
                     }
-                    else if (msg instanceof ChannelCreateResponseMessage) {
+                    else if (msg instanceof ChannelCreateResponse) {
                         handleChannelCreateResponse((GridSelectorNioSession)ses, connKey,
-                            (ChannelCreateResponseMessage)msg);
+                            (ChannelCreateResponse)msg);
 
                         if (c != null)
                             c.run();
@@ -4384,7 +4387,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
             channelReqs.put(key, result);
 
             // Send configuration message over the created session.
-            ses.send(new ChannelCreateRequestMessage(initMsg))
+            ses.send(new ChannelCreateRequest(initMsg))
                 .listen(f -> {
                     try {
                         f.get(); // Check exception not thrown.

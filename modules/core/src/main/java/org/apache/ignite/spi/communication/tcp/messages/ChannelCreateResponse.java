@@ -17,6 +17,7 @@
 
 package org.apache.ignite.spi.communication.tcp.messages;
 
+import java.io.Externalizable;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channel;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -25,14 +26,48 @@ import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
 
 /**
- * Message response for creation of {@link Channel}.
+ * Message response to creation of {@link Channel}.
  */
-public class ChannelCreateResponseMessage implements Message {
-    /** Response message type (value is {@code 175}). */
+public class ChannelCreateResponse implements Message {
+    /** Request message type (value is {@code 175}). */
     public static final short TYPE_CODE = 175;
 
-    /** */
+    /** Serialization version. */
     private static final long serialVersionUID = 0L;
+
+    /** Response channel message which contains channel params. */
+    private Message msg;
+
+    /**
+     * No-op constructor to support {@link Externalizable} interface.
+     * This constructor is not meant to be used for other purposes.
+     */
+    public ChannelCreateResponse() {
+        // No-op.
+    }
+
+    /**
+     * @param msg Initial channel message, containing channel attributes.
+     */
+    public ChannelCreateResponse(Message msg) {
+        this.msg = msg;
+    }
+
+    /**
+     * @return Channel initialization message.
+     */
+    public Message message() {
+        return msg;
+    }
+
+    /**
+     * @param msg Channel initialization message.
+     * @return {@code this} for chaining.
+     */
+    public ChannelCreateResponse message(Message msg) {
+        this.msg = msg;
+        return this;
+    }
 
     /** {@inheritDoc} */
     @Override public void onAckReceived() {
@@ -50,6 +85,13 @@ public class ChannelCreateResponseMessage implements Message {
             writer.onHeaderWritten();
         }
 
+        if (writer.state() == 0) {
+            if (!writer.writeMessage("msg", msg))
+                return false;
+
+            writer.incrementState();
+        }
+
         return true;
     }
 
@@ -60,7 +102,16 @@ public class ChannelCreateResponseMessage implements Message {
         if (!reader.beforeMessageRead())
             return false;
 
-        return reader.afterMessageRead(ChannelCreateResponseMessage.class);
+        if (reader.state() == 0) {
+            msg = reader.readMessage("msg");
+
+            if (!reader.isLastRead())
+                return false;
+
+            reader.incrementState();
+        }
+
+        return reader.afterMessageRead(ChannelCreateResponse.class);
     }
 
     /** {@inheritDoc} */
@@ -70,12 +121,12 @@ public class ChannelCreateResponseMessage implements Message {
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 0;
+        return 1;
     }
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(ChannelCreateResponseMessage.class, this);
+        return S.toString(ChannelCreateResponse.class, this);
     }
 
 }

@@ -26,9 +26,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.plugin.extensions.communication.Message;
-import org.apache.ignite.plugin.extensions.communication.MessageReader;
-import org.apache.ignite.plugin.extensions.communication.MessageWriter;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
@@ -70,13 +69,12 @@ public class GridIoManagerChannelSelfTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     @Test
-    public void testChannelCreationOnDemandToTopic() throws Exception {
+    public void testOpenChannelToRemoteTopic() throws Exception {
         startGrids(NODES_CNT);
 
         final SocketChannel[] nioCh = new SocketChannel[1];
         final CountDownLatch waitChLatch = new CountDownLatch(1);
-
-        Object topic = TOPIC_CACHE.topic("channel", 0);
+        final Object topic = TOPIC_CACHE.topic("channel", 0);
 
         grid(1).context().io().addChannelListener(topic, new GridChannelListener() {
             @Override public void onChannelOpened(UUID nodeId, Message initMsg, Channel channel) {
@@ -91,8 +89,9 @@ public class GridIoManagerChannelSelfTest extends GridCommonAbstractTest {
 
         GridIoManager ioMgr = grid(0).context().io();
 
-        SocketChannel nioChannel = (SocketChannel)ioMgr.openChannel(grid(1).localNode().id(), topic, new TestMessage())
-            .get(5, TimeUnit.SECONDS);
+        SocketChannel nioChannel = (SocketChannel)ioMgr.openChannel(grid(1).localNode().id(), topic,
+            new AffinityTopologyVersion(1))
+            .get(10, TimeUnit.SECONDS);
 
         // Wait for the channel connection established.
         assertTrue(waitChLatch.await(5_000L, TimeUnit.MILLISECONDS));
@@ -131,35 +130,5 @@ public class GridIoManagerChannelSelfTest extends GridCommonAbstractTest {
 
         // Check established channel.
         assertEquals(pingNum, readBuf.getInt());
-    }
-
-    /**
-     *
-     */
-    private static class TestMessage implements Message {
-        /** {@inheritDoc} */
-        @Override public void onAckReceived() {
-            // No-op.
-        }
-
-        /** {@inheritDoc} */
-        @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
-            return true;
-        }
-
-        /** {@inheritDoc} */
-        @Override public boolean readFrom(ByteBuffer buf, MessageReader reader) {
-            return true;
-        }
-
-        /** {@inheritDoc} */
-        @Override public short directType() {
-            return 0;
-        }
-
-        /** {@inheritDoc} */
-        @Override public byte fieldsCount() {
-            return 0;
-        }
     }
 }

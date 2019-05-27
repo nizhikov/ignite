@@ -23,7 +23,7 @@ import java.util.UUID;
 import org.apache.ignite.plugin.extensions.communication.Message;
 
 /**
- * Listener for a new {@link Channel} connections established from remote nodes.
+ * Listener for a new {@link Channel} connections established from remote node.
  */
 public interface GridChannelListener extends EventListener {
     /**

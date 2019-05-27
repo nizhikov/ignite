@@ -1679,13 +1679,21 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         assert node != null;
         assert topic != null;
 
+        if (locNodeId.equals(node.id()))
+            throw new IgniteCheckedException("Channel cannot be opened to the local node itself " +
+                "[nodeId=" + node.id() + ", topic=" + topic + ']');
+
         int topicOrd = topic instanceof GridTopic ? ((Enum<GridTopic>)topic).ordinal() : -1;
 
         GridIoMessage ioMsg = createGridIoMessage(topic, topicOrd, initMsg, PUBLIC_POOL, false, 0, false);
 
         try {
-            if ((CommunicationSpi)getSpi() instanceof TcpCommunicationSpi)
+            if ((CommunicationSpi)getSpi() instanceof TcpCommunicationSpi) {
+                if (topicOrd < 0)
+                    ioMsg.topicBytes(U.marshal(marsh, topic));
+
                 return ((TcpCommunicationSpi)(CommunicationSpi)getSpi()).openChannel(node, ioMsg);
+            }
             else {
                 throw new IgniteCheckedException("The channel cannot be opened to remote. Only default build-in " +
                     "impelemntation of Communication SPI supports communication between nodes over the SocketChannel." +

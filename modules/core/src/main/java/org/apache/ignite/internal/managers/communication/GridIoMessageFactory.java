@@ -200,8 +200,8 @@ import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageFactory;
 import org.apache.ignite.spi.collision.jobstealing.JobStealingRequest;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
-import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateRequestMessage;
-import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateResponseMessage;
+import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateRequest;
+import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateResponse;
 import org.apache.ignite.spi.communication.tcp.messages.HandshakeMessage;
 import org.apache.ignite.spi.communication.tcp.messages.HandshakeMessage2;
 import org.apache.ignite.spi.communication.tcp.messages.HandshakeWaitMessage;
@@ -1163,13 +1163,13 @@ public class GridIoMessageFactory implements MessageFactory {
 
                 break;
 
-            case ChannelCreateResponseMessage.TYPE_CODE:
-                msg = new ChannelCreateResponseMessage();
+            case ChannelCreateResponse.TYPE_CODE:
+                msg = new ChannelCreateResponse();
 
                 break;
 
-            case ChannelCreateRequestMessage.TYPE_CODE:
-                msg = new ChannelCreateRequestMessage();
+            case ChannelCreateRequest.TYPE_CODE:
+                msg = new ChannelCreateRequest();
 
                 break;
 
