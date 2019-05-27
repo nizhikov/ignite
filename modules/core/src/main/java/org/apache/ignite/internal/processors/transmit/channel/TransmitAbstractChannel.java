@@ -34,7 +34,6 @@ import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.spi.communication.tcp.internal.channel.Channel;
 
 /**
  * <p>
@@ -74,7 +73,7 @@ public abstract class TransmitAbstractChannel implements Closeable {
     private static final String CLOSED_BY_REMOTE_MSG = "An existing connection was forcibly closed by the remote host";
 
     /** */
-    private final Channel igniteChannel;
+    private final SocketChannel channel;
 
     /** */
     protected final IgniteLogger log;
@@ -88,8 +87,8 @@ public abstract class TransmitAbstractChannel implements Closeable {
      */
     protected TransmitAbstractChannel(
         GridKernalContext ktx,
-        Channel channel
-    ) {
+        SocketChannel channel
+    ) throws IOException {
         this(ktx, channel, DFLT_IO_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
     }
 
@@ -98,23 +97,25 @@ public abstract class TransmitAbstractChannel implements Closeable {
      * @param channel Socket channel to upload files to.
      * @param timeout Read\write timeout.
      * @param unit The {@link TimeUnit} of given <tt>timeout</tt>.
+     * @throws IOException If channel configuration fails.
      */
     protected TransmitAbstractChannel(
         GridKernalContext ktx,
-        Channel channel,
+        SocketChannel channel,
         int timeout,
         TimeUnit unit
-    ) {
+    ) throws IOException {
         assert ktx != null;
         assert channel != null;
         assert unit != null;
 
-        igniteChannel = channel;
+        this.channel = channel;
         log = ktx.log(getClass());
         timeoutMillis = timeout <= 0 ? 0 : Math.max((int)unit.toMillis(timeout), DFLT_IO_TIMEOUT_MILLIS);
 
-        channel.config().blocking(true);
-        channel.config().timeout(timeoutMillis);
+        // Timeout must be enabled prior to entering the blocking mode to have effect.
+        channel.socket().setSoTimeout(timeoutMillis);
+        channel.configureBlocking(true);
     }
 
     /**
@@ -136,14 +137,14 @@ public abstract class TransmitAbstractChannel implements Closeable {
             // Return the new one with detailed message.
             return new RemoteTransmitException(
                 "Lost connection to the remote node. The connection will be re-established according " +
-                    "to the manager's transmission configuration [igniteChannel=" + igniteChannel + ']', cause);
+                    "to the manager's transmission configuration [socket=" + socket() + ']', cause);
         }
         // Connection timeout issues.
         else if (cause instanceof SocketTimeoutException ||
             cause instanceof AsynchronousCloseException) {
             return new RemoteTransmitException(
                 "The connection has been timeouted. The connection will be re-established according " +
-                    "to the manager's transmission configuration [remoteId=" + igniteChannel + ']', cause);
+                    "to the manager's transmission configuration [socket=" + socket() + ']', cause);
         }
         else if (cause instanceof IOException) {
             // Improve IOException connection error handling
@@ -153,7 +154,7 @@ public abstract class TransmitAbstractChannel implements Closeable {
                 CLOSED_BY_REMOTE_MSG.equals(causeMsg)) {
                 return new RemoteTransmitException("Connection has been dropped by remote due to unhandled error. " +
                     "The connection will be re-established according to the manager's transmission configuration " +
-                    "[igniteChannel=" + igniteChannel + ']', cause);
+                    "[socket=" + socket() + ']', cause);
             };
         }
 
@@ -163,13 +164,13 @@ public abstract class TransmitAbstractChannel implements Closeable {
     /**
      * @return The corresponding ignite channel.
      */
-    public Channel igniteChannel() {
-        return igniteChannel;
+    public SocketChannel socket() {
+        return channel;
     }
 
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
-        U.closeQuiet(igniteChannel);
+        U.closeQuiet(channel);
     }
 
     /** {@inheritDoc} */

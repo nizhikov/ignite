@@ -20,6 +20,8 @@ package org.apache.ignite.internal.processors.transmit;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.channels.Channel;
+import java.nio.channels.SocketChannel;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,6 +33,7 @@ import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
+import org.apache.ignite.internal.managers.communication.GridChannelListener;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
 import org.apache.ignite.internal.processors.GridProcessorAdapter;
 import org.apache.ignite.internal.processors.transmit.channel.RemoteTransmitException;
@@ -48,6 +51,7 @@ import org.apache.ignite.internal.util.GridSpinBusyLock;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.plugin.extensions.communication.Message;
 
 import static java.util.Optional.ofNullable;
 import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
@@ -87,6 +91,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
     /** */
     private final ConcurrentMap<Object, TransmitSessionFactory> topicFactoryMap = new ConcurrentHashMap<>();
+
+    /** */
+    private final ConcurrentMap<Object, TransmitSession> topicHandlerMap = new ConcurrentHashMap<>();
 
     /** The map of already known channel read contexts by its session id. */
     private final ConcurrentMap<String, FileIoReadContext> sessionContextMap = new ConcurrentHashMap<>();
@@ -284,6 +291,54 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
     /**
      * @param topic The {@link GridTopic} to register handler to.
+     * @param session The session will be created for a new channel opened.
+     */
+    public void addFileIoChannelHandler(Object topic, TransmitSession session) {
+        if (topicHandlerMap.put(topic, session) == null) {
+            ctx.io().addChannelListener(topic, new GridChannelListener() {
+                @Override public void onOpened(UUID nodeId, Message initMsg, Channel channel) {
+                    String sessionId = null;
+                    FileIoReadContext tctx = null;
+
+                    try {
+                        if (!busyLock.enterBusy())
+                            return;
+
+                        try {
+//                            sessionId = Objects.requireNonNull(channel.attr(SESSION_ID_KEY));
+//
+//                            tctx = sessionContextMap.computeIfAbsent(sessionId,
+//                                sesId -> new FileIoReadContext(nodeId, factory.create()));
+
+                            tctx.currInput = new TransmitInputChannel(ctx, (SocketChannel)channel);
+                            tctx.currOutput = new TransmitOutputChannel(ctx, (SocketChannel)channel);
+
+                            if (tctx.started.compareAndSet(false, true))
+                                tctx.session.begin(nodeId, sessionId);
+                        }
+                        finally {
+                            busyLock.leaveBusy();
+                        }
+
+                        onChannelOpened0(sessionId, tctx);
+                    }
+                    catch (Throwable t) {
+                        log.error("Error processing channel creation event [topic=" + topic +
+                            ", channel=" + channel + ", sessionId=" + sessionId + ']', t);
+
+                        if (tctx != null)
+                            tctx.session.onException(t);
+                    }
+                    finally {
+                        U.closeQuiet(channel);
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * @param topic The {@link GridTopic} to register handler to.
      * @param factory The factory will create a new handler for each created channel.
      */
     public void addFileIoChannelHandler(Object topic, TransmitSessionFactory factory) {
@@ -346,7 +401,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 //                            busyLock.leaveBusy();
 //                        }
 //
-//                        onChannelCreated0(sessionId, sesCtx);
+//                        onChannelOpened0(sessionId, sesCtx);
 //                    }
 //                    catch (Throwable t) {
 //                        log.error("Error processing channel creation event [topic=" + topic +
@@ -360,7 +415,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 //                    }
 //                }
 //
-//                @Override public void onChannelOpened(UUID nodeId, Channel channel) {
+//                @Override public void onOpened(UUID nodeId, Channel channel) {
 //
 //                }
 //            });
@@ -402,9 +457,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     }
 
     /**
-     * @param sesCtx The handler read context.
+     * @param tctx The handler read context.
      */
-    private void onChannelCreated0(String sessionId, FileIoReadContext sesCtx) {
+    private void onChannelOpened0(String sessionId, FileIoReadContext tctx) {
         ChunkedInputStream inStream = null;
         TransmitMeta meta = null;
 
@@ -413,10 +468,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 checkProcessorNotStopped();
 
                 // Read current stream session policy
-                ReadPolicy currPlc = sesCtx.currInput.readPolicy();
+                ReadPolicy currPlc = tctx.currInput.readPolicy();
 
                 if (currPlc == ReadPolicy.NONE) {
-                    sesCtx.session.end();
+                    tctx.session.end();
                     sessionContextMap.remove(sessionId);
 
                     break;
@@ -424,14 +479,14 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                 long startTime = U.currentTimeMillis();
 
-                sesCtx.currPlc = currPlc;
+                tctx.currPlc = currPlc;
 
-                if (sesCtx.stream == null)
-                    sesCtx.stream = streamFactory.createInputStream(sesCtx.currPlc, sesCtx.session, ioStreamChunkSize);
+                if (tctx.stream == null)
+                    tctx.stream = streamFactory.createInputStream(tctx.currPlc, tctx.session, ioStreamChunkSize);
 
-                inStream = sesCtx.stream;
+                inStream = tctx.stream;
 
-                inStream.setup(sesCtx.currInput);
+                inStream.setup(tctx.currInput);
 
                 // Read data from the input.
                 while (!inStream.endStream()) {
@@ -442,23 +497,23 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                     // If the limit of permits at appropriate period of time reached,
                     // the furhter invocations of the #acuqire(int) method will be blocked.
-                    boolean acquired = inBytePermits.tryAcquire(sesCtx.stream.chunkSize(),
+                    boolean acquired = inBytePermits.tryAcquire(tctx.stream.chunkSize(),
                         DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
                     if (!acquired)
                         throw new RemoteTransmitException("Download speed is too slow " +
                             "[rate=" + ByteUnit.BYTE.toKB(inBytePermits.permitsPerSec()) + " Kb/sec]");
 
-                    inStream.readChunk(sesCtx.currInput);
+                    inStream.readChunk(tctx.currInput);
                 }
 
                 inStream.checkStreamEOF();
                 inStream.close();
 
-                sesCtx.stream = null;
+                tctx.stream = null;
 
                 // Write stream processing acknowledge.
-                sesCtx.currOutput.acknowledge(inStream.count());
+                tctx.currOutput.acknowledge(inStream.count());
 
                 long downloadTime = U.currentTimeMillis() - startTime;
 
@@ -466,27 +521,27 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                     "[name=" + inStream.name() + ", transferred=" + ByteUnit.BYTE.toKB(inStream.transferred()) + " Kb" +
                     ", time=" + (double)((downloadTime) / 1000) + " sec" +
                     ", rate=" + ByteUnit.BYTE.toKB(inBytePermits.permitsPerSec()) + " Kb/sec" +
-                    ", reconnects=" + sesCtx.reconnects);
+                    ", reconnects=" + tctx.reconnects);
             }
         }
         catch (RemoteTransmitException e) {
             // Waiting for re-establishing connection.
             log.warning("The connection lost. Waiting for the new one to continue file upload", e);
 
-            sesCtx.reconnects++;
+            tctx.reconnects++;
 
-            if (sesCtx.reconnects == reconnectCnt) {
+            if (tctx.reconnects == reconnectCnt) {
                 IOException ex = new IOException("The number of reconnect attempts exceeded the limit. " +
                     "Max attempts: " + reconnectCnt, e);
 
-                sesCtx.session.onException(ex);
+                tctx.session.onException(ex);
             }
         }
         catch (Throwable t) {
-            log.error("The download session cannot be finished due to unexpected error [ctx=" + sesCtx +
-                ", channel=" + sesCtx.currInput + ", lastMeta=" + meta + ']', t);
+            log.error("The download session cannot be finished due to unexpected error [ctx=" + tctx +
+                ", channel=" + tctx.currInput + ", lastMeta=" + meta + ']', t);
 
-            sesCtx.session.onException(t);
+            tctx.session.onException(t);
         }
         finally {
             U.closeQuiet(inStream);
@@ -614,8 +669,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         if (out == null && in == null)
                             connect();
 
-                        String lastFileName = out.igniteChannel().attr(LAST_FILE_NAME_KEY);
-                        Long receivedBytes = out.igniteChannel().attr(RECEIVED_BYTES_KEY);
+//                        String lastFileName = out.socket().attr(LAST_FILE_NAME_KEY);
+//                        Long receivedBytes = out.socket().attr(RECEIVED_BYTES_KEY);
+                        String lastFileName = "";
+                        Long receivedBytes = 0L;
 
                         assert lastFileName == null || fileStream.name().equals(lastFileName) :
                             "Attempt to upload different file [local=" + fileStream.name() + ", remote=" + lastFileName + ']';

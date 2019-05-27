@@ -21,13 +21,13 @@ import java.io.IOException;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.transmit.ReadPolicy;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.spi.communication.tcp.internal.channel.Channel;
 
 /**
  * Class represents an output transmission connection channel.
@@ -40,16 +40,16 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
 
     /**
      * @param ktx Kernal context.
-     * @param igniteChannel Ignite channel to upload files to.
+     * @param channel Ignite channel to upload files to.
      * @throws IOException If fails.
      */
     public TransmitOutputChannel(
         GridKernalContext ktx,
-        Channel igniteChannel
+        SocketChannel channel
     ) throws IOException {
-        super(ktx, igniteChannel);
+        super(ktx, channel);
 
-        dos = new ObjectOutputStream(igniteChannel.socket().socket().getOutputStream());
+        dos = new ObjectOutputStream(channel.socket().getOutputStream());
     }
 
     /**
@@ -106,7 +106,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public long writeFrom(long position, long count, FileIO fileIO) throws IOException {
         try {
-            return fileIO.transferTo(position, count, (WritableByteChannel)igniteChannel().socket());
+            return fileIO.transferTo(position, count, (WritableByteChannel)socket().socket());
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);
@@ -120,7 +120,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public long writeFrom(ByteBuffer buff) throws IOException {
         try {
-            return igniteChannel().socket().write(buff);
+            return socket().write(buff);
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);

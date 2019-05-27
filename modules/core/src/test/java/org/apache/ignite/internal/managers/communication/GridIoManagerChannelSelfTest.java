@@ -17,9 +17,11 @@
 
 package org.apache.ignite.internal.managers.communication;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channel;
 import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.SelectableChannel;
 import java.nio.channels.SocketChannel;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -77,10 +79,17 @@ public class GridIoManagerChannelSelfTest extends GridCommonAbstractTest {
         final Object topic = TOPIC_CACHE.topic("channel", 0);
 
         grid(1).context().io().addChannelListener(topic, new GridChannelListener() {
-            @Override public void onChannelOpened(UUID nodeId, Message initMsg, Channel channel) {
+            @Override public void onOpened(UUID nodeId, Message initMsg, Channel channel) {
                 // Created from ignite node with index = 0;
                 if (nodeId.equals(grid(0).localNode().id())) {
                     nioCh[0] = (SocketChannel)channel;
+
+                    try {
+                        ((SelectableChannel)channel).configureBlocking(true);
+                    }
+                    catch (IOException e) {
+                        throw new IgniteException(e);
+                    }
 
                     waitChLatch.countDown();
                 }
@@ -97,6 +106,8 @@ public class GridIoManagerChannelSelfTest extends GridCommonAbstractTest {
         assertTrue(waitChLatch.await(5_000L, TimeUnit.MILLISECONDS));
 
         assertNotNull(nioCh[0]);
+
+        nioChannel.configureBlocking(true);
 
         // Prepare ping bytes to check connection.
         final int pingNum = 777_777;

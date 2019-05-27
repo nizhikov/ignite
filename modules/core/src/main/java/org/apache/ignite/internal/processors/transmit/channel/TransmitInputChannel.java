@@ -23,13 +23,13 @@ import java.io.ObjectInput;
 import java.io.ObjectInputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.SocketChannel;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.transmit.ReadPolicy;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.spi.communication.tcp.internal.channel.Channel;
 
 /**
  * Class represents an input transmission connection channel.
@@ -43,16 +43,16 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
 
     /**
      * @param ktx Kernal context.
-     * @param igniteChannel Ignite channel to upload files to.
-     * @throws IOException If fails.
+     * @param channel Ignite channel to upload files to.
+     * @throws IOException If channel configuration fails.
      */
     public TransmitInputChannel(
         GridKernalContext ktx,
-        Channel igniteChannel
+        SocketChannel channel
     ) throws IOException {
-        super(ktx, igniteChannel);
+        super(ktx, channel);
 
-        dis = new ObjectInputStream(igniteChannel.socket().socket().getInputStream());
+        dis = new ObjectInputStream(channel.socket().getInputStream());
     }
 
     /**
@@ -114,7 +114,7 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      */
     public long readInto(FileIO fileIO, long position, long count) throws IOException {
         try {
-            return fileIO.transferFrom((ReadableByteChannel)igniteChannel().socket(), position, count);
+            return fileIO.transferFrom((ReadableByteChannel)socket().socket(), position, count);
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);
@@ -127,7 +127,7 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      * @throws IOException If fails.
      */
     public long readInto(ByteBuffer buff) throws IOException {
-        return igniteChannel().socket().read(buff);
+        return socket().read(buff);
     }
 
     /** {@inheritDoc} */

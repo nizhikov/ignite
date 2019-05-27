@@ -31,5 +31,5 @@ public interface GridChannelListener extends EventListener {
      * @param initMsg Channel initialization message.
      * @param channel Local created nio channel endpoint.
      */
-    public void onChannelOpened(UUID nodeId, Message initMsg, Channel channel);
+    public void onOpened(UUID nodeId, Message initMsg, Channel channel);
 }

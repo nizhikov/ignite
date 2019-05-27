@@ -99,7 +99,7 @@ import org.apache.ignite.spi.IgniteSpiException;
 import org.apache.ignite.spi.communication.CommunicationListener;
 import org.apache.ignite.spi.communication.CommunicationSpi;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
-import org.apache.ignite.spi.communication.tcp.internal.CommunicationListenerEx;
+import org.apache.ignite.spi.communication.tcp.internal.channel.CommunicationListenerEx;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -968,7 +968,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
             if (lsnr0 != null) {
                 pools.poolForPolicy(plc).execute(new Runnable() {
                     @Override public void run() {
-                        lsnr0.onChannelOpened(nodeId, initMsg.message(), channel);
+                        lsnr0.onOpened(nodeId, initMsg.message(), channel);
                     }
                 });
             }

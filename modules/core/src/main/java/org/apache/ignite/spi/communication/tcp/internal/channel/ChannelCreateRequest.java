@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.spi.communication.tcp.messages;
+package org.apache.ignite.spi.communication.tcp.internal.channel;
 
 import java.io.Externalizable;
 import java.nio.ByteBuffer;
@@ -26,30 +26,30 @@ import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
 
 /**
- * Message response to creation of {@link Channel}.
+ * Message requesting to creation of {@link Channel}.
  */
-public class ChannelCreateResponse implements Message {
-    /** Request message type (value is {@code 175}). */
-    public static final short TYPE_CODE = 175;
+public class ChannelCreateRequest implements Message {
+    /** Request message type (value is {@code 176}). */
+    public static final short TYPE_CODE = 176;
 
     /** Serialization version. */
     private static final long serialVersionUID = 0L;
 
-    /** Response channel message which contains channel params. */
+    /** Initialization channel message which contains channel params. */
     private Message msg;
 
     /**
      * No-op constructor to support {@link Externalizable} interface.
      * This constructor is not meant to be used for other purposes.
      */
-    public ChannelCreateResponse() {
+    public ChannelCreateRequest() {
         // No-op.
     }
 
     /**
      * @param msg Initial channel message, containing channel attributes.
      */
-    public ChannelCreateResponse(Message msg) {
+    public ChannelCreateRequest(Message msg) {
         this.msg = msg;
     }
 
@@ -64,7 +64,7 @@ public class ChannelCreateResponse implements Message {
      * @param msg Channel initialization message.
      * @return {@code this} for chaining.
      */
-    public ChannelCreateResponse message(Message msg) {
+    public ChannelCreateRequest message(Message msg) {
         this.msg = msg;
         return this;
     }
@@ -111,7 +111,7 @@ public class ChannelCreateResponse implements Message {
             reader.incrementState();
         }
 
-        return reader.afterMessageRead(ChannelCreateResponse.class);
+        return reader.afterMessageRead(ChannelCreateRequest.class);
     }
 
     /** {@inheritDoc} */
@@ -126,7 +126,7 @@ public class ChannelCreateResponse implements Message {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(ChannelCreateResponse.class, this);
+        return S.toString(ChannelCreateRequest.class, this);
     }
 
 }

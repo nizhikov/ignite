@@ -144,13 +144,13 @@ import org.apache.ignite.spi.IgniteSpiTimeoutObject;
 import org.apache.ignite.spi.TimeoutStrategy;
 import org.apache.ignite.spi.communication.CommunicationListener;
 import org.apache.ignite.spi.communication.CommunicationSpi;
-import org.apache.ignite.spi.communication.tcp.internal.CommunicationListenerEx;
 import org.apache.ignite.spi.communication.tcp.internal.ConnectionKey;
 import org.apache.ignite.spi.communication.tcp.internal.HandshakeException;
 import org.apache.ignite.spi.communication.tcp.internal.TcpCommunicationConnectionCheckFuture;
 import org.apache.ignite.spi.communication.tcp.internal.TcpCommunicationNodeConnectionCheckFuture;
-import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateRequest;
-import org.apache.ignite.spi.communication.tcp.messages.ChannelCreateResponse;
+import org.apache.ignite.spi.communication.tcp.internal.channel.ChannelCreateRequest;
+import org.apache.ignite.spi.communication.tcp.internal.channel.ChannelCreateResponse;
+import org.apache.ignite.spi.communication.tcp.internal.channel.CommunicationListenerEx;
 import org.apache.ignite.spi.communication.tcp.messages.HandshakeMessage;
 import org.apache.ignite.spi.communication.tcp.messages.HandshakeMessage2;
 import org.apache.ignite.spi.communication.tcp.messages.HandshakeWaitMessage;
@@ -779,11 +779,9 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
 
                         SelectableChannel nioChannel = ses.key().channel();
 
-                        nioChannel.configureBlocking(true);
-
                         reqFut.onDone(nioChannel);
                     }
-                    catch (IgniteCheckedException | IOException e) {
+                    catch (IgniteCheckedException e) {
                         reqFut.onDone(e);
                     }
                 });
@@ -810,11 +808,9 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
 
                                     SelectableChannel channel = ses.key().channel();
 
-                                    channel.configureBlocking(true);
-
                                     notifyChannelEvtListener(connKey.nodeId(), channel, msg.message());
                                 }
-                                catch (IgniteCheckedException | IOException e) {
+                                catch (IgniteCheckedException e) {
                                     U.error(log, "Configure blocking mode to the qequested channel failed. " +
                                         "Session will be closed [nodeId=" + connKey.nodeId() +
                                         ", idx=" + connKey.connectionIndex() + ']', e);

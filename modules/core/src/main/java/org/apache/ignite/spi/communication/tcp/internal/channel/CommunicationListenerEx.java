@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.spi.communication.tcp.internal;
+package org.apache.ignite.spi.communication.tcp.internal.channel;
 
 import java.io.Serializable;
 import java.nio.channels.Channel;
@@ -24,7 +24,7 @@ import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.spi.communication.CommunicationListener;
 
 /**
- *
+ * Extended communication SPI listener to provide {@link Channel} opened events.
  */
 public interface CommunicationListenerEx<T extends Serializable> extends CommunicationListener<T> {
     /**
