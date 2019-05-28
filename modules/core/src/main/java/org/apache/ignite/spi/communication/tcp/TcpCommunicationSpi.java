@@ -754,11 +754,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                 }
             }
 
-            private void handleChannelCreateResponse(
-                GridSelectorNioSession ses,
-                ConnectionKey connKey,
-                ChannelCreateResponse msg
-            ) {
+            private void handleChannelCreateResponse(GridSelectorNioSession ses, ConnectionKey connKey) {
                 GridFutureAdapter<Channel> reqFut = channelReqs.remove(connKey);
 
                 if (reqFut == null) {
@@ -792,7 +788,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                 ConnectionKey connKey,
                 ChannelCreateRequest msg
             ) {
-                ses.send(new ChannelCreateResponse(new NodeIdMessage(safeLocalNodeId())))
+                ses.send(new ChannelCreateResponse())
                     .listen(sendFut -> {
                         try {
                             sendFut.get(); // Exception not ocurred.
@@ -938,8 +934,8 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                             c.run();
                     }
                     else if (msg instanceof ChannelCreateResponse) {
-                        handleChannelCreateResponse((GridSelectorNioSession)ses, connKey,
-                            (ChannelCreateResponse)msg);
+                        // Message will be ignored.
+                        handleChannelCreateResponse((GridSelectorNioSession)ses, connKey);
 
                         if (c != null)
                             c.run();

@@ -19,7 +19,7 @@ package org.apache.ignite.internal.processors.transmit.chunk;
 
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.processors.transmit.ReadPolicy;
-import org.apache.ignite.internal.processors.transmit.TransmitSession;
+import org.apache.ignite.internal.processors.transmit.TransmitSessionHandler;
 
 /**
  * Factory to create a new stream of chunks when the file read or write events happened.
@@ -27,26 +27,26 @@ import org.apache.ignite.internal.processors.transmit.TransmitSession;
 public class ChunkedStreamFactory {
     /**
      * @param policy The policy of how to read stream.
-     * @param session The current session instance produces handlers.
+     * @param ses The current ses instance produces handlers.
      * @param chunkSize The size of chunk to read.
      * @return The chunked stream instance.
      * @throws IgniteCheckedException If fails.
      */
     public ChunkedInputStream createInputStream(
         ReadPolicy policy,
-        TransmitSession session,
+        TransmitSessionHandler ses,
         int chunkSize
     ) throws IgniteCheckedException {
         ChunkedInputStream stream;
 
         switch (policy) {
             case FILE:
-                stream = new ChunkedFileStream(session.fileHandler(), chunkSize);
+                stream = new ChunkedFileStream(ses.fileHandler(), chunkSize);
 
                 break;
 
             case BUFF:
-                stream = new ChunkedBufferStream(session.chunkHandler(), chunkSize);
+                stream = new ChunkedBufferStream(ses.chunkHandler(), chunkSize);
 
                 break;
 

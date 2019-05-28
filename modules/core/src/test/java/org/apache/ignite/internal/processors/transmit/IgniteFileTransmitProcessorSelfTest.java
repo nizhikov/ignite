@@ -143,7 +143,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         ConcurrentMap<String, Long> fileWithSizes = new ConcurrentHashMap<>();
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionHandlerAdapter() {
                     @Override public void begin(UUID nodeId, String sessionId) {
                         assertTrue(sender.localNode().id().equals(nodeId));
                     }
@@ -209,7 +209,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         File fileToSend = createFileRandomData("50Mb", 50, ByteUnit.MB);
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public void begin(UUID nodeId, String sessionId) {
                 if (failFirstTime.compareAndSet(false, true))
                     throw new IgniteException(exTestMessage);
@@ -249,12 +249,12 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
         receiver.context().fileTransmit().chunkedStreamFactory(new ChunkedStreamFactory() {
             @Override public ChunkedInputStream createInputStream(
                 ReadPolicy policy,
-                TransmitSession session,
+                TransmitSessionHandler ses,
                 int chunkSize
             ) throws IgniteCheckedException {
                 assertEquals(policy, ReadPolicy.FILE);
 
-                return new ChunkedFileStream(session.fileHandler(), chunkSize) {
+                return new ChunkedFileStream(ses.fileHandler(), chunkSize) {
                     @Override public void readChunk(TransmitInputChannel in) throws IOException {
                         // Read 4 chunks than throw an exception to emulate error processing.
                         if (readedChunks.incrementAndGet() == 4)
@@ -268,7 +268,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
             }
         });
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public FileHandler fileHandler() {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
@@ -300,7 +300,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         File fileToSend = createFileRandomData("testFile", fileSizeMb, ByteUnit.MB);
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public FileHandler fileHandler() {
                 return new FileHandler() {
                     @Override public String begin(
@@ -347,7 +347,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         receiver.context().fileTransmit().downloadRate(donwloadSpeedMbSec, ByteUnit.MB);
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public FileHandler fileHandler() {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
@@ -387,7 +387,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         sender.context().fileTransmit().uploadRate(uploadSpeedRateMbSec, ByteUnit.MB);
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public FileHandler fileHandler() {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
@@ -424,7 +424,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         File fileToSend = createFileRandomData("testFile", 10, ByteUnit.MB);
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionHandlerAdapter() {
             /** {@inheritDoc} */
             @Override public ChunkHandler chunkHandler() {
                 return new ChunkHandler() {
@@ -489,7 +489,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
 
         File fileToSend = createFileRandomData("testFile", 10, ByteUnit.MB);
 
-        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionAdapter() {
+        receiver.context().fileTransmit().addFileIoChannelHandler(topic, new TransmitSessionHandlerAdapter() {
             /** {@inheritDoc} */
             @Override public ChunkHandler chunkHandler() {
                 return new ChunkHandler() {
@@ -612,7 +612,7 @@ public class IgniteFileTransmitProcessorSelfTest extends GridCommonAbstractTest 
     /**
      * The defailt implementation of transmit session.
      */
-    private static class TransmitSessionAdapter implements TransmitSession {
+    private static class TransmitSessionHandlerAdapter implements TransmitSessionHandler {
         /** {@inheritDoc} */
         @Override public void begin(UUID nodeId, String sessionId) {
             // No-op.

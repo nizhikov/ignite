@@ -21,9 +21,9 @@ import java.nio.channels.FileChannel;
 import java.util.UUID;
 
 /**
- * The {@code TransmitSession} represents a single session of handling input file transmission requests.
+ * The {@code TransmitSessionHandler} represents a single session of handling input file transmission requests.
  */
-public interface TransmitSession {
+public interface TransmitSessionHandler {
     /**
      * @param nodeId The remote node id connected from.
      * @param sessionId The unique session id.

@@ -82,7 +82,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     private static final int DFLT_ACQUIRE_TIMEOUT_MS = 5000;
 
     /** */
-    private final ConcurrentMap<Object, TransmitSession> topicHandlerMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, TransmitSessionHandler> topicHandlerMap = new ConcurrentHashMap<>();
 
     /** The map of already known channel read contexts by its session id. */
     private final ConcurrentMap<IgniteUuid, FileIoReadContext> sessionContextMap = new ConcurrentHashMap<>();
@@ -282,14 +282,25 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @param topic The {@link GridTopic} to register handler to.
      * @param session The session will be created for a new channel opened.
      */
-    public void addFileIoChannelHandler(Object topic, TransmitSession session) {
+    public void addFileIoChannelHandler(Object topic, TransmitSessionHandler session) {
         if (topicHandlerMap.put(topic, session) == null) {
             ctx.io().addChannelListener(topic, new GridChannelListener() {
+                /** Handler currently in use flag. */
+                private final AtomicBoolean inProgress = new AtomicBoolean();
+
                 @Override public void onOpened(UUID nodeId, Message initMsg, Channel channel) {
                     IgniteUuid sesId = null;
                     FileIoReadContext tctx = null;
 
                     try {
+                        // Do not allow multiple connection for the same session id;
+                        if (!inProgress.compareAndSet(false, true)) {
+                            U.warn(log, "Current topic is already being handled. Opened channel will " +
+                                "be closed [initMsg=" + initMsg + ", channel=" + channel + ']');
+
+                            return;
+                        }
+
                         if (!busyLock.enterBusy())
                             return;
 
@@ -298,14 +309,6 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
                             tctx = sessionContextMap.computeIfAbsent(sesId,
                                 s -> new FileIoReadContext(nodeId, session));
-
-                            // Do not allow multiple connection for the same session id;
-                            if (!tctx.inProgress.compareAndSet(false, true)) {
-                                U.warn(log, "Current session id is already being handled. Opened channel will " +
-                                    "be closed [sesId=" + sesId + ", channel=" + channel + ']');
-
-                                return;
-                            }
 
                             tctx.currInChannel = new TransmitInputChannel(ctx, (SocketChannel)channel);
                             tctx.currOutChannel = new TransmitOutputChannel(ctx, (SocketChannel)channel);
@@ -323,12 +326,11 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                         log.error("Error processing channel creation event [topic=" + topic +
                             ", channel=" + channel + ", sessionId=" + sesId + ']', t);
 
-                        if (tctx != null) {
+                        if (tctx != null)
                             tctx.session.onException(t);
-                            tctx.inProgress.compareAndSet(true, false);
-                        }
                     }
                     finally {
+                        inProgress.compareAndSet(true, false);
                         U.closeQuiet(channel);
                     }
                 }
@@ -447,7 +449,6 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
             tctx.session.onException(t);
         }
         finally {
-            tctx.inProgress.compareAndSet(true, false);
             U.closeQuiet(inStream);
         }
     }
@@ -685,13 +686,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
         /** Current sesssion. */
         @GridToStringExclude
-        private final TransmitSession session;
+        private final TransmitSessionHandler session;
 
         /** Flag indicates session started. */
         private final AtomicBoolean started = new AtomicBoolean();
-
-        /** Flag indicates session completed. */
-        private final AtomicBoolean inProgress = new AtomicBoolean();
 
         /** The number of reconnect attempts of current session. */
         private int reconnects;
@@ -714,7 +712,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
          * @param nodeId The remote node id.
          * @param session The channel handler.
          */
-        public FileIoReadContext(UUID nodeId, TransmitSession session) {
+        public FileIoReadContext(UUID nodeId, TransmitSessionHandler session) {
             this.nodeId = nodeId;
             this.session = session;
         }
