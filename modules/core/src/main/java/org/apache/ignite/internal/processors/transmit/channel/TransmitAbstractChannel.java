@@ -137,14 +137,14 @@ public abstract class TransmitAbstractChannel implements Closeable {
             // Return the new one with detailed message.
             return new RemoteTransmitException(
                 "Lost connection to the remote node. The connection will be re-established according " +
-                    "to the manager's transmission configuration [socket=" + socket() + ']', cause);
+                    "to the manager's transmission configuration [socket=" + channel() + ']', cause);
         }
         // Connection timeout issues.
         else if (cause instanceof SocketTimeoutException ||
             cause instanceof AsynchronousCloseException) {
             return new RemoteTransmitException(
                 "The connection has been timeouted. The connection will be re-established according " +
-                    "to the manager's transmission configuration [socket=" + socket() + ']', cause);
+                    "to the manager's transmission configuration [socket=" + channel() + ']', cause);
         }
         else if (cause instanceof IOException) {
             // Improve IOException connection error handling
@@ -154,7 +154,7 @@ public abstract class TransmitAbstractChannel implements Closeable {
                 CLOSED_BY_REMOTE_MSG.equals(causeMsg)) {
                 return new RemoteTransmitException("Connection has been dropped by remote due to unhandled error. " +
                     "The connection will be re-established according to the manager's transmission configuration " +
-                    "[socket=" + socket() + ']', cause);
+                    "[socket=" + channel() + ']', cause);
             };
         }
 
@@ -164,7 +164,7 @@ public abstract class TransmitAbstractChannel implements Closeable {
     /**
      * @return The corresponding ignite channel.
      */
-    public SocketChannel socket() {
+    public SocketChannel channel() {
         return channel;
     }
 
