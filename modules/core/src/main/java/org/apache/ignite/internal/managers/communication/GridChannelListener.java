@@ -18,14 +18,13 @@
 package org.apache.ignite.internal.managers.communication;
 
 import java.nio.channels.Channel;
-import java.util.EventListener;
 import java.util.UUID;
 import org.apache.ignite.plugin.extensions.communication.Message;
 
 /**
  * Listener for a new {@link Channel} connections established from remote node.
  */
-public interface GridChannelListener extends EventListener {
+public interface GridChannelListener {
     /**
      * @param nodeId The remote node id.
      * @param initMsg Channel initialization message.

@@ -144,12 +144,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     /** Current IO policy. */
     private static final ThreadLocal<Byte> CUR_PLC = new ThreadLocal<>();
 
-    /** The key fot the channel {@link GridTopic} attribute. */
-    private static final String CHANNEL_TOPIC_KEY = "topic";
-
-    /** The key fot the channel {@link GridIoPolicy} attribute. */
-    private static final String CHANNEL_IO_POLICY_KEY = "plc";
-
     /** Channel listeners by topic. */
     private final ConcurrentMap<Object, GridChannelListener> channelLsnrMap = new ConcurrentHashMap<>();
 
