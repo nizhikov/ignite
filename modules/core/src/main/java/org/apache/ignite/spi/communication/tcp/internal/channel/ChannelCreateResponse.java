@@ -17,13 +17,13 @@
 
 package org.apache.ignite.spi.communication.tcp.internal.channel;
 
-import java.io.Externalizable;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channel;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
+import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 
 /**
  * Message response to creation of {@link Channel}.
@@ -35,40 +35,6 @@ public class ChannelCreateResponse implements Message {
     /** Serialization version. */
     private static final long serialVersionUID = 0L;
 
-    /** Response channel message which contains channel params. */
-    private Message msg;
-
-    /**
-     * No-op constructor to support {@link Externalizable} interface.
-     * This constructor is not meant to be used for other purposes.
-     */
-    public ChannelCreateResponse() {
-        // No-op.
-    }
-
-    /**
-     * @param msg Initial channel message, containing channel attributes.
-     */
-    public ChannelCreateResponse(Message msg) {
-        this.msg = msg;
-    }
-
-    /**
-     * @return Channel initialization message.
-     */
-    public Message message() {
-        return msg;
-    }
-
-    /**
-     * @param msg Channel initialization message.
-     * @return {@code this} for chaining.
-     */
-    public ChannelCreateResponse message(Message msg) {
-        this.msg = msg;
-        return this;
-    }
-
     /** {@inheritDoc} */
     @Override public void onAckReceived() {
         // No-op.
@@ -76,42 +42,19 @@ public class ChannelCreateResponse implements Message {
 
     /** {@inheritDoc} */
     @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
-        writer.setBuffer(buf);
+        if (buf.remaining() < DIRECT_TYPE_SIZE)
+            return false;
 
-        if (!writer.isHeaderWritten()) {
-            if (!writer.writeHeader(directType(), fieldsCount()))
-                return false;
+        TcpCommunicationSpi.writeMessageType(buf, directType());
 
-            writer.onHeaderWritten();
-        }
-
-        if (writer.state() == 0) {
-            if (!writer.writeMessage("msg", msg))
-                return false;
-
-            writer.incrementState();
-        }
+        buf.put((byte)1);
 
         return true;
     }
 
     /** {@inheritDoc} */
     @Override public boolean readFrom(ByteBuffer buf, MessageReader reader) {
-        reader.setBuffer(buf);
-
-        if (!reader.beforeMessageRead())
-            return false;
-
-        if (reader.state() == 0) {
-            msg = reader.readMessage("msg");
-
-            if (!reader.isLastRead())
-                return false;
-
-            reader.incrementState();
-        }
-
-        return reader.afterMessageRead(ChannelCreateResponse.class);
+        return true;
     }
 
     /** {@inheritDoc} */
@@ -121,7 +64,7 @@ public class ChannelCreateResponse implements Message {
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 1;
+        return 0;
     }
 
     /** {@inheritDoc} */

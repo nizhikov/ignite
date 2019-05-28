@@ -934,7 +934,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                             c.run();
                     }
                     else if (msg instanceof ChannelCreateResponse) {
-                        // Message will be ignored.
+                        // msg will be ignored.
                         handleChannelCreateResponse((GridSelectorNioSession)ses, connKey);
 
                         if (c != null)
