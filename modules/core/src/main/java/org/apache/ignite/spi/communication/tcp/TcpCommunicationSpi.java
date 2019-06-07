@@ -3399,11 +3399,11 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
     }
 
     /**
-     * Establish TCP connection to remote node.
+     * Establish TCP connection to remote node and returns client.
      *
      * @param node Remote node.
      * @param connIdx Connection index.
-     * @return Session.
+     * @return Client.
      * @throws IgniteCheckedException If failed.
      */
     protected GridCommunicationClient createTcpClient(ClusterNode node, int connIdx) throws IgniteCheckedException {
