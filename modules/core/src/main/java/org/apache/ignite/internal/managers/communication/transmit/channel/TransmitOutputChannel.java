@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit.channel;
+package org.apache.ignite.internal.managers.communication.transmit.channel;
 
 import java.io.IOException;
 import java.io.ObjectOutput;
@@ -24,8 +24,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
 import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.internal.managers.communication.transmit.ReadPolicy;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
-import org.apache.ignite.internal.processors.transmit.ReadPolicy;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 

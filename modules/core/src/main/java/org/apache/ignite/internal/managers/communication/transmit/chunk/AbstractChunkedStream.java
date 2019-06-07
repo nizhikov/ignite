@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit.chunk;
+package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,9 +25,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
-import org.apache.ignite.internal.processors.transmit.channel.TransmitMeta;
-import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitOutputChannel;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 

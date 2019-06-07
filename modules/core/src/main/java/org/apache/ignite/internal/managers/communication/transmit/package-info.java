@@ -19,4 +19,4 @@
  * <!-- Package description. -->
  * The internal file transfer processor.
  */
-package org.apache.ignite.internal.processors.transmit;
+package org.apache.ignite.internal.managers.communication.transmit;

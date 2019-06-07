@@ -65,6 +65,7 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.direct.DirectMessageReader;
 import org.apache.ignite.internal.direct.DirectMessageWriter;
 import org.apache.ignite.internal.managers.GridManagerAdapter;
+import org.apache.ignite.internal.managers.communication.transmit.GridFileIoManager;
 import org.apache.ignite.internal.managers.deployment.GridDeployment;
 import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
 import org.apache.ignite.internal.managers.eventstorage.GridLocalEventListener;
@@ -178,6 +179,9 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     /** Communication message listener. */
     private CommunicationListenerEx<Serializable> commLsnr;
 
+    /** File transfer manager. */
+    private GridFileIoManager fileIoMgr;
+
     /** Grid marshaller. */
     private final Marshaller marsh;
 
@@ -228,6 +232,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         locNodeId = ctx.localNodeId();
 
         marsh = ctx.config().getMarshaller();
+
+        fileIoMgr = new GridFileIoManager(ctx);
 
         synchronized (sysLsnrsMux) {
             sysLsnrs = new GridMessageListener[GridTopic.values().length];
@@ -878,6 +884,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 closedTopics.add(e.getKey());
             }
         }
+
+        fileIoMgr.onKernalStart();
     }
 
     /** {@inheritDoc} */
@@ -911,6 +919,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
             if (evtMgr != null && discoLsnr != null)
                 evtMgr.removeLocalEventListener(discoLsnr);
+
+            fileIoMgr.onKernalStop();
 
             stopping = true;
         }
@@ -952,9 +962,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     U.unmarshal(marsh, initMsg.topicBytes(), U.resolveClassLoader(ctx.config())));
             }
 
-            // If message is P2P, then process in P2P service.
-            // This is done to avoid extra waiting and potential deadlocks
-            // as thread pool may not have any available threads to give.
             byte plc = initMsg.policy();
 
             final GridChannelListener lsnr0 = channelLsnrMap.get(initMsg.topic());
@@ -1682,17 +1689,16 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         GridIoMessage ioMsg = createGridIoMessage(topic, topicOrd, initMsg, PUBLIC_POOL, false, 0, false);
 
         try {
-            if ((CommunicationSpi)getSpi() instanceof TcpCommunicationSpi) {
-                if (topicOrd < 0)
-                    ioMsg.topicBytes(U.marshal(marsh, topic));
-
-                return ((TcpCommunicationSpi)(CommunicationSpi)getSpi()).openChannel(node, ioMsg);
-            }
-            else {
+            if (!((CommunicationSpi)getSpi() instanceof TcpCommunicationSpi)) {
                 throw new IgniteCheckedException("The channel cannot be opened to remote. Only default build-in " +
                     "impelemntation of Communication SPI supports communication between nodes over the SocketChannel." +
                     "[spi=" + getSpi().getClass() + ']');
             }
+
+            if (topicOrd < 0)
+                ioMsg.topicBytes(U.marshal(marsh, topic));
+
+            return ((TcpCommunicationSpi)(CommunicationSpi)getSpi()).openChannel(node, ioMsg);
         }
         catch (IgniteSpiException e) {
             if (e.getCause() instanceof ClusterTopologyCheckedException)
@@ -2466,6 +2472,13 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      */
     public int getOutboundMessagesQueueSize() {
         return getSpi().getOutboundMessagesQueueSize();
+    }
+
+    /**
+     * @return File io manager.
+     */
+    public GridFileIoManager fileIoMgr() {
+        return fileIoMgr;
     }
 
     /**

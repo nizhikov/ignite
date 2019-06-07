@@ -15,11 +15,11 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit.chunk;
+package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.IOException;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
 
 /**
  * Input stream of chunks to handle.

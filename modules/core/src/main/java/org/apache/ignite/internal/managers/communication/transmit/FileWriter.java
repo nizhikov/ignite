@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit;
+package org.apache.ignite.internal.managers.communication.transmit;
 
 import java.io.Closeable;
 import java.io.File;

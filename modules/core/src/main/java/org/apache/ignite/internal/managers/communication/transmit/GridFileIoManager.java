@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit;
+package org.apache.ignite.internal.managers.communication.transmit;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,24 +30,24 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.GridChannelListener;
+import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteTransmitException;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitOutputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFileStream;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedInputStream;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedOutputStream;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedStreamFactory;
+import org.apache.ignite.internal.managers.communication.transmit.util.ByteUnit;
+import org.apache.ignite.internal.managers.communication.transmit.util.InitChannelMessage;
+import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
-import org.apache.ignite.internal.processors.GridProcessorAdapter;
-import org.apache.ignite.internal.processors.transmit.channel.RemoteTransmitException;
-import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
-import org.apache.ignite.internal.processors.transmit.channel.TransmitMeta;
-import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
-import org.apache.ignite.internal.processors.transmit.chunk.ChunkedFileStream;
-import org.apache.ignite.internal.processors.transmit.chunk.ChunkedInputStream;
-import org.apache.ignite.internal.processors.transmit.chunk.ChunkedOutputStream;
-import org.apache.ignite.internal.processors.transmit.chunk.ChunkedStreamFactory;
-import org.apache.ignite.internal.processors.transmit.util.ByteUnit;
-import org.apache.ignite.internal.processors.transmit.util.InitChannelMessage;
-import org.apache.ignite.internal.processors.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.util.GridSpinBusyLock;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -61,7 +61,7 @@ import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 /**
  * Class represents a file transfer manager implementation to send or receive files between grid nodes.
  */
-public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
+public class GridFileIoManager {
     /**
      * The default transfer chunk size in bytes. Setting the transfer chunk size
      * more than <tt>1 MB</tt> is meaningless because there is no asymptotic benefit.
@@ -80,6 +80,12 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
 
     /** The default timeout for waiting the permits. */
     private static final int DFLT_ACQUIRE_TIMEOUT_MS = 5000;
+
+    /** Kernal context. */
+    private final GridKernalContext ctx;
+
+    /** Grid logger. */
+    private final IgniteLogger log;
 
     /** */
     private final ConcurrentMap<Object, TransmitSessionHandler> topicHandlerMap = new ConcurrentHashMap<>();
@@ -122,8 +128,9 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
     /**
      * @param ctx Kernal context.
      */
-    public IgniteFileTransmitProcessor(GridKernalContext ctx) {
-        super(ctx);
+    public GridFileIoManager(GridKernalContext ctx) {
+        this.ctx = ctx;
+        log = ctx.log(getClass());
 
         inBytePermits = new TimedSemaphore(DFLT_RATE_LIMIT_BYTES);
         outBytePermits = new TimedSemaphore(DFLT_RATE_LIMIT_BYTES);
@@ -221,8 +228,13 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
             TimedSemaphore.UNLIMITED_PERMITS : ByteUnit.BYTE.convertTo(semaphore.permitsPerSec(), unit);
     }
 
-    /** {@inheritDoc} */
-    @Override public void start() throws IgniteCheckedException {
+    /**
+     * Callback that notifies that kernal has successfully started,
+     * including all managers and processors.
+     *
+     * @throws IgniteCheckedException Thrown in case of any errors.
+     */
+    public void onKernalStart() throws IgniteCheckedException {
         ctx.event().addDiscoveryEventListener(discoLsnr = (evt, disco) -> {
             if (!busyLock.enterBusy())
                 return;
@@ -250,8 +262,10 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
         }, EVT_NODE_LEFT, EVT_NODE_FAILED);
     }
 
-    /** {@inheritDoc} */
-    @Override public void stop(boolean cancel) throws IgniteCheckedException {
+    /**
+     * Callback to notify that kernal is about to stop.
+     */
+    public void onKernalStop() {
         busyLock.block();
 
         try {
@@ -282,7 +296,7 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
      * @param topic The {@link GridTopic} to register handler to.
      * @param session The session will be created for a new channel opened.
      */
-    public void addFileIoChannelHandler(Object topic, TransmitSessionHandler session) {
+    public void addTransmitSessionHandler(Object topic, TransmitSessionHandler session) {
         if (topicHandlerMap.put(topic, session) == null) {
             ctx.io().addChannelListener(topic, new GridChannelListener() {
                 /** Handler currently in use flag. */
@@ -533,8 +547,8 @@ public class IgniteFileTransmitProcessor extends GridProcessorAdapter {
                 new FileHandler() {
                     @Override public String begin(
                         String name,
-                        long position,
-                        long count,
+                        long pos,
+                        long cnt,
                         Map<String, Serializable> params
                     ) {
                         return file.getAbsolutePath();

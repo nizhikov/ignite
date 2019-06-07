@@ -15,13 +15,13 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit.chunk;
+package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
-import org.apache.ignite.internal.processors.transmit.channel.TransmitMeta;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 
 /**
  * Class represents a stream of chunks, can be closed when the stream ends.

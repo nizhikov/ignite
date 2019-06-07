@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit.chunk;
+package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -23,10 +23,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.Objects;
-import org.apache.ignite.internal.processors.transmit.ChunkHandler;
-import org.apache.ignite.internal.processors.transmit.channel.RemoteTransmitException;
-import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
-import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.ChunkHandler;
+import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteTransmitException;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitOutputChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**

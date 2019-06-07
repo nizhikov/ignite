@@ -15,11 +15,11 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit.chunk;
+package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.processors.transmit.ReadPolicy;
-import org.apache.ignite.internal.processors.transmit.TransmitSessionHandler;
+import org.apache.ignite.internal.managers.communication.transmit.ReadPolicy;
+import org.apache.ignite.internal.managers.communication.transmit.TransmitSessionHandler;
 
 /**
  * Factory to create a new stream of chunks when the file read or write events happened.

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit;
+package org.apache.ignite.internal.managers.communication.transmit;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,13 +30,13 @@ import java.util.Map;
 public interface FileHandler {
     /**
      * @param name The file name transfer from.
-     * @param position The start position pointer of download file in original source.
-     * @param count Total count of bytes readed from the original source.
+     * @param pos The start pos pointer of download file in original source.
+     * @param cnt Total cnt of bytes readed from the original source.
      * @param params The additional transfer file description params.
      * @return The absolute pathname string denoting the file or {@code null} if there is no sense.
      * @throws IOException If fails.
      */
-    public String begin(String name, long position, long count, Map<String, Serializable> params) throws IOException;
+    public String begin(String name, long pos, long cnt, Map<String, Serializable> params) throws IOException;
 
     /**
      * @param file The file with fully downloaded data into.

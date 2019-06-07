@@ -43,6 +43,8 @@ import org.apache.ignite.internal.MarshallerContextLockingSelfTest;
 import org.apache.ignite.internal.TransactionsMXBeanImplTest;
 import org.apache.ignite.internal.managers.IgniteDiagnosticMessagesMultipleConnectionsTest;
 import org.apache.ignite.internal.managers.IgniteDiagnosticMessagesTest;
+import org.apache.ignite.internal.managers.communication.transmit.GridFileIoManagerSelfTest;
+import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphoreSelfTest;
 import org.apache.ignite.internal.processors.DeadLockOnNodeLeftExchangeTest;
 import org.apache.ignite.internal.processors.affinity.GridAffinityAssignmentV2Test;
 import org.apache.ignite.internal.processors.affinity.GridAffinityAssignmentV2TestNoOptimizations;
@@ -81,8 +83,6 @@ import org.apache.ignite.internal.processors.metastorage.DistributedMetaStorageT
 import org.apache.ignite.internal.processors.metastorage.persistence.DistributedMetaStorageHistoryCacheTest;
 import org.apache.ignite.internal.processors.odbc.OdbcConfigurationValidationSelfTest;
 import org.apache.ignite.internal.processors.odbc.OdbcEscapeSequenceSelfTest;
-import org.apache.ignite.internal.processors.transmit.IgniteFileTransmitProcessorSelfTest;
-import org.apache.ignite.internal.processors.transmit.util.TimedSemaphoreSelfTest;
 import org.apache.ignite.internal.product.GridProductVersionSelfTest;
 import org.apache.ignite.internal.util.BitSetIntSetTest;
 import org.apache.ignite.internal.util.GridCleanerTest;
@@ -238,7 +238,7 @@ import org.junit.runners.Suite;
 
     // Ignite's file transfer.
     TimedSemaphoreSelfTest.class,
-    IgniteFileTransmitProcessorSelfTest.class
+    GridFileIoManagerSelfTest.class
 })
 public class IgniteBasicTestSuite {
 }

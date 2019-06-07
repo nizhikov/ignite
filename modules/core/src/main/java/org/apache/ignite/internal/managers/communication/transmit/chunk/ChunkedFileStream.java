@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit.chunk;
+package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.File;
 import java.io.IOException;
@@ -23,12 +23,12 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.internal.managers.communication.transmit.FileHandler;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitOutputChannel;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
-import org.apache.ignite.internal.processors.transmit.FileHandler;
-import org.apache.ignite.internal.processors.transmit.channel.TransmitInputChannel;
-import org.apache.ignite.internal.processors.transmit.channel.TransmitOutputChannel;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;

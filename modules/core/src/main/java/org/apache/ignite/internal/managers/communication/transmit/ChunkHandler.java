@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.processors.transmit;
+package org.apache.ignite.internal.managers.communication.transmit;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -29,13 +29,13 @@ import java.util.Map;
 public interface ChunkHandler {
     /**
      * @param name The file name on remote.
-     * @param position The start position pointer of downloading file in original source.
-     * @param count Total count of bytes to read from the original source.
+     * @param pos The start pos pointer of downloading file in original source.
+     * @param cnt Total cnt of bytes to read from the original source.
      * @param params The additional transfer file description params.
      * @return The size of of {@link ByteBuffer} to read the input channel into.
      * @throws IOException If fails.
      */
-    public int begin(String name, long position, long count, Map<String, Serializable> params) throws IOException;
+    public int begin(String name, long pos, long cnt, Map<String, Serializable> params) throws IOException;
 
     /**
      * @param buff The data filled buffer.
