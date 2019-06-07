@@ -65,7 +65,10 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.direct.DirectMessageReader;
 import org.apache.ignite.internal.direct.DirectMessageWriter;
 import org.apache.ignite.internal.managers.GridManagerAdapter;
+import org.apache.ignite.internal.managers.communication.transmit.FileWriter;
 import org.apache.ignite.internal.managers.communication.transmit.GridFileIoManager;
+import org.apache.ignite.internal.managers.communication.transmit.TransmitSessionHandler;
+import org.apache.ignite.internal.managers.communication.transmit.util.InitChannelMessage;
 import org.apache.ignite.internal.managers.deployment.GridDeployment;
 import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
 import org.apache.ignite.internal.managers.eventstorage.GridLocalEventListener;
@@ -144,9 +147,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
     /** Current IO policy. */
     private static final ThreadLocal<Byte> CUR_PLC = new ThreadLocal<>();
-
-    /** Channel listeners by topic. */
-    private final ConcurrentMap<Object, GridChannelListener> channelLsnrMap = new ConcurrentHashMap<>();
 
     /** Listeners by topic. */
     private final ConcurrentMap<Object, GridMessageListener> lsnrMap = new ConcurrentHashMap<>();
@@ -233,7 +233,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
         marsh = ctx.config().getMarshaller();
 
-        fileIoMgr = new GridFileIoManager(ctx);
+        fileIoMgr = new GridFileIoManager(ctx, this::openChannel);
 
         synchronized (sysLsnrsMux) {
             sysLsnrs = new GridMessageListener[GridTopic.values().length];
@@ -949,8 +949,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         try {
             if (stopping) {
                 if (log.isDebugEnabled())
-                    log.debug("Received communication message while stopping (will ignore) [nodeId=" +
-                        nodeId + ", msg=" + initMsg + ']');
+                    log.debug("Received communication channel create event while node stopping (will ignore) " +
+                        "[nodeId=" + nodeId + ", msg=" + initMsg + ']');
 
                 return;
             }
@@ -964,19 +964,15 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
             byte plc = initMsg.policy();
 
-            final GridChannelListener lsnr0 = channelLsnrMap.get(initMsg.topic());
-
-            if (lsnr0 != null) {
-                pools.poolForPolicy(plc).execute(new Runnable() {
-                    @Override public void run() {
-                        lsnr0.onOpened(nodeId, initMsg.message(), channel);
-                    }
-                });
-            }
+            pools.poolForPolicy(plc).execute(new Runnable() {
+                @Override public void run() {
+                    fileIoMgr.onChannelOpened(initMsg.topic(), nodeId, (InitChannelMessage)initMsg.message(), channel);
+                }
+            });
         }
         catch (IgniteCheckedException e) {
-            U.error(log, "Failed to process channel creation event due to exception [nodeId=" + nodeId +
-                ", initMsg=" + initMsg + ']' , e);
+            U.error(log, "Failed to process channel creation event due to exception " +
+                "[nodeId=" + nodeId + ", initMsg=" + initMsg + ']' , e);
         }
         finally {
             busyLock0.unlock();
@@ -1680,9 +1676,10 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         assert node != null;
         assert topic != null;
 
-        if (locNodeId.equals(node.id()))
+        if (locNodeId.equals(node.id())) {
             throw new IgniteCheckedException("Channel cannot be opened to the local node itself " +
                 "[nodeId=" + node.id() + ", topic=" + topic + ']');
+        }
 
         int topicOrd = topic instanceof GridTopic ? ((Enum<GridTopic>)topic).ordinal() : -1;
 
@@ -1720,7 +1717,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @return Established {@link Channel} to use.
      * @throws IgniteCheckedException If fails.
      */
-    public IgniteInternalFuture<Channel> openChannel(
+    private IgniteInternalFuture<Channel> openChannel(
         UUID nodeId,
         Object topic,
         Message initMsg
@@ -1731,6 +1728,15 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
             throw new ClusterTopologyCheckedException("Failed to send message to node (has node left grid?): " + nodeId);
 
         return openChannel(node, topic, initMsg);
+    }
+
+    /**
+     * @param remoteId The remote note to connect to.
+     * @param topic The remote topic to connect to.
+     * @return The channel instance to communicate with remote.
+     */
+    public FileWriter openFileWriter(UUID remoteId, Object topic) {
+        return fileIoMgr.openFileWriter(remoteId, topic);
     }
 
     /**
@@ -2196,25 +2202,18 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     }
 
     /**
-     * @param topic Topic to add new listen to.
-     * @param lsnr Listener to add to specified topic.
+     * @param topic The {@link GridTopic} to register handler to.
+     * @param ses The ses will be created for a new channel opened.
      */
-    public void addChannelListener(Object topic, GridChannelListener lsnr) {
-        assert lsnr != null;
-        assert topic != null;
-
-        GridChannelListener result = channelLsnrMap.putIfAbsent(topic, lsnr);
-
-        assert result == null;
+    public void addTransmitSessionHandler(Object topic, TransmitSessionHandler ses) {
+        fileIoMgr.addTransmitSessionHandler(topic, ses);
     }
 
     /**
-     * @param topic Topic to remove all listeners from.
+     * @param topic The topic to erase handler from.
      */
-    public void removeChannelListener(Object topic) {
-        assert topic != null;
-
-        channelLsnrMap.remove(topic);
+    public void removeTransmitSessionHandler(Object topic) {
+        fileIoMgr.removeTransmitSessionHandler(topic);
     }
 
     /**

@@ -33,9 +33,9 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.GridTopic;
+import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
-import org.apache.ignite.internal.managers.communication.GridChannelListener;
 import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteTransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
@@ -52,6 +52,7 @@ import org.apache.ignite.internal.util.GridSpinBusyLock;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.lang.IgniteTriClosure;
 import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.plugin.extensions.communication.Message;
 
@@ -90,8 +91,8 @@ public class GridFileIoManager {
     /** */
     private final ConcurrentMap<Object, TransmitSessionHandler> topicHandlerMap = new ConcurrentHashMap<>();
 
-    /** The map of already known channel read contexts by its session id. */
-    private final ConcurrentMap<IgniteUuid, FileIoReadContext> sessionContextMap = new ConcurrentHashMap<>();
+    /** The map of already known channel read contexts by its registered topics. */
+    private final ConcurrentMap<Object, FileIoReadContext> sesCtxMap = new ConcurrentHashMap<>();
 
     /** The busy lock. */
     private final GridSpinBusyLock busyLock = new GridSpinBusyLock();
@@ -110,7 +111,10 @@ public class GridFileIoManager {
      */
     private final TimedSemaphore outBytePermits;
 
-    /** */
+    /** Closure to open a new channel to remote node. */
+    private final IgniteTriClosure<UUID, Object, Message, IgniteInternalFuture<Channel>> openClsr;
+
+    /** Listener to handle NODE_LEFT, NODE_FAIL events while waiting for remote reconnects. */
     private DiscoveryEventListener discoLsnr;
 
     /** Processor stopping flag. */
@@ -128,9 +132,13 @@ public class GridFileIoManager {
     /**
      * @param ctx Kernal context.
      */
-    public GridFileIoManager(GridKernalContext ctx) {
+    public GridFileIoManager(
+        GridKernalContext ctx,
+        IgniteTriClosure<UUID, Object, Message, IgniteInternalFuture<Channel>> openClsr
+    ) {
         this.ctx = ctx;
         log = ctx.log(getClass());
+        this.openClsr = openClsr;
 
         inBytePermits = new TimedSemaphore(DFLT_RATE_LIMIT_BYTES);
         outBytePermits = new TimedSemaphore(DFLT_RATE_LIMIT_BYTES);
@@ -243,7 +251,7 @@ public class GridFileIoManager {
                 UUID leftNodeId = evt.eventNode().id();
 
                 // Clear the context on the uploader node left.
-                for (Map.Entry<IgniteUuid, FileIoReadContext> sesEntry : sessionContextMap.entrySet()) {
+                for (Map.Entry<Object, FileIoReadContext> sesEntry : sesCtxMap.entrySet()) {
                     FileIoReadContext ioctx = sesEntry.getValue();
 
                     if (ioctx.nodeId.equals(leftNodeId)) {
@@ -252,7 +260,7 @@ public class GridFileIoManager {
                         ioctx.session.onException(ex = new ClusterTopologyCheckedException("Failed to proceed download. " +
                             "The remote node node left the grid: " + leftNodeId));
 
-                        sessionContextMap.remove(sesEntry.getKey());
+                        sesCtxMap.remove(sesEntry.getKey());
                     }
                 }
             }
@@ -274,7 +282,7 @@ public class GridFileIoManager {
             ctx.event().removeDiscoveryEventListener(discoLsnr, EVT_NODE_LEFT, EVT_NODE_FAILED);
 
             for (Object topic : topicHandlerMap.keySet())
-                removeFileIoChannelHandler(topic);
+                removeTransmitSessionHandler(topic);
 
             inBytePermits.shutdown();
             outBytePermits.shutdown();
@@ -287,9 +295,65 @@ public class GridFileIoManager {
     /**
      * @throws NodeStoppingException If node stopping.
      */
-    private void checkProcessorNotStopped() throws NodeStoppingException {
+    private void checkNotStopped() throws NodeStoppingException {
         if (stopped)
             throw new NodeStoppingException("The local node is stopping. Transmission aborted.");
+    }
+
+    /**
+     * @param topic Topic to which the channel is created.
+     * @param nodeId Remote node id.
+     * @param initMsg Channel initialization message with additional params.
+     * @param channel Channel instance.
+     */
+    public void onChannelOpened(Object topic, UUID nodeId, InitChannelMessage initMsg, Channel channel) {
+        TransmitSessionHandler session = topicHandlerMap.get(topic);
+
+        if (session == null)
+            return;
+
+        FileIoReadContext readCtx = sesCtxMap.computeIfAbsent(topic, t -> new FileIoReadContext(nodeId, session));
+
+        // Do not allow multiple connection for the same session id;
+        if (!readCtx.inProgress.compareAndSet(false, true)) {
+            U.warn(log, "Current topic is already being handled. Opened channel will " +
+                "be closed [initMsg=" + initMsg + ", channel=" + channel + ']');
+
+            return;
+        }
+
+        IgniteUuid sesId = null;
+
+        try {
+            if (!busyLock.enterBusy())
+                return;
+
+            try {
+                sesId = Objects.requireNonNull(initMsg.sesId());
+
+                readCtx.currInChannel = new TransmitInputChannel(ctx, (SocketChannel)channel);
+                readCtx.currOutChannel = new TransmitOutputChannel(ctx, (SocketChannel)channel);
+
+                if (readCtx.started.compareAndSet(false, true))
+                    readCtx.session.begin(nodeId, sesId.toString());
+            }
+            finally {
+                busyLock.leaveBusy();
+            }
+
+            onChannelOpened0(sesId, readCtx);
+        }
+        catch (Throwable t) {
+            log.error("Error processing channel creation event [topic=" + topic +
+                ", channel=" + channel + ", sessionId=" + sesId + ']', t);
+
+            if (readCtx != null)
+                readCtx.session.onException(t);
+        }
+        finally {
+            readCtx.inProgress.compareAndSet(true, false);
+            U.closeQuiet(channel);
+        }
     }
 
     /**
@@ -297,69 +361,17 @@ public class GridFileIoManager {
      * @param session The session will be created for a new channel opened.
      */
     public void addTransmitSessionHandler(Object topic, TransmitSessionHandler session) {
-        if (topicHandlerMap.put(topic, session) == null) {
-            ctx.io().addChannelListener(topic, new GridChannelListener() {
-                /** Handler currently in use flag. */
-                private final AtomicBoolean inProgress = new AtomicBoolean();
+        TransmitSessionHandler hdlr = topicHandlerMap.putIfAbsent(topic, session);
 
-                @Override public void onOpened(UUID nodeId, Message initMsg, Channel channel) {
-                    IgniteUuid sesId = null;
-                    FileIoReadContext tctx = null;
-
-                    try {
-                        // Do not allow multiple connection for the same session id;
-                        if (!inProgress.compareAndSet(false, true)) {
-                            U.warn(log, "Current topic is already being handled. Opened channel will " +
-                                "be closed [initMsg=" + initMsg + ", channel=" + channel + ']');
-
-                            return;
-                        }
-
-                        if (!busyLock.enterBusy())
-                            return;
-
-                        try {
-                            sesId = Objects.requireNonNull(((InitChannelMessage)initMsg).sesId());
-
-                            tctx = sessionContextMap.computeIfAbsent(sesId,
-                                s -> new FileIoReadContext(nodeId, session));
-
-                            tctx.currInChannel = new TransmitInputChannel(ctx, (SocketChannel)channel);
-                            tctx.currOutChannel = new TransmitOutputChannel(ctx, (SocketChannel)channel);
-
-                            if (tctx.started.compareAndSet(false, true))
-                                tctx.session.begin(nodeId, sesId.toString());
-                        }
-                        finally {
-                            busyLock.leaveBusy();
-                        }
-
-                        onChannelOpened0(sesId, tctx);
-                    }
-                    catch (Throwable t) {
-                        log.error("Error processing channel creation event [topic=" + topic +
-                            ", channel=" + channel + ", sessionId=" + sesId + ']', t);
-
-                        if (tctx != null)
-                            tctx.session.onException(t);
-                    }
-                    finally {
-                        inProgress.compareAndSet(true, false);
-                        U.closeQuiet(channel);
-                    }
-                }
-            });
-        }
-        else
-            U.warn(log, "The topic already have an appropriate channel handler [topic=" + topic + ']');
+        if (hdlr != null)
+            U.warn(log, "The topic already have an appropriate session handler [topic=" + topic + ']');
     }
 
     /**
      * @param topic The topic to erase handler from.
      */
-    public void removeFileIoChannelHandler(Object topic) {
+    public void removeTransmitSessionHandler(Object topic) {
         topicHandlerMap.remove(topic);
-        ctx.io().removeChannelListener(topic);
     }
 
     /**
@@ -372,7 +384,7 @@ public class GridFileIoManager {
     /**
      * @param tctx The handler read context.
      */
-    private void onChannelOpened0(IgniteUuid sesId, FileIoReadContext tctx) {
+    private void onChannelOpened0(Object topic, FileIoReadContext tctx) {
         ChunkedInputStream inStream = null;
         TransmitMeta meta = null;
 
@@ -384,14 +396,15 @@ public class GridFileIoManager {
                 tctx.currOutChannel.writeMeta(tctx.stream.meta());
 
             while (!Thread.currentThread().isInterrupted()) {
-                checkProcessorNotStopped();
+                checkNotStopped();
 
                 // Read current stream session policy
                 ReadPolicy currPlc = tctx.currInChannel.readPolicy();
 
                 if (currPlc == ReadPolicy.NONE) {
                     tctx.session.end();
-                    sessionContextMap.remove(sesId);
+
+                    sesCtxMap.remove(topic);
 
                     break;
                 }
@@ -412,7 +425,7 @@ public class GridFileIoManager {
                     if (Thread.currentThread().isInterrupted())
                         throw new InterruptedException("The thread has been interrupted. Stop processing input stream.");
 
-                    checkProcessorNotStopped();
+                    checkNotStopped();
 
                     // If the limit of permits at appropriate period of time reached,
                     // the furhter invocations of the #acuqire(int) method will be blocked.
@@ -472,7 +485,7 @@ public class GridFileIoManager {
      * @param topic The remote topic to connect to.
      * @return The channel instance to communicate with remote.
      */
-    public FileWriter fileWriter(UUID remoteId, Object topic) {
+    public FileWriter openFileWriter(UUID remoteId, Object topic) {
         return new FileWriterImpl(remoteId, topic);
     }
 
@@ -514,7 +527,7 @@ public class GridFileIoManager {
          */
         public TransmitMeta connect() throws IgniteCheckedException {
             try {
-                Channel socket = ctx.io().openChannel(remoteId, topic, new InitChannelMessage(sesId))
+                Channel socket = openClsr.apply(remoteId, topic, new InitChannelMessage(sesId))
                     .get();
 
                 out = new TransmitOutputChannel(ctx, (SocketChannel)socket);
@@ -579,7 +592,7 @@ public class GridFileIoManager {
                     if (reconnects > reconnectCnt)
                         throw new IOException("The number of reconnect attempts exceeded the limit: " + reconnectCnt);
 
-                    checkProcessorNotStopped();
+                    checkNotStopped();
 
                     try {
                         if (out == null && in == null) {
@@ -607,7 +620,7 @@ public class GridFileIoManager {
                             if (Thread.currentThread().isInterrupted())
                                 throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
 
-                            checkProcessorNotStopped();
+                            checkNotStopped();
 
                             // If the limit of permits at appropriate period of time reached,
                             // the furhter invocations of the #acuqire(int) method will be blocked.
@@ -697,6 +710,9 @@ public class GridFileIoManager {
     private static class FileIoReadContext {
         /** The remote node input channel came from. */
         private final UUID nodeId;
+
+        /** Handler currently in use flag. */
+        private final AtomicBoolean inProgress = new AtomicBoolean();
 
         /** Current sesssion. */
         @GridToStringExclude

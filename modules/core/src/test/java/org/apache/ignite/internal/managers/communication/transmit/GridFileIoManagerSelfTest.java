@@ -143,7 +143,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         ConcurrentMap<String, Long> fileWithSizes = new ConcurrentHashMap<>();
 
-        receiver.context().io().fileIoMgr().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
+        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
                     @Override public void begin(UUID nodeId, String sessionId) {
                         assertTrue(sender.localNode().id().equals(nodeId));
                     }
@@ -176,8 +176,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         try (FileWriter writer = sender.context()
             .io()
-            .fileIoMgr()
-            .fileWriter(receiver.localNode().id(), topic)) {
+            .openFileWriter(receiver.localNode().id(), topic)) {
             // Iterate over cache partition files.
             File[] files = cacheDirIg0.listFiles(fileBinFilter);
 
@@ -210,7 +209,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("50Mb", 50, ByteUnit.MB);
 
-        receiver.context().io().fileIoMgr().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
+        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public void begin(UUID nodeId, String sessionId) {
                 if (failFirstTime.compareAndSet(false, true))
                     throw new IgniteException(exTestMessage);
@@ -227,8 +226,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         try (FileWriter writer = sender.context()
             .io()
-            .fileIoMgr()
-            .fileWriter(receiver.localNode().id(), topic)) {
+            .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
         }
     }
@@ -270,7 +268,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             }
         });
 
-        receiver.context().io().fileIoMgr().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
+        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public FileHandler fileHandler() {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
@@ -282,8 +280,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         try (FileWriter writer = sender.context()
             .io()
-            .fileIoMgr()
-            .fileWriter(receiver.localNode().id(), topic)) {
+            .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
         }
     }
@@ -303,7 +300,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("testFile", fileSizeMb, ByteUnit.MB);
 
-        receiver.context().io().fileIoMgr().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
+        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public FileHandler fileHandler() {
                 return new FileHandler() {
                     @Override public String begin(
@@ -328,8 +325,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         try (FileWriter writer = sender.context()
             .io()
-            .fileIoMgr()
-            .fileWriter(receiver.localNode().id(), topic)) {
+            .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
         }
     }
@@ -351,7 +347,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         receiver.context().io().fileIoMgr().downloadRate(donwloadSpeedMbSec, ByteUnit.MB);
 
-        receiver.context().io().fileIoMgr().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
+        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public FileHandler fileHandler() {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
@@ -361,8 +357,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         try (FileWriter writer = sender.context()
             .io()
-            .fileIoMgr()
-            .fileWriter(receiver.localNode().id(), topic)) {
+            .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
         }
 
@@ -392,7 +387,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         sender.context().io().fileIoMgr().uploadRate(uploadSpeedRateMbSec, ByteUnit.MB);
 
-        receiver.context().io().fileIoMgr().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
+        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public FileHandler fileHandler() {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
@@ -402,8 +397,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         try (FileWriter writer = sender.context()
             .io()
-            .fileIoMgr()
-            .fileWriter(receiver.localNode().id(), topic)) {
+            .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
         }
 
@@ -430,7 +424,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("testFile", 10, ByteUnit.MB);
 
-        receiver.context().io().fileIoMgr().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
+        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             /** {@inheritDoc} */
             @Override public ChunkHandler chunkHandler() {
                 return new ChunkHandler() {
@@ -472,8 +466,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         try (FileWriter writer = sender.context()
             .io()
-            .fileIoMgr()
-            .fileWriter(receiver.localNode().id(), topic)) {
+            .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.BUFF);
         }
         finally {
@@ -496,7 +489,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("testFile", 10, ByteUnit.MB);
 
-        receiver.context().io().fileIoMgr().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
+        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             /** {@inheritDoc} */
             @Override public ChunkHandler chunkHandler() {
                 return new ChunkHandler() {
@@ -533,8 +526,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         try (FileWriter writer = sender.context()
             .io()
-            .fileIoMgr()
-            .fileWriter(receiver.localNode().id(), topic)) {
+            .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.BUFF);
         }
         finally {

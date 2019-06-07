@@ -52,7 +52,7 @@ public class TransmitMeta implements Externalizable {
     private long offset;
 
     /** */
-    private long count;
+    private long cnt;
 
     /** The initial meta info for the file transferred the first time. */
     private boolean initial;
@@ -77,20 +77,20 @@ public class TransmitMeta implements Externalizable {
     /**
      * @param name The string name representation to assoticate particular meta with.
      * @param offset The start position of file.
-     * @param count The amount of bytes to receive.
+     * @param cnt The amount of bytes to receive.
      * @param initial {@code true} if
      * @param params The additional transfer meta params.
      */
     public TransmitMeta(
         String name,
         long offset,
-        long count,
+        long cnt,
         boolean initial,
         Map<String, Serializable> params
     ) {
         this.name = Objects.requireNonNull(name);
         this.offset = offset;
-        this.count = count;
+        this.cnt = cnt;
         this.initial = initial;
 
         if (params != null) {
@@ -117,7 +117,7 @@ public class TransmitMeta implements Externalizable {
      * @return The number of bytes expect to transfer.
      */
     public long count() {
-        return count;
+        return cnt;
     }
 
     /**
@@ -138,7 +138,7 @@ public class TransmitMeta implements Externalizable {
     @Override public void writeExternal(ObjectOutput out) throws IOException {
         out.writeUTF(name());
         out.writeLong(offset);
-        out.writeLong(count);
+        out.writeLong(cnt);
         out.writeBoolean(initial);
         out.writeObject(map);
     }
@@ -147,7 +147,7 @@ public class TransmitMeta implements Externalizable {
     @Override public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         name = Objects.requireNonNull(in.readUTF());
         offset = in.readLong();
-        count = in.readLong();
+        cnt = in.readLong();
         initial = in.readBoolean();
         map = (HashMap)in.readObject();
     }
@@ -163,14 +163,14 @@ public class TransmitMeta implements Externalizable {
         TransmitMeta meta = (TransmitMeta)o;
 
         return offset == meta.offset &&
-            count == meta.count &&
+            cnt == meta.cnt &&
             initial == meta.initial &&
             name.equals(meta.name);
     }
 
     /** {@inheritDoc} */
     @Override public int hashCode() {
-        return Objects.hash(name, offset, count, initial);
+        return Objects.hash(name, offset, cnt, initial);
     }
 
     /** {@inheritDoc} */
