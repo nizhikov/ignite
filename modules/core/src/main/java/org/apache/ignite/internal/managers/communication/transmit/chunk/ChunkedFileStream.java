@@ -61,12 +61,12 @@ public class ChunkedFileStream extends AbstractChunkedStream {
     public ChunkedFileStream(
         FileHandler handler,
         String name,
-        Long position,
-        Long count,
+        long pos,
+        long cnt,
         int chunkSize,
         Map<String, Serializable> params
     ) {
-        super(name, position, count, chunkSize, params);
+        super(name, pos, cnt, chunkSize, params);
 
         this.handler = Objects.requireNonNull(handler);
     }
@@ -76,7 +76,7 @@ public class ChunkedFileStream extends AbstractChunkedStream {
      * @param chunkSize The size of chunk to read.
      */
     public ChunkedFileStream(FileHandler handler, int chunkSize) {
-        this(handler, null, null, null, chunkSize, null);
+        this(handler, null, -1, -1, chunkSize, null);
     }
 
     /**

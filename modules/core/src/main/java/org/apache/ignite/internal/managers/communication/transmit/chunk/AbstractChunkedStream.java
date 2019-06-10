@@ -53,10 +53,10 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
      * The position from which the transfer will start. For the {@link File} it will be offset
      * where the transfer begin data transfer.
      */
-    private Long startPos;
+    private long startPos;
 
     /** The total number of bytes to send. */
-    private Long count;
+    private long cnt;
 
     /** Initialization completion flag. */
     private boolean inited;
@@ -64,20 +64,20 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
     /**
      * @param name The unique file name within transfer process.
      * @param startPos The position from which the transfer should start to.
-     * @param count The number of bytes to expect of transfer.
+     * @param cnt The number of bytes to expect of transfer.
      * @param chunkSize The size of chunk to read.
      * @param params Additional stream params.
      */
     protected AbstractChunkedStream(
         String name,
-        Long startPos,
-        Long count,
+        long startPos,
+        long cnt,
         int chunkSize,
         Map<String, Serializable> params
     ) {
         this.name = name;
         this.startPos = startPos;
-        this.count = count;
+        this.cnt = cnt;
         this.chunkSize = chunkSize;
 
         if (params != null)
@@ -86,7 +86,7 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
 
     /** {@inheritDoc} */
     @Override public long startPosition() {
-        return Objects.requireNonNull(startPos);
+        return startPos;
     }
 
     /** {@inheritDoc} */
@@ -101,7 +101,7 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
 
     /** {@inheritDoc} */
     @Override public long count() {
-        return Objects.requireNonNull(count);
+        return cnt;
     }
 
     /** {@inheritDoc} */
@@ -143,7 +143,7 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
             if (!inited) {
                 name = meta.name();
                 startPos = meta.offset();
-                count = meta.count();
+                cnt = meta.count();
                 params.putAll(meta.params());
 
                 init();
@@ -199,7 +199,7 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
 
     /** {@inheritDoc} */
     @Override public boolean endStream() {
-        return transferred.get() == count;
+        return transferred.get() == cnt;
     }
 
     /** {@inheritDoc} */
