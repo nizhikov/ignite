@@ -558,16 +558,16 @@ public class GridFileIoManager {
 
             ChunkedOutputStream fileStream = new ChunkedFileStream(
                 new FileHandler() {
-                    @Override public String begin(
+                    @Override public String fileAbsolutePath(
                         String name,
-                        long pos,
-                        long cnt,
+                        long offset,
+                        long size,
                         Map<String, Serializable> params
                     ) {
                         return file.getAbsolutePath();
                     }
 
-                    @Override public void end(File file, Map<String, Serializable> params) {
+                    @Override public void acceptFile(File file, Map<String, Serializable> params) {
                         if (log.isDebugEnabled())
                             log.debug("File has been successfully uploaded: " + file.getName());
                     }

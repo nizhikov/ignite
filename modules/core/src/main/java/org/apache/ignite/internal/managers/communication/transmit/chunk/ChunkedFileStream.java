@@ -106,7 +106,10 @@ public class ChunkedFileStream extends AbstractChunkedStream {
     /** {@inheritDoc} */
     @Override protected void init() throws IOException {
         if (file == null) {
-            fileAbsPath = handler.begin(name(), startPosition(), count(), params());
+            fileAbsPath = handler.fileAbsolutePath(name(), startPosition(), startPosition() + count(), params());
+
+            if (fileAbsPath == null)
+                throw new IOException("Requested for the chunked stream a file absolute path is incorrect: " + this);
 
             file = new File(fileAbsPath);
         }
@@ -124,7 +127,7 @@ public class ChunkedFileStream extends AbstractChunkedStream {
             transferred.addAndGet(readed);
 
         if (endStream())
-            handler.end(file, params());
+            handler.acceptFile(file, params());
     }
 
     /** {@inheritDoc} */
@@ -139,7 +142,7 @@ public class ChunkedFileStream extends AbstractChunkedStream {
             transferred.addAndGet(sent);
 
         if (endStream())
-            handler.end(file, params());
+            handler.acceptFile(file, params());
     }
 
     /** {@inheritDoc} */

@@ -153,10 +153,10 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                             /** */
                             private final AtomicBoolean inited = new AtomicBoolean();
 
-                            @Override public String begin(
+                            @Override public String fileAbsolutePath(
                                 String name,
-                                long pos,
-                                long cnt,
+                                long offset,
+                                long size,
                                 Map<String, Serializable> params
                             ) {
                                 assertTrue(inited.compareAndSet(false, true));
@@ -164,7 +164,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                                 return new File(tempStore, name).getAbsolutePath();
                             }
 
-                            @Override public void end(File file, Map<String, Serializable> params) {
+                            @Override public void acceptFile(File file, Map<String, Serializable> params) {
                                 assertTrue(fileWithSizes.containsKey(file.getName()));
                                 assertEquals(fileWithSizes.get(file.getName()), new Long(file.length()));
                             }
@@ -303,10 +303,10 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public FileHandler fileHandler() {
                 return new FileHandler() {
-                    @Override public String begin(
+                    @Override public String fileAbsolutePath(
                         String name,
-                        long pos,
-                        long cnt,
+                        long offset,
+                        long size,
                         Map<String, Serializable> params
                     ) throws IOException {
                         if (throwFirstTime.compareAndSet(false, true))
@@ -316,7 +316,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                             .getAbsolutePath();
                     }
 
-                    @Override public void end(File file, Map<String, Serializable> params) {
+                    @Override public void acceptFile(File file, Map<String, Serializable> params) {
                         assertEquals(fileToSend.length(), file.length());
                     }
                 };
@@ -594,16 +594,16 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
      */
     private FileHandler getDefaultFileHandler(IgniteEx receiver, File fileToSend) {
         return new FileHandler() {
-            @Override public String begin(
+            @Override public String fileAbsolutePath(
                 String name,
-                long pos,
-                long cnt,
+                long offset,
+                long size,
                 Map<String, Serializable> params
             ) {
                 return new File(tempStore, name + "_" + receiver.localNode().id()).getAbsolutePath();
             }
 
-            @Override public void end(File file, Map<String, Serializable> params) {
+            @Override public void acceptFile(File file, Map<String, Serializable> params) {
                 assertEquals(fileToSend.length(), file.length());
             }
         };
