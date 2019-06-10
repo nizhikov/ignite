@@ -84,10 +84,10 @@ public class GridFileIoManager {
     /** Kernal context. */
     private final GridKernalContext ctx;
 
-    /** Grid logger. */
+    /** Ignite logger. */
     private final IgniteLogger log;
 
-    /** */
+    /** Map of registered handlers per each IO topic. */
     private final ConcurrentMap<Object, TransmitSessionHandler> topicHandlerMap = new ConcurrentHashMap<>();
 
     /** The map of already known channel read contexts by its registered topics. */
