@@ -24,7 +24,7 @@ import java.io.ObjectInputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SocketChannel;
-import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.managers.communication.transmit.ReadPolicy;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -42,15 +42,15 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
     private final ObjectInput ois;
 
     /**
-     * @param ktx Kernal context.
+     * @param log Ignite logger.
      * @param channel Socket channel to read data from.
      * @throws IOException If channel configuration fails.
      */
     public TransmitInputChannel(
-        GridKernalContext ktx,
+        IgniteLogger log,
         SocketChannel channel
     ) throws IOException {
-        super(ktx, channel);
+        super(log, channel);
 
         ois = new ObjectInputStream(channel.socket().getInputStream());
     }

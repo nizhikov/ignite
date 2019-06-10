@@ -31,7 +31,6 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteLogger;
-import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 
@@ -82,35 +81,35 @@ public abstract class TransmitAbstractChannel implements Closeable {
     private final int timeoutMillis;
 
     /**
-     * @param ktx Kernal context.
+     * @param log Ignite logger.
      * @param channel Socket channel to upload files to.
      */
     protected TransmitAbstractChannel(
-        GridKernalContext ktx,
+        IgniteLogger log,
         SocketChannel channel
     ) throws IOException {
-        this(ktx, channel, DFLT_IO_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        this(log, channel, DFLT_IO_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     /**
-     * @param ktx Kernal context.
+     * @param log Ignite logger.
      * @param channel Socket channel to upload files to.
      * @param timeout Read\write timeout.
      * @param unit The {@link TimeUnit} of given <tt>timeout</tt>.
      * @throws IOException If channel configuration fails.
      */
     protected TransmitAbstractChannel(
-        GridKernalContext ktx,
+        IgniteLogger log,
         SocketChannel channel,
         int timeout,
         TimeUnit unit
     ) throws IOException {
-        assert ktx != null;
+        assert log != null;
         assert channel != null;
         assert unit != null;
 
         this.channel = channel;
-        log = ktx.log(getClass());
+        this.log = log.getLogger(getClass());
         timeoutMillis = timeout <= 0 ? 0 : Math.max((int)unit.toMillis(timeout), DFLT_IO_TIMEOUT_MILLIS);
 
         // Timeout must be enabled prior to entering the blocking mode to have effect.

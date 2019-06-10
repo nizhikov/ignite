@@ -20,10 +20,9 @@ package org.apache.ignite.internal.managers.communication.transmit.channel;
 import java.io.IOException;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
-import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
-import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.managers.communication.transmit.ReadPolicy;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -39,15 +38,15 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
     private final ObjectOutput oos;
 
     /**
-     * @param ktx Kernal context.
+     * @param log Ignite logger.
      * @param channel Socket channel to expect data from.
      * @throws IOException If fails.
      */
     public TransmitOutputChannel(
-        GridKernalContext ktx,
+        IgniteLogger log,
         SocketChannel channel
     ) throws IOException {
-        super(ktx, channel);
+        super(log, channel);
 
         oos = new ObjectOutputStream(channel.socket().getOutputStream());
     }

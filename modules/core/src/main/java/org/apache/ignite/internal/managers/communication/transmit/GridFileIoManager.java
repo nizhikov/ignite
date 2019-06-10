@@ -331,8 +331,8 @@ public class GridFileIoManager {
             try {
                 sesId = Objects.requireNonNull(initMsg.sesId());
 
-                readCtx.currInChannel = new TransmitInputChannel(ctx, (SocketChannel)channel);
-                readCtx.currOutChannel = new TransmitOutputChannel(ctx, (SocketChannel)channel);
+                readCtx.currInChannel = new TransmitInputChannel(log, (SocketChannel)channel);
+                readCtx.currOutChannel = new TransmitOutputChannel(log, (SocketChannel)channel);
 
                 if (readCtx.started.compareAndSet(false, true))
                     readCtx.session.begin(nodeId, sesId.toString());
@@ -530,8 +530,8 @@ public class GridFileIoManager {
                 Channel socket = openClsr.apply(remoteId, topic, new InitChannelMessage(sesId))
                     .get();
 
-                out = new TransmitOutputChannel(ctx, (SocketChannel)socket);
-                in = new TransmitInputChannel(ctx, (SocketChannel)socket);
+                out = new TransmitOutputChannel(log, (SocketChannel)socket);
+                in = new TransmitInputChannel(log, (SocketChannel)socket);
 
                 // Synchronize state between remote and local nodes.
                 TransmitMeta syncMeta = new TransmitMeta();
