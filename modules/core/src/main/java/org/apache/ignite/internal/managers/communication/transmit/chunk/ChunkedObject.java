@@ -26,7 +26,7 @@ import org.apache.ignite.internal.managers.communication.transmit.channel.Transm
 /**
  * Class represents a stream of chunks, can be closed when the stream ends.
  */
-public interface ChunkedStream extends Closeable {
+public interface ChunkedObject extends Closeable {
     /**
      * @return The string of chunked IO stream.
      */
@@ -55,15 +55,15 @@ public interface ChunkedStream extends Closeable {
     /**
      * @return Stream meta information.
      */
-    public TransmitMeta meta();
+    public TransmitMeta transmitMeta();
 
     /**
      * @throws IOException If the check fails.
      */
-    public void checkStreamEOF() throws IOException;
+    public void checkTransmitComplete() throws IOException;
 
     /**
      * @return {@code true} if and only if the chunked stream received all the data it expected.
      */
-    public boolean endStream();
+    public boolean transmitEnd();
 }

@@ -24,7 +24,7 @@ import org.apache.ignite.internal.managers.communication.transmit.TransmitSessio
 /**
  * Factory to create a new stream of chunks when the file read or write events happened.
  */
-public class ChunkedStreamFactory {
+public class ChunkedObjectFactory {
     /**
      * @param policy The policy of how to read stream.
      * @param ses The current ses instance produces handlers.
@@ -32,21 +32,21 @@ public class ChunkedStreamFactory {
      * @return The chunked stream instance.
      * @throws IgniteCheckedException If fails.
      */
-    public ChunkedInputStream createInputStream(
+    public ReadableChunkedObject createInputStream(
         ReadPolicy policy,
         TransmitSessionHandler ses,
         int chunkSize
     ) throws IgniteCheckedException {
-        ChunkedInputStream stream;
+        ReadableChunkedObject stream;
 
         switch (policy) {
             case FILE:
-                stream = new ChunkedFileStream(ses.fileHandler(), chunkSize);
+                stream = new ChunkedFile(ses.fileHandler(), chunkSize);
 
                 break;
 
             case BUFF:
-                stream = new ChunkedBufferStream(ses.chunkHandler(), chunkSize);
+                stream = new ChunkedBuffer(ses.chunkHandler(), chunkSize);
 
                 break;
 

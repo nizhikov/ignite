@@ -43,9 +43,9 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFileStream;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedInputStream;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedStreamFactory;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFile;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.ReadableChunkedObject;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
@@ -245,15 +245,15 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         File fileToSend = createFileRandomData("testFile", 5 * 1024 * 1024);
         final AtomicInteger readedChunks = new AtomicInteger();
 
-        receiver.context().io().fileIoMgr().chunkedStreamFactory(new ChunkedStreamFactory() {
-            @Override public ChunkedInputStream createInputStream(
+        receiver.context().io().fileIoMgr().chunkedStreamFactory(new ChunkedObjectFactory() {
+            @Override public ReadableChunkedObject createInputStream(
                 ReadPolicy policy,
                 TransmitSessionHandler ses,
                 int chunkSize
             ) throws IgniteCheckedException {
                 assertEquals(policy, ReadPolicy.FILE);
 
-                return new ChunkedFileStream(ses.fileHandler(), chunkSize) {
+                return new ChunkedFile(ses.fileHandler(), chunkSize) {
                     @Override public void readChunk(TransmitInputChannel in) throws IOException {
                         // Read 4 chunks than throw an exception to emulate error processing.
                         if (readedChunks.incrementAndGet() == 4)

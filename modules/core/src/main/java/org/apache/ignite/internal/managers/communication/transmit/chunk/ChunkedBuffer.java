@@ -32,7 +32,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 /**
  * Buffered chunked stream to handle data input by chunks delivered to {@link ByteBuffer}.
  */
-public class ChunkedBufferStream extends AbstractChunkedStream {
+public class ChunkedBuffer extends AbstractChunkedObject {
     /** Chunked channel handler to process data with chunks. */
     private final ChunkHandler handler;
 
@@ -50,7 +50,7 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
      * @param chunkSize The size of chunk to read.
      * @param params Additional stream params.
      */
-    public ChunkedBufferStream(
+    public ChunkedBuffer(
         ChunkHandler handler,
         String name,
         long pos,
@@ -67,7 +67,7 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
      * @param handler The chunk handler to process each chunk.
      * @param chunkSize The size of chunk to read.
      */
-    public ChunkedBufferStream(ChunkHandler handler, int chunkSize) {
+    public ChunkedBuffer(ChunkHandler handler, int chunkSize) {
         this(handler, null, -1, -1, chunkSize, null);
     }
 
@@ -103,7 +103,7 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
         if (!accepted)
             throw new IOException("The buffer was rejected by handler");
 
-        if (endStream())
+        if (transmitEnd())
             handler.end(params());
     }
 
@@ -119,6 +119,6 @@ public class ChunkedBufferStream extends AbstractChunkedStream {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(ChunkedBufferStream.class, this, "super", super.toString());
+        return S.toString(ChunkedBuffer.class, this, "super", super.toString());
     }
 }

@@ -34,7 +34,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 /**
  * The chunked stream with the basic behaviour.
  */
-abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutputStream {
+abstract class AbstractChunkedObject implements ReadableChunkedObject, WritableChunkedObject {
     /** Additional stream params. */
     @GridToStringInclude
     private final Map<String, Serializable> params = new HashMap<>();
@@ -68,7 +68,7 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
      * @param chunkSize The size of chunk to read.
      * @param params Additional stream params.
      */
-    protected AbstractChunkedStream(
+    protected AbstractChunkedObject(
         String name,
         long startPos,
         long cnt,
@@ -177,11 +177,11 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
     @Override public void setup(TransmitOutputChannel out) throws IOException {
         init();
 
-        out.writeMeta(meta());
+        out.writeMeta(transmitMeta());
     }
 
     /** {@inheritDoc} */
-    @Override public TransmitMeta meta() {
+    @Override public TransmitMeta transmitMeta() {
         return new TransmitMeta(name(),
             startPosition() + transferred(),
             count(),
@@ -190,7 +190,7 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
     }
 
     /** {@inheritDoc} */
-    @Override public void checkStreamEOF() throws IOException {
+    @Override public void checkTransmitComplete() throws IOException {
         if (transferred() < count()) {
             throw new IOException("Stream EOF occurred, but the file is not fully transferred " +
                 "[count=" + count() + ", transferred=" + transferred() + ']');
@@ -198,12 +198,12 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
     }
 
     /** {@inheritDoc} */
-    @Override public boolean endStream() {
+    @Override public boolean transmitEnd() {
         return transferred.get() == cnt;
     }
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(AbstractChunkedStream.class, this);
+        return S.toString(AbstractChunkedObject.class, this);
     }
 }

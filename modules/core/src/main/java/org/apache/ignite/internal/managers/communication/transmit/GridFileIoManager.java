@@ -40,10 +40,10 @@ import org.apache.ignite.internal.managers.communication.transmit.channel.Remote
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitOutputChannel;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFileStream;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedInputStream;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedOutputStream;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedStreamFactory;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFile;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.ReadableChunkedObject;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.WritableChunkedObject;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
 import org.apache.ignite.internal.managers.communication.transmit.util.InitChannelMessage;
 import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
@@ -120,7 +120,7 @@ public class GridFileIoManager {
     private volatile boolean stopped;
 
     /** The factory produces chunked stream to process an input data channel. */
-    private volatile ChunkedStreamFactory streamFactory = new ChunkedStreamFactory();
+    private volatile ChunkedObjectFactory streamFactory = new ChunkedObjectFactory();
 
     /** The maximum number of reconnect attempts (read or write attempts). */
     private volatile int reconnectCnt = DFLT_RECONNECT_CNT;
@@ -346,7 +346,7 @@ public class GridFileIoManager {
     /**
      * @param factory A new factory instance to set.
      */
-    void chunkedStreamFactory(ChunkedStreamFactory factory) {
+    void chunkedStreamFactory(ChunkedObjectFactory factory) {
         streamFactory = factory;
     }
 
@@ -354,7 +354,7 @@ public class GridFileIoManager {
      * @param tctx The handler read context.
      */
     private void onChannelOpened0(Object topic, FileIoReadContext tctx) {
-        ChunkedInputStream inStream = null;
+        ReadableChunkedObject inStream = null;
         TransmitMeta meta = null;
 
         try {
@@ -362,7 +362,7 @@ public class GridFileIoManager {
             if (tctx.stream == null)
                 tctx.currOutChannel.writeMeta(TransmitMeta.DFLT_TRANSMIT_META);
             else
-                tctx.currOutChannel.writeMeta(tctx.stream.meta());
+                tctx.currOutChannel.writeMeta(tctx.stream.transmitMeta());
 
             while (!Thread.currentThread().isInterrupted()) {
                 checkNotStopped();
@@ -390,7 +390,7 @@ public class GridFileIoManager {
                 inStream.setup(tctx.currInChannel);
 
                 // Read data from the input.
-                while (!inStream.endStream()) {
+                while (!inStream.transmitEnd()) {
                     if (Thread.currentThread().isInterrupted())
                         throw new InterruptedException("The thread has been interrupted. Stop processing input stream.");
 
@@ -408,7 +408,7 @@ public class GridFileIoManager {
                     inStream.readChunk(tctx.currInChannel);
                 }
 
-                inStream.checkStreamEOF();
+                inStream.checkTransmitComplete();
                 inStream.close();
 
                 tctx.stream = null;
@@ -525,7 +525,7 @@ public class GridFileIoManager {
         ) throws IgniteCheckedException {
             int reconnects = 0;
 
-            ChunkedOutputStream fileStream = new ChunkedFileStream(
+            WritableChunkedObject fileStream = new ChunkedFile(
                 new FileHandler() {
                     @Override public String fileAbsolutePath(
                         String name,
@@ -585,7 +585,7 @@ public class GridFileIoManager {
 
                         fileStream.setup(out);
 
-                        while (!fileStream.endStream()) {
+                        while (!fileStream.transmitEnd()) {
                             if (Thread.currentThread().isInterrupted())
                                 throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
 
@@ -705,7 +705,7 @@ public class GridFileIoManager {
         private ReadPolicy currPlc;
 
         /** The last infinished download. */
-        private ChunkedInputStream stream;
+        private ReadableChunkedObject stream;
 
         /**
          * @param nodeId The remote node id.

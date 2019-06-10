@@ -36,7 +36,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 /**
  * File stream implementation of chunked stream which supports zero-copy streaming algorithm.
  */
-public class ChunkedFileStream extends AbstractChunkedStream {
+public class ChunkedFile extends AbstractChunkedObject {
     /** The default factory to provide IO oprations over underlying file. */
     @GridToStringExclude
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
@@ -58,7 +58,7 @@ public class ChunkedFileStream extends AbstractChunkedStream {
      * @param handler The file handler to process download result.
      * @param chunkSize The size of chunk to read.
      */
-    public ChunkedFileStream(
+    public ChunkedFile(
         FileHandler handler,
         String name,
         long pos,
@@ -75,7 +75,7 @@ public class ChunkedFileStream extends AbstractChunkedStream {
      * @param handler The file handler to process download result.
      * @param chunkSize The size of chunk to read.
      */
-    public ChunkedFileStream(FileHandler handler, int chunkSize) {
+    public ChunkedFile(FileHandler handler, int chunkSize) {
         this(handler, null, -1, -1, chunkSize, null);
     }
 
@@ -126,7 +126,7 @@ public class ChunkedFileStream extends AbstractChunkedStream {
         if (readed > 0)
             transferred.addAndGet(readed);
 
-        if (endStream())
+        if (transmitEnd())
             handler.acceptFile(file, params());
     }
 
@@ -141,7 +141,7 @@ public class ChunkedFileStream extends AbstractChunkedStream {
         if (sent > 0)
             transferred.addAndGet(sent);
 
-        if (endStream())
+        if (transmitEnd())
             handler.acceptFile(file, params());
     }
 
@@ -154,6 +154,6 @@ public class ChunkedFileStream extends AbstractChunkedStream {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(ChunkedFileStream.class, this, "super", super.toString());
+        return S.toString(ChunkedFile.class, this, "super", super.toString());
     }
 }
