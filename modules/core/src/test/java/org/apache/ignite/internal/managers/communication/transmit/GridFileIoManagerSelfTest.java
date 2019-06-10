@@ -46,7 +46,6 @@ import org.apache.ignite.internal.managers.communication.transmit.channel.Transm
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFileStream;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedInputStream;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedStreamFactory;
-import org.apache.ignite.internal.managers.communication.transmit.util.ByteUnit;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
@@ -207,7 +206,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         sender.cluster().active(true);
 
-        File fileToSend = createFileRandomData("50Mb", 50, ByteUnit.MB);
+        File fileToSend = createFileRandomData("50Mb", 50 * 1024 * 1024);
 
         receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public void begin(UUID nodeId, String sessionId) {
@@ -243,7 +242,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         sender.cluster().active(true);
 
-        File fileToSend = createFileRandomData("testFile", 5, ByteUnit.MB);
+        File fileToSend = createFileRandomData("testFile", 5 * 1024 * 1024);
         final AtomicInteger readedChunks = new AtomicInteger();
 
         receiver.context().io().fileIoMgr().chunkedStreamFactory(new ChunkedStreamFactory() {
@@ -290,7 +289,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
      */
     @Test
     public void testFileHandlerReconnectOnInitFail() throws Exception {
-        final int fileSizeMb = 5;
+        final int fileSizeBytes = 5 * 1024 * 1024;
         final AtomicBoolean throwFirstTime = new AtomicBoolean();
 
         IgniteEx sender = startGrid(0);
@@ -298,7 +297,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         sender.cluster().active(true);
 
-        File fileToSend = createFileRandomData("testFile", fileSizeMb, ByteUnit.MB);
+        File fileToSend = createFileRandomData("testFile", fileSizeBytes);
 
         receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public FileHandler fileHandler() {
@@ -335,17 +334,17 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
      */
     @Test
     public void testFileHandlerWithDownloadLimit() throws Exception {
-        final int fileSizeMb = 5;
-        final int donwloadSpeedMbSec = 1;
+        final int fileSizeBytes = 5 * 1024 * 1024;
+        final int donwloadSpeedBytes = 1024 * 1024;
 
         IgniteEx sender = startGrid(0);
         IgniteEx receiver = startGrid(1);
 
         sender.cluster().active(true);
 
-        File fileToSend = createFileRandomData("testFile", fileSizeMb, ByteUnit.MB);
+        File fileToSend = createFileRandomData("testFile", fileSizeBytes);
 
-        receiver.context().io().fileIoMgr().downloadRate(donwloadSpeedMbSec, ByteUnit.MB);
+        receiver.context().io().fileIoMgr().downloadRate(donwloadSpeedBytes);
 
         receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public FileHandler fileHandler() {
@@ -362,7 +361,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         }
 
         long totalTime = U.currentTimeMillis() - startTime;
-        int limitMs = (fileSizeMb / donwloadSpeedMbSec) * 1000;
+        int limitMs = (fileSizeBytes / donwloadSpeedBytes) * 1000;
 
         log.info("Register the file download time  [total=" + totalTime + ", limit=" + limitMs + ']');
 
@@ -375,17 +374,17 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
      */
     @Test
     public void testFileHandlerWithUploadLimit() throws Exception {
-        final int fileSizeMb = 5;
-        final int uploadSpeedRateMbSec = 1;
+        final int fileSizeBytes = 5 * 1024 * 1024;
+        final int uploadSpeedBytesSec = 1024 * 1024;
 
         IgniteEx sender = startGrid(0);
         IgniteEx receiver = startGrid(1);
 
         sender.cluster().active(true);
 
-        File fileToSend = createFileRandomData("testFile", fileSizeMb, ByteUnit.MB);
+        File fileToSend = createFileRandomData("testFile", fileSizeBytes);
 
-        sender.context().io().fileIoMgr().uploadRate(uploadSpeedRateMbSec, ByteUnit.MB);
+        sender.context().io().fileIoMgr().uploadRate(uploadSpeedBytesSec);
 
         receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             @Override public FileHandler fileHandler() {
@@ -402,7 +401,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         }
 
         long totalTime = U.currentTimeMillis() - startTime;
-        int limitMs = (fileSizeMb / uploadSpeedRateMbSec) * 1000;
+        int limitMs = (fileSizeBytes / uploadSpeedBytesSec) * 1000;
 
         log.info("Register the file upload time  [total=" + totalTime + ", limit=" + limitMs + ']');
 
@@ -422,7 +421,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         sender.cluster().active(true);
 
-        File fileToSend = createFileRandomData("testFile", 10, ByteUnit.MB);
+        File fileToSend = createFileRandomData("testFile", 10 * 1024 * 1024);
 
         receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             /** {@inheritDoc} */
@@ -487,7 +486,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         sender.cluster().active(true);
 
-        File fileToSend = createFileRandomData("testFile", 10, ByteUnit.MB);
+        File fileToSend = createFileRandomData("testFile", 10 * 1024 * 1024);
 
         receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
             /** {@inheritDoc} */
@@ -572,14 +571,13 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
      * @param size The file size.
      * @throws IOException If fails.
      */
-    private File createFileRandomData(String name, final int size, ByteUnit unit) throws IOException {
+    private File createFileRandomData(String name, final int size) throws IOException {
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
 
         File out = new File(tempStore, name);
-        int fileSize = (int)ByteUnit.BYTE.convertFrom(size, unit);
 
         try (RandomAccessFile raf = new RandomAccessFile(out, "rw")) {
-            byte[] buf = new byte[fileSize];
+            byte[] buf = new byte[size];
             rnd.nextBytes(buf);
             raf.write(buf);
         }

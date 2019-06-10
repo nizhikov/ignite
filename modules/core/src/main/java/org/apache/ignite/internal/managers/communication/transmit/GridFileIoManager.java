@@ -44,7 +44,6 @@ import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedF
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedInputStream;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedOutputStream;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedStreamFactory;
-import org.apache.ignite.internal.managers.communication.transmit.util.ByteUnit;
 import org.apache.ignite.internal.managers.communication.transmit.util.InitChannelMessage;
 import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
@@ -71,13 +70,13 @@ public class GridFileIoManager {
      * <p>
      * Default value is {@code 256Kb}.
      */
-    public static final int DFLT_CHUNK_SIZE_BYTES = (int)ByteUnit.BYTE.convertFrom(256, ByteUnit.KB);
+    public static final int DFLT_CHUNK_SIZE_BYTES = 256 * 1024;
 
     /** Reconnect attempts count to send single file (value is {@code 5}). */
     public static final int DFLT_RECONNECT_CNT = 5;
 
     /** The default file limit transmittion rate per node instance (value is {@code 500 MB/sec}). */
-    public static final long DFLT_RATE_LIMIT_BYTES = ByteUnit.BYTE.convertFrom(500, ByteUnit.MB);
+    public static final long DFLT_RATE_LIMIT_BYTES = 500 * 1024 * 1024;
 
     /** The default timeout for waiting the permits. */
     private static final int DFLT_ACQUIRE_TIMEOUT_MS = 5000;
@@ -174,25 +173,15 @@ public class GridFileIoManager {
      * Setting the count to {@link TimedSemaphore#UNLIMITED_PERMITS} will switch off the
      * configured {@link #inBytePermits} limit.
      *
-     * @param count New count of transfer speed per second.
-     * @param unit The unit type of {@code count} transfer speed.
+     * @param count Number of bytes per second for the donwload speed.
      */
-    public void downloadRate(int count, ByteUnit unit) {
+    public void downloadRate(int count) {
         if (count <= 0)
             inBytePermits.permitsPerSec(TimedSemaphore.UNLIMITED_PERMITS);
         else
-            inBytePermits.permitsPerSec(unit.toBytes(count));
+            inBytePermits.permitsPerSec(count);
 
-        U.log(log, "The file download speed has been set to: " + count + " " + unit.name() + " per sec.");
-    }
-
-    /**
-     * @param unit The unit to convert download rate to.
-     * @return The total file download rate, by default {@link #DFLT_RATE_LIMIT_BYTES} or
-     * {@link TimedSemaphore#UNLIMITED_PERMITS} if there is no limit.
-     */
-    public long downloadRate(ByteUnit unit) {
-        return permitsToRate(inBytePermits, unit);
+        U.log(log, "The file download speed has been set to: " + count + " bytes per sec.");
     }
 
     /**
@@ -205,35 +194,15 @@ public class GridFileIoManager {
      * Setting the count to {@link TimedSemaphore#UNLIMITED_PERMITS} will switch off the configured
      * {@link #outBytePermits} limit.
      *
-     * @param count New count of transfer speed per second.
-     * @param unit The unit type of {@code count} transfer speed.
+     * @param count Number of bytes per second for the upload speed.
      */
-    public void uploadRate(int count, ByteUnit unit) {
+    public void uploadRate(int count) {
         if (count <= 0)
             outBytePermits.permitsPerSec(TimedSemaphore.UNLIMITED_PERMITS);
         else
-            outBytePermits.permitsPerSec(unit.toBytes(count));
+            outBytePermits.permitsPerSec(count);
 
-        U.log(log, "The file upload speed has been set to: " + count + " " + unit.name() + " per sec.");
-    }
-
-    /**
-     * @param unit The unit to convert download rate to.
-     * @return The total file upload rate, by default {@link #DFLT_RATE_LIMIT_BYTES} or
-     * {@link TimedSemaphore#UNLIMITED_PERMITS} if there is no limit.
-     */
-    public long uploadRate(ByteUnit unit) {
-        return permitsToRate(outBytePermits, unit);
-    }
-
-    /**
-     * @param semaphore The semaphore to convert permits.
-     * @param unit The unit to convert to.
-     * @return The rate amount or {@link TimedSemaphore#UNLIMITED_PERMITS} in there is no limit.
-     */
-    private long permitsToRate(TimedSemaphore semaphore, ByteUnit unit) {
-        return semaphore.permitsPerSec() == TimedSemaphore.UNLIMITED_PERMITS ?
-            TimedSemaphore.UNLIMITED_PERMITS : ByteUnit.BYTE.convertTo(semaphore.permitsPerSec(), unit);
+        U.log(log, "The file upload speed has been set to: " + count + " bytes per sec.");
     }
 
     /**
@@ -434,7 +403,7 @@ public class GridFileIoManager {
 
                     if (!acquired)
                         throw new RemoteTransmitException("Download speed is too slow " +
-                            "[rate=" + ByteUnit.BYTE.toKB(inBytePermits.permitsPerSec()) + " Kb/sec]");
+                            "[downloadSpeed=" + inBytePermits.permitsPerSec() + " byte/sec]");
 
                     inStream.readChunk(tctx.currInChannel);
                 }
@@ -450,9 +419,9 @@ public class GridFileIoManager {
                 long downloadTime = U.currentTimeMillis() - startTime;
 
                 U.log(log, "The file has been successfully downloaded " +
-                    "[name=" + inStream.name() + ", transferred=" + ByteUnit.BYTE.toKB(inStream.transferred()) + " Kb" +
+                    "[name=" + inStream.name() + ", transferred=" + inStream.transferred() + " bytes" +
                     ", time=" + (double)((downloadTime) / 1000) + " sec" +
-                    ", rate=" + ByteUnit.BYTE.toKB(inBytePermits.permitsPerSec()) + " Kb/sec" +
+                    ", speed=" + inBytePermits.permitsPerSec() + " byte/sec" +
                     ", reconnects=" + tctx.reconnects);
             }
         }
@@ -629,7 +598,7 @@ public class GridFileIoManager {
 
                             if (!acquired)
                                 throw new RemoteTransmitException("Upload speed is too slow " +
-                                    "[rate=" + ByteUnit.BYTE.toKB(inBytePermits.permitsPerSec()) + " Kb/sec]");
+                                    "[uploadSpeed=" + inBytePermits.permitsPerSec() + " byte/sec]");
 
                             fileStream.writeChunk(out);
                         }
