@@ -35,12 +35,12 @@ import org.apache.ignite.internal.util.typedef.internal.U;
  * Please, see {@link TransmitAbstractChannel} fot details.
  */
 public class TransmitOutputChannel extends TransmitAbstractChannel {
-    /** */
-    private final ObjectOutput dos;
+    /** Decorated with data operations socket of output channel. */
+    private final ObjectOutput oos;
 
     /**
      * @param ktx Kernal context.
-     * @param channel Ignite channel to upload files to.
+     * @param channel Socket channel to expect data from.
      * @throws IOException If fails.
      */
     public TransmitOutputChannel(
@@ -49,7 +49,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
     ) throws IOException {
         super(ktx, channel);
 
-        dos = new ObjectOutputStream(channel.socket().getOutputStream());
+        oos = new ObjectOutputStream(channel.socket().getOutputStream());
     }
 
     /**
@@ -58,9 +58,9 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public void writePolicy(ReadPolicy plc) throws IOException {
         try {
-            dos.writeInt(plc.ordinal());
+            oos.writeInt(plc.ordinal());
 
-            dos.flush();
+            oos.flush();
         } catch (IOException e) {
             throw transformExceptionIfNeed(e);
         }
@@ -72,9 +72,9 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public void acknowledge(long hash) throws IOException {
         try {
-            dos.writeLong(hash);
+            oos.writeLong(hash);
 
-            dos.flush();
+            oos.flush();
         } catch (IOException e) {
             throw transformExceptionIfNeed(e);
         }
@@ -86,9 +86,9 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      */
     public void writeMeta(TransmitMeta meta) throws IOException {
         try {
-            meta.writeExternal(dos);
+            meta.writeExternal(oos);
 
-            dos.flush();
+            oos.flush();
 
             if (log.isDebugEnabled())
                 log.debug("The file meta info have been written:" + meta + ']');
@@ -101,7 +101,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      * @param position The position to start from.
      * @param count The number of bytes to write.
      * @param fileIO The I\O file
-     * @return The number of writed bytes.
+     * @return The number of written bytes.
      * @throws IOException If fails.
      */
     public long writeFrom(long position, long count, FileIO fileIO) throws IOException {
@@ -113,25 +113,11 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
         }
     }
 
-    /**
-     * @param buff Buffer to write data from.
-     * @return The number of bytes written, possibly zero, or <tt>-1</tt> if the channel has reached end-of-stream.
-     * @throws IOException If fails.
-     */
-    public long writeFrom(ByteBuffer buff) throws IOException {
-        try {
-            return channel().write(buff);
-        }
-        catch (IOException e) {
-            throw transformExceptionIfNeed(e);
-        }
-    }
-
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
         super.close();
 
-        U.closeQuiet(dos);
+        U.closeQuiet(oos);
     }
 
     /** {@inheritDoc} */

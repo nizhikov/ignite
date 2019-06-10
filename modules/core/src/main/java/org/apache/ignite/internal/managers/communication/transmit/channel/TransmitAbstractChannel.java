@@ -63,22 +63,22 @@ import org.apache.ignite.internal.util.typedef.internal.U;
  * </p>
  */
 public abstract class TransmitAbstractChannel implements Closeable {
-    /** */
+    /** Default timeout in milleseconds to wait an IO data on socket. */
     private static final int DFLT_IO_TIMEOUT_MILLIS = 5_000;
 
-    /** */
+    /** Message if connection have been dropped by remote. */
     private static final String RESET_BY_PEER_MSG = "Connection reset by peer";
 
-    /** */
+    /** Message if connection has been closed by remote. */
     private static final String CLOSED_BY_REMOTE_MSG = "An existing connection was forcibly closed by the remote host";
 
-    /** */
+    /** Instance of socket channel to work with. */
     private final SocketChannel channel;
 
-    /** */
+    /** Ignite logger. */
     protected final IgniteLogger log;
 
-    /** */
+    /** Configured socket timeout in milleseconds. See {@link Socket#setSoTimeout(int)}. */
     private final int timeoutMillis;
 
     /**
@@ -119,17 +119,10 @@ public abstract class TransmitAbstractChannel implements Closeable {
     }
 
     /**
-     * @return The timeout of read\write operations in milliseconds.
-     */
-    public int timeout() {
-        return timeoutMillis;
-    }
-
-    /**
      * @param cause The original cause to throw.
      * @return The new cause or the old one.
      */
-    public IOException transformExceptionIfNeed(IOException cause) {
+    protected IOException transformExceptionIfNeed(IOException cause) {
         // The set of local issues with connection.
         if (cause instanceof EOFException ||
             cause instanceof ClosedChannelException ||
@@ -162,9 +155,9 @@ public abstract class TransmitAbstractChannel implements Closeable {
     }
 
     /**
-     * @return The corresponding ignite channel.
+     * @return Corresponding ignite socket channel.
      */
-    public SocketChannel channel() {
+    protected SocketChannel channel() {
         return channel;
     }
 

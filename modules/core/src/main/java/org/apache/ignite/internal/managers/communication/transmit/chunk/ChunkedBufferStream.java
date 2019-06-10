@@ -33,7 +33,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
  * Buffered chunked stream to handle data input by chunks delivered to {@link ByteBuffer}.
  */
 public class ChunkedBufferStream extends AbstractChunkedStream {
-    /** */
+    /** Chunked channel handler to process data with chunks. */
     private final ChunkHandler handler;
 
     /** The size of destination buffer. */

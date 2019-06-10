@@ -39,7 +39,7 @@ public class TransmitMeta implements Externalizable {
     /** Serial version uid. */
     private static final long serialVersionUID = 0L;
 
-    /** */
+    /** Default name of transmittion meta instance. Can be overridden, usually used to read data from channel. */
     private static final String UNNAMED_META = "unnamed";
 
     /**
@@ -48,20 +48,20 @@ public class TransmitMeta implements Externalizable {
      */
     private String name;
 
-    /** */
+    /** Offest of transferred file. */
     private long offset;
 
-    /** */
+    /** Number of bytes to transfer started from given <tt>offset</tt>. */
     private long cnt;
 
     /** The initial meta info for the file transferred the first time. */
     private boolean initial;
 
-    /** */
+    /** Additional file params to transfer (e.g. partition id, partition name etc.). */
     private HashMap<String, Serializable> map = new HashMap<>();
 
     /**
-     *
+     * Default constructor, usually used to create meta to read channel data into.
      */
     public TransmitMeta() {
         this(UNNAMED_META);
@@ -77,9 +77,9 @@ public class TransmitMeta implements Externalizable {
     /**
      * @param name The string name representation to assoticate particular meta with.
      * @param offset The start position of file.
-     * @param cnt The amount of bytes to receive.
-     * @param initial {@code true} if
-     * @param params The additional transfer meta params.
+     * @param cnt The amount of bytes to receive by remote.
+     * @param initial {@code true} if file is send first time, {@code false} means file meta for the next reconnect attempt.
+     * @param params Additional transfer meta params.
      */
     public TransmitMeta(
         String name,

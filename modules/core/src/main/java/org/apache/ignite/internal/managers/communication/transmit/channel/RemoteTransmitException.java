@@ -20,8 +20,11 @@ package org.apache.ignite.internal.managers.communication.transmit.channel;
 import java.io.IOException;
 
 /**
- * The class represents an exception for the case when the peer has closed the connection in orderly way,
- * so the read or write operation over the socket channel will throw such exception.
+ * The class represents an exception for the case when the remote peer has closed the connection correctly,
+ * so read or write operation over given socket channel will throw an {@link IOException} which will be converted to
+ * this one.
+ * <p>
+ * Please, see {@link TransmitAbstractChannel} for details or such connection error handling.
  */
 public class RemoteTransmitException extends IOException {
     /** Serial version uid. */

@@ -46,7 +46,7 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
     /** The size of segment for the read. */
     private int chunkSize;
 
-    /** The unique input name to identify particular transfer part.*/
+    /** The unique input name to identify particular transfer part. */
     private String name;
 
     /**
@@ -58,7 +58,7 @@ abstract class AbstractChunkedStream implements ChunkedInputStream, ChunkedOutpu
     /** The total number of bytes to send. */
     private Long count;
 
-    /** Initialization flag. */
+    /** Initialization completion flag. */
     private boolean inited;
 
     /**

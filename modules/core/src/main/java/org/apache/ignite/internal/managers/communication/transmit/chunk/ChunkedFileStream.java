@@ -41,7 +41,7 @@ public class ChunkedFileStream extends AbstractChunkedStream {
     @GridToStringExclude
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
 
-    /** */
+    /** Handler to notify when a file has been processed. */
     private final FileHandler handler;
 
     /** The destination object to transfer data to\from. */

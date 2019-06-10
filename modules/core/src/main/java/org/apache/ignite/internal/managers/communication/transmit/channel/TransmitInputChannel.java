@@ -37,13 +37,13 @@ import org.apache.ignite.internal.util.typedef.internal.U;
  * Please, see {@link TransmitAbstractChannel} fot details.
  */
 public class TransmitInputChannel extends TransmitAbstractChannel {
-    /** */
+    /** Decoreated with data operations socket of input channel. */
     @GridToStringExclude
-    private final ObjectInput dis;
+    private final ObjectInput ois;
 
     /**
      * @param ktx Kernal context.
-     * @param channel Ignite channel to upload files to.
+     * @param channel Socket channel to read data from.
      * @throws IOException If channel configuration fails.
      */
     public TransmitInputChannel(
@@ -52,7 +52,7 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
     ) throws IOException {
         super(ktx, channel);
 
-        dis = new ObjectInputStream(channel.socket().getInputStream());
+        ois = new ObjectInputStream(channel.socket().getInputStream());
     }
 
     /**
@@ -61,7 +61,7 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      */
     public ReadPolicy readPolicy() throws IOException {
         try {
-            int plc = dis.readInt();
+            int plc = ois.readInt();
 
             if (plc > ReadPolicy.values().length)
                 throw new IOException("The policy received from channel is unknown [order=" + plc + ']');
@@ -74,12 +74,12 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
     }
 
     /**
-     * @return hash The hash of transmitted data.
+     * @return The hash of transmitted data.
      * @throws IOException If fails.
      */
     public long acknowledge() throws IOException {
         try {
-            return dis.readLong();
+            return ois.readLong();
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);
@@ -87,12 +87,12 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
     }
 
     /**
-     * @param meta The meta to read to.
+     * @param meta Meta instance to read channel data to.
      * @throws IOException If fails.
      */
     public void readMeta(TransmitMeta meta) throws IOException {
         try {
-            meta.readExternal(dis);
+            meta.readExternal(ois);
 
             if (log.isDebugEnabled())
                 log.debug("The file meta info have been received [meta=" + meta + ']');
@@ -106,15 +106,15 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
     }
 
     /**
-     * @param fileIO The I\O file
-     * @param position The position to start from.
-     * @param count The number of bytes to read.
-     * @return The number of readed bytes.
+     * @param fileIO The I\O file.
+     * @param pos The pos to start from.
+     * @param cnt The number of bytes to read.
+     * @return The number of actually readed bytes.
      * @throws IOException If fails.
      */
-    public long readInto(FileIO fileIO, long position, long count) throws IOException {
+    public long readInto(FileIO fileIO, long pos, long cnt) throws IOException {
         try {
-            return fileIO.transferFrom((ReadableByteChannel)channel(), position, count);
+            return fileIO.transferFrom((ReadableByteChannel)channel(), pos, cnt);
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);
@@ -134,7 +134,7 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
     @Override public void close() throws IOException {
         super.close();
 
-        U.closeQuiet(dis);
+        U.closeQuiet(ois);
     }
 
     /** {@inheritDoc} */
