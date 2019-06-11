@@ -29,10 +29,10 @@ import org.apache.ignite.IgniteCheckedException;
  */
 public interface FileWriter extends Closeable {
     /**
-     * @param file The source file to send at.
-     * @param offset The position to start at.
-     * @param count The number of bytes to transfer.
-     * @param params The additional transfer file description keys.
+     * @param file Source file to send to remote.
+     * @param offset Position to start trasfer at.
+     * @param count Number of bytes to transfer.
+     * @param params Additional transfer file description keys.
      * @param plc The policy of handling data on remote.
      * @throws IgniteCheckedException If fails.
      */
@@ -43,4 +43,18 @@ public interface FileWriter extends Closeable {
         Map<String, Serializable> params,
         ReadPolicy plc
     ) throws IgniteCheckedException;
+
+    /**
+     * @param file Source file to send to remote.
+     * @param params Additional transfer file description keys.
+     * @param plc The policy of handling data on remote.
+     * @throws IgniteCheckedException If fails.
+     */
+    public default void write(
+        File file,
+        Map<String, Serializable> params,
+        ReadPolicy plc
+    ) throws IgniteCheckedException {
+        write(file, 0, file.length(), params, plc);
+    }
 }

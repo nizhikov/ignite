@@ -178,7 +178,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                 fileWithSizes.put(file.getName(), file.length());
 
             for (File file : files)
-                writer.write(file, 0, file.length(), new HashMap<>(), ReadPolicy.FILE);
+                writer.write(file, new HashMap<>(), ReadPolicy.FILE);
         }
 
         log.info("Writing test files finished. All Ignite instances will be stopped.");
@@ -221,7 +221,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
         }
     }
 
@@ -276,7 +276,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
         }
     }
 
@@ -316,7 +316,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
         }
     }
 
@@ -388,7 +388,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
         }
 
         long totalTime = U.currentTimeMillis() - startTime;
@@ -451,7 +451,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.BUFF);
+            writer.write(fileToSend, new HashMap<>(), ReadPolicy.BUFF);
         }
         finally {
             U.closeQuiet(fileIo[0]);
