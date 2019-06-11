@@ -61,7 +61,7 @@ import org.junit.Test;
 import static org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager.FILE_SUFFIX;
 
 /**
- *
+ * Test file transmission mamanger operations.
  */
 public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /** Number of cache keys to generate. */
@@ -226,7 +226,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     }
 
     /**
-     *
+     * @throws Exception If fails.
      */
     @Test
     public void testFileHandlerReconnectIfDownload() throws Exception {
@@ -281,7 +281,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     }
 
     /**
-     *
+     * @throws Exception If fails.
      */
     @Test
     public void testFileHandlerReconnectOnInitFail() throws Exception {
@@ -321,7 +321,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     }
 
     /**
-     *
+     * @throws Exception If fails.
      */
     @Test
     public void testFileHandlerWithDownloadLimit() throws Exception {
@@ -361,7 +361,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     }
 
     /**
-     *
+     * @throws Exception If fails.
      */
     @Test
     public void testFileHandlerWithUploadLimit() throws Exception {
@@ -401,7 +401,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     }
 
     /**
-     *
+     * @throws Exception If fails.
      */
     @Test
     public void testChuckHandlerBase() throws Exception {
@@ -459,7 +459,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     }
 
     /**
-     *
+     * @throws Exception If fails.
      */
     @Test
     public void testChuckHandlerReconnectOnInitFail() throws Exception {
