@@ -30,22 +30,17 @@ import java.util.Map;
 public interface FileHandler {
     /**
      * @param name File name transferred from remote.
-     * @param offset The start offset pointer of download file in original source.
-     * @param size Size of file.
      * @param params The additional transfer file description params.
      * @return The absolute pathname string denoting the file or {@code null} if it is no sense.
      * @throws IOException If fails.
      */
-    public String fileAbsolutePath(
-        String name,
-        long offset,
-        long size,
-        Map<String, Serializable> params
-    ) throws IOException;
+    public String path(String name, Map<String, Serializable> params) throws IOException;
 
     /**
-     * @param file The file with fully downloaded data into.
-     * @param params The additional transfer file description params.
+     * @param file File with fully downloaded data into.
+     * @param offset Offset pointer of downloaded file in original source.
+     * @param cnt Number of bytes transferred from source started from given offset.
+     * @param params Additional transfer file description params.
      */
-    public void acceptFile(File file, Map<String, Serializable> params);
+    public void acceptFile(File file, long offset, long cnt, Map<String, Serializable> params);
 }

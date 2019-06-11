@@ -88,7 +88,7 @@ public class GridFileIoManager {
     private final IgniteLogger log;
 
     /** Map of registered handlers per each IO topic. */
-    private final ConcurrentMap<Object, TransmitSessionHandler> topicHandlerMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, FileTransmitHandler> topicHandlerMap = new ConcurrentHashMap<>();
 
     /** The map of already known channel read contexts by its registered topics. */
     private final ConcurrentMap<Object, FileIoReadContext> sesCtxMap = new ConcurrentHashMap<>();
@@ -126,7 +126,7 @@ public class GridFileIoManager {
     private volatile int reconnectCnt = DFLT_RECONNECT_CNT;
 
     /** The size of stream chunks. */
-    private int ioStreamChunkSize = DFLT_CHUNK_SIZE_BYTES;
+    private int ioChunkSize = DFLT_CHUNK_SIZE_BYTES;
 
     /**
      * @param ctx Kernal context.
@@ -276,7 +276,7 @@ public class GridFileIoManager {
      * @param channel Channel instance.
      */
     public void onChannelOpened(Object topic, UUID nodeId, InitChannelMessage initMsg, Channel channel) {
-        TransmitSessionHandler session = topicHandlerMap.get(topic);
+        FileTransmitHandler session = topicHandlerMap.get(topic);
 
         if (session == null)
             return;
@@ -298,19 +298,19 @@ public class GridFileIoManager {
                 return;
 
             try {
-                sesId = Objects.requireNonNull(initMsg.sesId());
+                readCtx.sesId = Objects.requireNonNull(initMsg.sesId());
 
                 readCtx.currInChannel = new TransmitInputChannel(log, (SocketChannel)channel);
                 readCtx.currOutChannel = new TransmitOutputChannel(log, (SocketChannel)channel);
 
                 if (readCtx.started.compareAndSet(false, true))
-                    readCtx.session.begin(nodeId, sesId.toString());
+                    readCtx.session.onBegin(nodeId);
             }
             finally {
                 busyLock.leaveBusy();
             }
 
-            onChannelOpened0(sesId, readCtx);
+            onChannelOpened0(topic, readCtx);
         }
         catch (Throwable t) {
             log.error("Error processing channel creation event [topic=" + topic +
@@ -329,8 +329,8 @@ public class GridFileIoManager {
      * @param topic The {@link GridTopic} to register handler to.
      * @param session The session will be created for a new channel opened.
      */
-    public void addTransmitSessionHandler(Object topic, TransmitSessionHandler session) {
-        TransmitSessionHandler hdlr = topicHandlerMap.putIfAbsent(topic, session);
+    public void addTransmitSessionHandler(Object topic, FileTransmitHandler session) {
+        FileTransmitHandler hdlr = topicHandlerMap.putIfAbsent(topic, session);
 
         if (hdlr != null)
             U.warn(log, "The topic already have an appropriate session handler [topic=" + topic + ']');
@@ -351,27 +351,27 @@ public class GridFileIoManager {
     }
 
     /**
-     * @param tctx The handler read context.
+     * @param readCtx The handler read context.
      */
-    private void onChannelOpened0(Object topic, FileIoReadContext tctx) {
+    private void onChannelOpened0(Object topic, FileIoReadContext readCtx) {
         ReadableChunkedObject inStream = null;
         TransmitMeta meta = null;
 
         try {
             // Send previous meta to sync remote and local file transferred states.
-            if (tctx.stream == null)
-                tctx.currOutChannel.writeMeta(TransmitMeta.DFLT_TRANSMIT_META);
+            if (readCtx.chunkedObj == null)
+                readCtx.currOutChannel.writeMeta(TransmitMeta.DFLT_TRANSMIT_META);
             else
-                tctx.currOutChannel.writeMeta(tctx.stream.transmitMeta());
+                readCtx.currOutChannel.writeMeta(readCtx.chunkedObj.transmitMeta());
 
             while (!Thread.currentThread().isInterrupted()) {
                 checkNotStopped();
 
                 // Read current stream session policy
-                ReadPolicy currPlc = tctx.currInChannel.readPolicy();
+                ReadPolicy currPlc = readCtx.currInChannel.readPolicy();
 
                 if (currPlc == ReadPolicy.NONE) {
-                    tctx.session.end();
+                    readCtx.session.onEnd(readCtx.nodeId);
 
                     sesCtxMap.remove(topic);
 
@@ -380,14 +380,18 @@ public class GridFileIoManager {
 
                 long startTime = U.currentTimeMillis();
 
-                tctx.currPlc = currPlc;
+                readCtx.currPlc = currPlc;
 
-                if (tctx.stream == null)
-                    tctx.stream = streamFactory.createInputStream(tctx.currPlc, tctx.session, ioStreamChunkSize);
+                if (readCtx.chunkedObj == null) {
+                    readCtx.chunkedObj = streamFactory.createInputStream(readCtx.nodeId,
+                        readCtx.currPlc,
+                        readCtx.session,
+                        ioChunkSize);
+                }
 
-                inStream = tctx.stream;
+                inStream = readCtx.chunkedObj;
 
-                inStream.setup(tctx.currInChannel);
+                inStream.setup(readCtx.currInChannel);
 
                 // Read data from the input.
                 while (!inStream.transmitEnd()) {
@@ -398,23 +402,23 @@ public class GridFileIoManager {
 
                     // If the limit of permits at appropriate period of time reached,
                     // the furhter invocations of the #acuqire(int) method will be blocked.
-                    boolean acquired = inBytePermits.tryAcquire(tctx.stream.chunkSize(),
+                    boolean acquired = inBytePermits.tryAcquire(readCtx.chunkedObj.chunkSize(),
                         DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
                     if (!acquired)
                         throw new RemoteTransmitException("Download speed is too slow " +
                             "[downloadSpeed=" + inBytePermits.permitsPerSec() + " byte/sec]");
 
-                    inStream.readChunk(tctx.currInChannel);
+                    inStream.readChunk(readCtx.currInChannel);
                 }
 
                 inStream.checkTransmitComplete();
                 inStream.close();
 
-                tctx.stream = null;
+                readCtx.chunkedObj = null;
 
                 // Write stream processing acknowledge.
-                tctx.currOutChannel.acknowledge(inStream.count());
+                readCtx.currOutChannel.acknowledge(inStream.count());
 
                 long downloadTime = U.currentTimeMillis() - startTime;
 
@@ -422,27 +426,28 @@ public class GridFileIoManager {
                     "[name=" + inStream.name() + ", transferred=" + inStream.transferred() + " bytes" +
                     ", time=" + (double)((downloadTime) / 1000) + " sec" +
                     ", speed=" + inBytePermits.permitsPerSec() + " byte/sec" +
-                    ", reconnects=" + tctx.reconnects);
+                    ", reconnects=" + readCtx.reconnects);
             }
         }
         catch (RemoteTransmitException e) {
             // Waiting for re-establishing connection.
-            log.warning("The connection lost. Waiting for the new one to continue file upload", e);
+            log.warning("The connection lost. Waiting for the new one to continue file upload " +
+                "[sesId=" + readCtx.sesId + ']', e);
 
-            tctx.reconnects++;
+            readCtx.reconnects++;
 
-            if (tctx.reconnects == reconnectCnt) {
+            if (readCtx.reconnects == reconnectCnt) {
                 IOException ex = new IOException("The number of reconnect attempts exceeded the limit. " +
                     "Max attempts: " + reconnectCnt, e);
 
-                tctx.session.onException(ex);
+                readCtx.session.onException(ex);
             }
         }
         catch (Throwable t) {
-            log.error("The download session cannot be finished due to unexpected error [ctx=" + tctx +
-                ", channel=" + tctx.currInChannel + ", lastMeta=" + meta + ']', t);
+            log.error("The download session cannot be finished due to unexpected error " +
+                "[ctx=" + readCtx + ", sesId=" + readCtx.sesId + ", lastMeta=" + meta + ']', t);
 
-            tctx.session.onException(t);
+            readCtx.session.onException(t);
         }
         finally {
             U.closeQuiet(inStream);
@@ -470,10 +475,13 @@ public class GridFileIoManager {
 
         /** Current sesssion. */
         @GridToStringExclude
-        private final TransmitSessionHandler session;
+        private final FileTransmitHandler session;
 
         /** Flag indicates session started. */
         private final AtomicBoolean started = new AtomicBoolean();
+
+        /** Unique session request id. */
+        private IgniteUuid sesId;
 
         /** The number of reconnect attempts of current session. */
         private int reconnects;
@@ -490,13 +498,13 @@ public class GridFileIoManager {
         private ReadPolicy currPlc;
 
         /** The last infinished download. */
-        private ReadableChunkedObject stream;
+        private ReadableChunkedObject chunkedObj;
 
         /**
          * @param nodeId The remote node id.
          * @param session The channel handler.
          */
-        public FileIoReadContext(UUID nodeId, TransmitSessionHandler session) {
+        public FileIoReadContext(UUID nodeId, FileTransmitHandler session) {
             this.nodeId = nodeId;
             this.session = session;
         }
@@ -576,16 +584,11 @@ public class GridFileIoManager {
 
             WritableChunkedObject fileStream = new ChunkedFile(
                 new FileHandler() {
-                    @Override public String fileAbsolutePath(
-                        String name,
-                        long offset,
-                        long size,
-                        Map<String, Serializable> params
-                    ) {
+                    @Override public String path(String name, Map<String, Serializable> params) {
                         return file.getAbsolutePath();
                     }
 
-                    @Override public void acceptFile(File file, Map<String, Serializable> params) {
+                    @Override public void acceptFile(File file, long offset, long cnt, Map<String, Serializable> params) {
                         if (log.isDebugEnabled())
                             log.debug("File has been successfully uploaded: " + file.getName());
                     }
@@ -593,7 +596,7 @@ public class GridFileIoManager {
                 file.getName(),
                 offset,
                 count,
-                ioStreamChunkSize,
+                ioChunkSize,
                 params);
 
             try {

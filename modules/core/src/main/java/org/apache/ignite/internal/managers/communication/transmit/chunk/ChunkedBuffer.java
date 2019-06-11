@@ -74,7 +74,7 @@ public class ChunkedBuffer extends AbstractChunkedObject {
     /** {@inheritDoc} */
     @Override protected void init() throws IOException {
         if (buff == null) {
-            buffSize = handler.begin(name(), startPosition(), count(), params());
+            buffSize = handler.begin(name(), params());
 
             assert buffSize > 0;
 
@@ -90,15 +90,16 @@ public class ChunkedBuffer extends AbstractChunkedObject {
         buff.rewind();
 
         long readed = channel.readInto(buff);
+        long chunkPos = transferred();
 
         if (readed > 0)
-            transferred.addAndGet(readed);
+            chunkPos = transferred.getAndAdd(readed);
         else if (readed < 0 && transferred() < count())
             throw new RemoteTransmitException("Socket has been unexpectedly closed, but stream is not fully processed");
 
         buff.flip();
 
-        boolean accepted = handler.chunk(buff);
+        boolean accepted = handler.chunk(buff, startPosition() + chunkPos);
 
         if (!accepted)
             throw new IOException("The buffer was rejected by handler");

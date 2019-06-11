@@ -19,16 +19,16 @@ package org.apache.ignite.internal.managers.communication.transmit;
 
 import java.nio.channels.FileChannel;
 import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
 
 /**
- * The {@code TransmitSessionHandler} represents a single session of handling input file transmission requests.
+ * The {@code FileTransmitHandler} represents a single session of handling input file transmission requests.
  */
-public interface TransmitSessionHandler {
+public interface FileTransmitHandler {
     /**
-     * @param nodeId The remote node id connected from.
-     * @param sessionId The unique session id.
+     * @param nodeId The remote node id receive request for transmission from.
      */
-    public void begin(UUID nodeId, String sessionId);
+    public void onBegin(UUID nodeId);
 
     /**
      * @param cause The cause of fail handling process.
@@ -38,15 +38,15 @@ public interface TransmitSessionHandler {
     /**
      * The end of session transmission process.
      */
-    public void end();
+    public void onEnd(UUID nodeId);
 
     /**
      * @return The instance of read handler to process incoming data by chunks.
      */
-    public ChunkHandler chunkHandler();
+    public @Nullable ChunkHandler chunkHandler(UUID nodeId);
 
     /**
      * @return The intance of read handler to process incoming data like the {@link FileChannel} manner.
      */
-    public FileHandler fileHandler();
+    public @Nullable FileHandler fileHandler(UUID nodeId);
 }

@@ -17,15 +17,17 @@
 
 package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
+import java.util.UUID;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.ReadPolicy;
-import org.apache.ignite.internal.managers.communication.transmit.TransmitSessionHandler;
+import org.apache.ignite.internal.managers.communication.transmit.FileTransmitHandler;
 
 /**
  * Factory to create a new stream of chunks when the file read or write events happened.
  */
 public class ChunkedObjectFactory {
     /**
+     * @param nodeId Remote node id.
      * @param policy The policy of how to read stream.
      * @param ses The current ses instance produces handlers.
      * @param chunkSize The size of chunk to read.
@@ -33,20 +35,21 @@ public class ChunkedObjectFactory {
      * @throws IgniteCheckedException If fails.
      */
     public ReadableChunkedObject createInputStream(
+        UUID nodeId,
         ReadPolicy policy,
-        TransmitSessionHandler ses,
+        FileTransmitHandler ses,
         int chunkSize
     ) throws IgniteCheckedException {
         ReadableChunkedObject stream;
 
         switch (policy) {
             case FILE:
-                stream = new ChunkedFile(ses.fileHandler(), chunkSize);
+                stream = new ChunkedFile(ses.fileHandler(nodeId), chunkSize);
 
                 break;
 
             case BUFF:
-                stream = new ChunkedBuffer(ses.chunkHandler(), chunkSize);
+                stream = new ChunkedBuffer(ses.chunkHandler(nodeId), chunkSize);
 
                 break;
 

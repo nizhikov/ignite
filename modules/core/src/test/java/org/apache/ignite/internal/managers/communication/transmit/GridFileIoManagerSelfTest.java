@@ -142,28 +142,23 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         ConcurrentMap<String, Long> fileWithSizes = new ConcurrentHashMap<>();
 
-        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
-            @Override public void begin(UUID nodeId, String sessionId) {
+        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+            @Override public void onBegin(UUID nodeId) {
                 assertTrue(sender.localNode().id().equals(nodeId));
             }
 
-            @Override public FileHandler fileHandler() {
+            @Override public FileHandler fileHandler(UUID nodeId) {
                 return new FileHandler() {
                     /** */
                     private final AtomicBoolean inited = new AtomicBoolean();
 
-                    @Override public String fileAbsolutePath(
-                        String name,
-                        long offset,
-                        long size,
-                        Map<String, Serializable> params
-                    ) {
+                    @Override public String path(String name, Map<String, Serializable> params) {
                         assertTrue(inited.compareAndSet(false, true));
 
                         return new File(tempStore, name).getAbsolutePath();
                     }
 
-                    @Override public void acceptFile(File file, Map<String, Serializable> params) {
+                    @Override public void acceptFile(File file, long offset, long cnt, Map<String, Serializable> params) {
                         assertTrue(fileWithSizes.containsKey(file.getName()));
                         assertEquals(fileWithSizes.get(file.getName()), new Long(file.length()));
                     }
@@ -208,13 +203,13 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("50Mb", 50 * 1024 * 1024);
 
-        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
-            @Override public void begin(UUID nodeId, String sessionId) {
+        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+            @Override public void onBegin(UUID nodeId) {
                 if (failFirstTime.compareAndSet(false, true))
                     throw new IgniteException(exTestMessage);
             }
 
-            @Override public FileHandler fileHandler() {
+            @Override public FileHandler fileHandler(UUID nodeId) {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
 
@@ -247,13 +242,14 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         receiver.context().io().fileIoMgr().chunkedStreamFactory(new ChunkedObjectFactory() {
             @Override public ReadableChunkedObject createInputStream(
+                UUID nodeId,
                 ReadPolicy policy,
-                TransmitSessionHandler ses,
+                FileTransmitHandler ses,
                 int chunkSize
             ) throws IgniteCheckedException {
                 assertEquals(policy, ReadPolicy.FILE);
 
-                return new ChunkedFile(ses.fileHandler(), chunkSize) {
+                return new ChunkedFile(ses.fileHandler(nodeId), chunkSize) {
                     @Override public void readChunk(TransmitInputChannel in) throws IOException {
                         // Read 4 chunks than throw an exception to emulate error processing.
                         if (readedChunks.incrementAndGet() == 4)
@@ -267,8 +263,8 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             }
         });
 
-        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
-            @Override public FileHandler fileHandler() {
+        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+            @Override public FileHandler fileHandler(UUID nodeId) {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
 
@@ -299,15 +295,10 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("testFile", fileSizeBytes);
 
-        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
-            @Override public FileHandler fileHandler() {
+        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+            @Override public FileHandler fileHandler(UUID nodeId) {
                 return new FileHandler() {
-                    @Override public String fileAbsolutePath(
-                        String name,
-                        long offset,
-                        long size,
-                        Map<String, Serializable> params
-                    ) throws IOException {
+                    @Override public String path(String name, Map<String, Serializable> params) throws IOException {
                         if (throwFirstTime.compareAndSet(false, true))
                             throw new IOException("Test exception. Initialization fail.");
 
@@ -315,7 +306,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                             .getAbsolutePath();
                     }
 
-                    @Override public void acceptFile(File file, Map<String, Serializable> params) {
+                    @Override public void acceptFile(File file, long offset, long cnt, Map<String, Serializable> params) {
                         assertEquals(fileToSend.length(), file.length());
                     }
                 };
@@ -346,8 +337,8 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         receiver.context().io().fileIoMgr().downloadRate(donwloadSpeedBytes);
 
-        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
-            @Override public FileHandler fileHandler() {
+        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+            @Override public FileHandler fileHandler(UUID nodeId) {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
         });
@@ -386,8 +377,8 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         sender.context().io().fileIoMgr().uploadRate(uploadSpeedBytesSec);
 
-        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
-            @Override public FileHandler fileHandler() {
+        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+            @Override public FileHandler fileHandler(UUID nodeId) {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
         });
@@ -423,32 +414,26 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("testFile", 10 * 1024 * 1024);
 
-        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
+        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
             /** {@inheritDoc} */
-            @Override public ChunkHandler chunkHandler() {
+            @Override public ChunkHandler chunkHandler(UUID nodeId) {
                 return new ChunkHandler() {
                     /** */
                     private File file;
 
-                    @Override public int begin(
-                        String name,
-                        long pos,
-                        long cnt,
-                        Map<String, Serializable> params
-                    ) throws IOException {
+                    @Override public int begin(String name, Map<String, Serializable> params) throws IOException {
                         file = new File(tempStore, name + "_" + receiver.localNode().id());
 
                         fileIo[0] = ioFactory.create(file);
 
-                        fileIo[0].position(pos);
-
                         return 4 * 1024; // Page size
                     }
 
-                    @Override public boolean chunk(ByteBuffer buff) throws IOException {
+                    @Override public boolean chunk(ByteBuffer buff, long pos) throws IOException {
                         assertTrue(buff.order() == ByteOrder.nativeOrder());
                         assertEquals(0, buff.position());
 
+                        fileIo[0].position(pos);
                         fileIo[0].writeFully(buff);
 
                         return true;
@@ -488,19 +473,14 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("testFile", 10 * 1024 * 1024);
 
-        receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
+        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
             /** {@inheritDoc} */
-            @Override public ChunkHandler chunkHandler() {
+            @Override public ChunkHandler chunkHandler(UUID nodeId) {
                 return new ChunkHandler() {
                     /** */
                     private File file;
 
-                    @Override public int begin(
-                        String name,
-                        long pos,
-                        long cnt,
-                        Map<String, Serializable> params
-                    ) throws IOException {
+                    @Override public int begin(String name, Map<String, Serializable> params) throws IOException {
                         if (throwFirstTime.compareAndSet(false, true))
                             throw new IOException("Test exception. Initialization failed");
 
@@ -510,7 +490,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                         return 16 * 1024;
                     }
 
-                    @Override public boolean chunk(ByteBuffer buff) throws IOException {
+                    @Override public boolean chunk(ByteBuffer buff, long pos) throws IOException {
                         fileIo[0].writeFully(buff);
 
                         return true;
@@ -592,16 +572,11 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
      */
     private FileHandler getDefaultFileHandler(IgniteEx receiver, File fileToSend) {
         return new FileHandler() {
-            @Override public String fileAbsolutePath(
-                String name,
-                long offset,
-                long size,
-                Map<String, Serializable> params
-            ) {
+            @Override public String path(String name, Map<String, Serializable> params) {
                 return new File(tempStore, name + "_" + receiver.localNode().id()).getAbsolutePath();
             }
 
-            @Override public void acceptFile(File file, Map<String, Serializable> params) {
+            @Override public void acceptFile(File file, long offset, long cnt, Map<String, Serializable> params) {
                 assertEquals(fileToSend.length(), file.length());
             }
         };
@@ -610,24 +585,24 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * The defailt implementation of transmit session.
      */
-    private static class TransmitSessionHandlerAdapter implements TransmitSessionHandler {
+    private static class FileTransmitHandlerAdapter implements FileTransmitHandler {
         /** {@inheritDoc} */
-        @Override public void begin(UUID nodeId, String sessionId) {
+        @Override public void onBegin(UUID nodeId) {
             // No-op.
         }
 
         /** {@inheritDoc} */
-        @Override public ChunkHandler chunkHandler() {
+        @Override public ChunkHandler chunkHandler(UUID nodeId) {
             return null;
         }
 
         /** {@inheritDoc} */
-        @Override public FileHandler fileHandler() {
+        @Override public FileHandler fileHandler(UUID nodeId) {
             return null;
         }
 
         /** {@inheritDoc} */
-        @Override public void end() {
+        @Override public void onEnd(UUID nodeId) {
             // No-op.
         }
 

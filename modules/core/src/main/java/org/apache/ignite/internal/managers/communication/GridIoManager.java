@@ -65,9 +65,9 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.direct.DirectMessageReader;
 import org.apache.ignite.internal.direct.DirectMessageWriter;
 import org.apache.ignite.internal.managers.GridManagerAdapter;
+import org.apache.ignite.internal.managers.communication.transmit.FileTransmitHandler;
 import org.apache.ignite.internal.managers.communication.transmit.FileWriter;
 import org.apache.ignite.internal.managers.communication.transmit.GridFileIoManager;
-import org.apache.ignite.internal.managers.communication.transmit.TransmitSessionHandler;
 import org.apache.ignite.internal.managers.communication.transmit.util.InitChannelMessage;
 import org.apache.ignite.internal.managers.deployment.GridDeployment;
 import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
@@ -2205,7 +2205,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @param topic The {@link GridTopic} to register handler to.
      * @param ses The ses will be created for a new channel opened.
      */
-    public void addTransmitSessionHandler(Object topic, TransmitSessionHandler ses) {
+    public void addTransmitSessionHandler(Object topic, FileTransmitHandler ses) {
         fileIoMgr.addTransmitSessionHandler(topic, ses);
     }
 
