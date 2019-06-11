@@ -27,8 +27,6 @@ import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,6 +40,7 @@ import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
+import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
@@ -51,6 +50,7 @@ import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
+import org.apache.ignite.internal.processors.cache.persistence.wal.crc.FastCrc;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.After;
@@ -140,7 +140,8 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         awaitPartitionMapExchange();
 
-        ConcurrentMap<String, Long> fileWithSizes = new ConcurrentHashMap<>();
+        Map<String, Long> fileSizes = new HashMap<>();
+        Map<String, Integer> fileCrcs = new HashMap<>();
 
         receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             @Override public void onBegin(UUID nodeId) {
@@ -159,8 +160,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                     }
 
                     @Override public void acceptFile(File file, long offset, long cnt, Map<String, Serializable> params) {
-                        assertTrue(fileWithSizes.containsKey(file.getName()));
-                        assertEquals(fileWithSizes.get(file.getName()), new Long(file.length()));
+                        assertTrue(fileSizes.containsKey(file.getName()));
                     }
                 };
             }
@@ -168,33 +168,44 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File cacheDirIg0 = cacheWorkDir(sender, DEFAULT_CACHE_NAME);
 
+        File[] cacheParts = cacheDirIg0.listFiles(fileBinFilter);
+
+        for (File file : cacheParts) {
+            fileSizes.put(file.getName(), file.length());
+            fileCrcs.put(file.getName(), FastCrc.calcCrc(file));
+        }
+
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            // Iterate over cache partition files.
-            File[] files = cacheDirIg0.listFiles(fileBinFilter);
-
-            for (File file : files)
-                fileWithSizes.put(file.getName(), file.length());
-
-            for (File file : files)
+            // Iterate over cache partition cacheParts.
+            for (File file : cacheParts)
                 writer.write(file, new HashMap<>(), ReadPolicy.FILE);
         }
 
-        log.info("Writing test files finished. All Ignite instances will be stopped.");
+        log.info("Writing test cacheParts finished. All Ignite instances will be stopped.");
 
         stopAllGrids();
 
-        assertEquals(fileWithSizes.size(), tempStore.listFiles(fileBinFilter).length);
+        assertEquals(fileSizes.size(), tempStore.listFiles(fileBinFilter).length);
+
+        // Check received file lenghs
+        for (File file : cacheParts)
+            assertEquals("Received file lenght is incorrect: " + file.getName(),
+                fileSizes.get(file.getName()), new Long(file.length()));
+
+        // Check received file CRCs. CRC is not guaranteed by file manager.
+        for (File file : tempStore.listFiles(fileBinFilter))
+            assertEquals("Received file CRC-32 checksum is incorrect: " + file.getName(),
+                fileCrcs.get(file.getName()), new Integer(FastCrc.calcCrc(file)));
     }
 
     /**
      * @throws Exception If fails.
      */
-    @Test
-    public void testFileHandlerBeginSessionThrowsEx() throws Exception {
-        final AtomicBoolean failFirstTime = new AtomicBoolean();
-        final String exTestMessage = "Test exception. Session initialization failed. Connection will be reestablished.";
+    @Test(expected = IgniteCheckedException.class)
+    public void testFileHandlerOnBeginFails() throws Exception {
+        final String exTestMessage = "Test exception. Handler initialization failed at onBegin.";
 
         IgniteEx sender = startGrid(0);
         IgniteEx receiver = startGrid(1);
@@ -205,16 +216,15 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             @Override public void onBegin(UUID nodeId) {
-                if (failFirstTime.compareAndSet(false, true))
-                    throw new IgniteException(exTestMessage);
+                throw new IgniteException(exTestMessage);
             }
 
             @Override public FileHandler fileHandler(UUID nodeId) {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
 
-            @Override public void onException(Throwable cause) {
-                assertEquals(exTestMessage, cause.getMessage());
+            @Override public void onException(Throwable err) {
+                assertEquals(exTestMessage, err.getMessage());
             }
         });
 
@@ -228,8 +238,59 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
+    @Test(expected = ClusterTopologyCheckedException.class)
+    public void testFileHandlerOnReceiverNodeLeft() throws Exception {
+        final int fileSizeBytes = 5 * 1024 * 1024;
+        final AtomicInteger chunksCnt = new AtomicInteger();
+
+        IgniteEx sender = startGrid(0);
+        IgniteEx receiver = startGrid(1);
+
+        sender.cluster().active(true);
+
+        File fileToSend = createFileRandomData("testFile", fileSizeBytes);
+
+        receiver.context().io().fileIoMgr().chunkedStreamFactory(new ChunkedObjectFactory() {
+            @Override public ReadableChunkedObject createInputStream(
+                UUID nodeId,
+                ReadPolicy policy,
+                FileTransmitHandler ses,
+                int chunkSize
+            ) throws IgniteCheckedException {
+                return new ChunkedFile(ses.fileHandler(nodeId), chunkSize) {
+                    @Override public void readChunk(TransmitInputChannel in) throws IOException {
+                        // Read 5 chunks than stop the grid.
+                        if (chunksCnt.incrementAndGet() == 5)
+                            stopGrid(1, true);
+
+                        super.readChunk(in);
+                    }
+                };
+            }
+        });
+
+        receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
+            @Override public FileHandler fileHandler(UUID nodeId) {
+                return getDefaultFileHandler(receiver, fileToSend);
+            }
+        });
+
+        try (FileWriter writer = sender.context()
+            .io()
+            .openFileWriter(receiver.localNode().id(), topic)) {
+            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+        }
+        catch (IgniteCheckedException e) {
+            if (e.hasCause(ClusterTopologyCheckedException.class))
+                throw (ClusterTopologyCheckedException)e.getCause();
+        }
+    }
+
+    /**
+     * @throws Exception If fails.
+     */
     @Test
-    public void testFileHandlerReconnectIfDownload() throws Exception {
+    public void testFileHandlerReconnectOnReadFail() throws Exception {
         final String chunkDownloadExMsg = "Test exception. Chunk processing error.";
 
         IgniteEx sender = startGrid(0);
@@ -268,8 +329,8 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
 
-            @Override public void onException(Throwable cause) {
-                assertEquals(chunkDownloadExMsg, cause.getMessage());
+            @Override public void onException(Throwable err) {
+                assertEquals(chunkDownloadExMsg, err.getMessage());
             }
         });
 
@@ -607,7 +668,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         }
 
         /** {@inheritDoc} */
-        @Override public void onException(Throwable cause) {
+        @Override public void onException(Throwable err) {
             // No-op.
         }
     }

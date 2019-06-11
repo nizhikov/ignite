@@ -303,8 +303,15 @@ public class GridFileIoManager {
                 readCtx.currInChannel = new TransmitInputChannel(log, (SocketChannel)channel);
                 readCtx.currOutChannel = new TransmitOutputChannel(log, (SocketChannel)channel);
 
-                if (readCtx.started.compareAndSet(false, true))
-                    readCtx.session.onBegin(nodeId);
+                try {
+                    if (readCtx.started.compareAndSet(false, true))
+                        readCtx.session.onBegin(nodeId);
+                }
+                catch (Throwable t) {
+                    readCtx.started.compareAndSet(true, false);
+
+                    throw t;
+                }
             }
             finally {
                 busyLock.leaveBusy();
@@ -565,6 +572,9 @@ public class GridFileIoManager {
                 in.readMeta(syncMeta);
 
                 return syncMeta;
+            }
+            catch (ClusterTopologyCheckedException e) {
+                throw e;
             }
             catch (IgniteCheckedException | IOException e) {
                 throw new IgniteCheckedException("Unable to initialize an i\\o channel connection to the remote node " +

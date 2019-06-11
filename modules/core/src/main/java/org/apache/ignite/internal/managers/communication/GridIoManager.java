@@ -1725,7 +1725,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         ClusterNode node = ctx.discovery().node(nodeId);
 
         if (node == null)
-            throw new ClusterTopologyCheckedException("Failed to send message to node (has node left grid?): " + nodeId);
+            throw new ClusterTopologyCheckedException("Failed to open a new channel to remote node (node left): " + nodeId);
 
         return openChannel(node, topic, initMsg);
     }

@@ -31,9 +31,9 @@ public interface FileTransmitHandler {
     public void onBegin(UUID nodeId);
 
     /**
-     * @param cause The cause of fail handling process.
+     * @param err The err of fail handling process.
      */
-    public void onException(Throwable cause);
+    public void onException(Throwable err);
 
     /**
      * The end of session transmission process.
@@ -43,10 +43,10 @@ public interface FileTransmitHandler {
     /**
      * @return The instance of read handler to process incoming data by chunks.
      */
-    public @Nullable ChunkHandler chunkHandler(UUID nodeId);
+    public ChunkHandler chunkHandler(UUID nodeId);
 
     /**
      * @return The intance of read handler to process incoming data like the {@link FileChannel} manner.
      */
-    public @Nullable FileHandler fileHandler(UUID nodeId);
+    public FileHandler fileHandler(UUID nodeId);
 }
