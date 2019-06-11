@@ -194,7 +194,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             assertEquals("Received file lenght is incorrect: " + file.getName(),
                 fileSizes.get(file.getName()), new Long(file.length()));
 
-        // Check received file CRCs. CRC is not guaranteed by file manager.
+        // Check received file CRCs.
         for (File file : tempStore.listFiles(fileBinFilter))
             assertEquals("Received file CRC-32 checksum is incorrect: " + file.getName(),
                 fileCrcs.get(file.getName()), new Integer(FastCrc.calcCrc(file)));
@@ -369,6 +369,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
                     @Override public void acceptFile(File file, long offset, long cnt, Map<String, Serializable> params) {
                         assertEquals(fileToSend.length(), file.length());
+                        assertCrcEquals(fileToSend, file);
                     }
                 };
             }
@@ -502,7 +503,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
                     @Override public void end(Map<String, Serializable> params) {
                         assertEquals(fileToSend.length(), file.length());
-
+                        assertCrcEquals(fileToSend, file);
                         U.closeQuiet(fileIo[0]);
                     }
                 };
@@ -559,6 +560,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
                     @Override public void end(Map<String, Serializable> params) {
                         assertEquals(fileToSend.length(), file.length());
+                        assertCrcEquals(fileToSend, file);
                     }
                 };
             }
@@ -639,8 +641,22 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
             @Override public void acceptFile(File file, long offset, long cnt, Map<String, Serializable> params) {
                 assertEquals(fileToSend.length(), file.length());
+                assertCrcEquals(fileToSend, file);
             }
         };
+    }
+
+    /**
+     * @param fileToSend Source file to check CRC.
+     * @param fileReceived Destination file to check CRC.
+     */
+    private static void assertCrcEquals(File fileToSend, File fileReceived) {
+        try {
+            assertEquals(FastCrc.calcCrc(fileToSend), FastCrc.calcCrc(fileReceived));
+        }
+        catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     /**
