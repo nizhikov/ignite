@@ -142,9 +142,9 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         ConcurrentMap<String, Long> fileWithSizes = new ConcurrentHashMap<>();
 
-        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+        receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             @Override public void onBegin(UUID nodeId) {
-                assertTrue(sender.localNode().id().equals(nodeId));
+                assertEquals(sender.localNode().id(), nodeId);
             }
 
             @Override public FileHandler fileHandler(UUID nodeId) {
@@ -203,7 +203,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("50Mb", 50 * 1024 * 1024);
 
-        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+        receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             @Override public void onBegin(UUID nodeId) {
                 if (failFirstTime.compareAndSet(false, true))
                     throw new IgniteException(exTestMessage);
@@ -263,7 +263,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             }
         });
 
-        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+        receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             @Override public FileHandler fileHandler(UUID nodeId) {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
@@ -295,7 +295,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("testFile", fileSizeBytes);
 
-        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+        receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             @Override public FileHandler fileHandler(UUID nodeId) {
                 return new FileHandler() {
                     @Override public String path(String name, Map<String, Serializable> params) throws IOException {
@@ -337,7 +337,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         receiver.context().io().fileIoMgr().downloadRate(donwloadSpeedBytes);
 
-        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+        receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             @Override public FileHandler fileHandler(UUID nodeId) {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
@@ -377,7 +377,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         sender.context().io().fileIoMgr().uploadRate(uploadSpeedBytesSec);
 
-        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+        receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             @Override public FileHandler fileHandler(UUID nodeId) {
                 return getDefaultFileHandler(receiver, fileToSend);
             }
@@ -414,7 +414,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("testFile", 10 * 1024 * 1024);
 
-        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+        receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             /** {@inheritDoc} */
             @Override public ChunkHandler chunkHandler(UUID nodeId) {
                 return new ChunkHandler() {
@@ -473,7 +473,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("testFile", 10 * 1024 * 1024);
 
-        receiver.context().io().addTransmitSessionHandler(topic, new FileTransmitHandlerAdapter() {
+        receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             /** {@inheritDoc} */
             @Override public ChunkHandler chunkHandler(UUID nodeId) {
                 return new ChunkHandler() {
