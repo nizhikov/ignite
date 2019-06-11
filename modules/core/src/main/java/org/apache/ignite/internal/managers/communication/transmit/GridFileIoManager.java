@@ -41,9 +41,9 @@ import org.apache.ignite.internal.managers.communication.transmit.channel.Transm
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitOutputChannel;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFile;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ReadableChunkedObject;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.WritableChunkedObject;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
 import org.apache.ignite.internal.managers.communication.transmit.util.InitChannelMessage;
 import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
@@ -459,22 +459,71 @@ public class GridFileIoManager {
     }
 
     /**
-     *
+     * Read context holds all the information about current transfer read from channel process.
+     */
+    private static class FileIoReadContext {
+        /** The remote node input channel came from. */
+        private final UUID nodeId;
+
+        /** Handler currently in use flag. */
+        private final AtomicBoolean inProgress = new AtomicBoolean();
+
+        /** Current sesssion. */
+        @GridToStringExclude
+        private final TransmitSessionHandler session;
+
+        /** Flag indicates session started. */
+        private final AtomicBoolean started = new AtomicBoolean();
+
+        /** The number of reconnect attempts of current session. */
+        private int reconnects;
+
+        /** The currently used input channel (updated on reconnect). */
+        @GridToStringExclude
+        private TransmitInputChannel currInChannel;
+
+        /** The currently used output channel (updated on reconnect). */
+        @GridToStringExclude
+        private TransmitOutputChannel currOutChannel;
+
+        /** The read policy of handlind input data. */
+        private ReadPolicy currPlc;
+
+        /** The last infinished download. */
+        private ReadableChunkedObject stream;
+
+        /**
+         * @param nodeId The remote node id.
+         * @param session The channel handler.
+         */
+        public FileIoReadContext(UUID nodeId, TransmitSessionHandler session) {
+            this.nodeId = nodeId;
+            this.session = session;
+        }
+
+        /** {@inheritDoc} */
+        @Override public String toString() {
+            return S.toString(FileIoReadContext.class, this);
+        }
+    }
+
+    /**
+     * Implementation of file writer session to transfer files.
      */
     private class FileWriterImpl implements FileWriter {
-        /** */
+        /** Remote node id to connect to. */
         private final UUID remoteId;
 
-        /** */
+        /** Remote topic to connect to. */
         private final Object topic;
 
-        /** */
+        /** Current unique session id to transfer files. */
         private IgniteUuid sesId;
 
-        /** */
+        /** Data output channel. */
         private TransmitOutputChannel out;
 
-        /** */
+        /** Data intput channel. */
         private TransmitInputChannel in;
 
         /**
@@ -629,7 +678,7 @@ public class GridFileIoManager {
                 long uploadTime = U.currentTimeMillis() - startTime;
 
                 U.log(log, "The file uploading operation has been completed " +
-                    "[name=" + file.getName() + ", uploadTime=" + (double)((uploadTime)/1000) + " sec" +
+                    "[name=" + file.getName() + ", uploadTime=" + (double)((uploadTime) / 1000) + " sec" +
                     ", reconnects=" + reconnects + ']');
 
             }
@@ -670,55 +719,6 @@ public class GridFileIoManager {
 
             out = null;
             in = null;
-        }
-    }
-
-    /**
-     *
-     */
-    private static class FileIoReadContext {
-        /** The remote node input channel came from. */
-        private final UUID nodeId;
-
-        /** Handler currently in use flag. */
-        private final AtomicBoolean inProgress = new AtomicBoolean();
-
-        /** Current sesssion. */
-        @GridToStringExclude
-        private final TransmitSessionHandler session;
-
-        /** Flag indicates session started. */
-        private final AtomicBoolean started = new AtomicBoolean();
-
-        /** The number of reconnect attempts of current session. */
-        private int reconnects;
-
-        /** The currently used input channel (updated on reconnect). */
-        @GridToStringExclude
-        private TransmitInputChannel currInChannel;
-
-        /** The currently used output channel (updated on reconnect). */
-        @GridToStringExclude
-        private TransmitOutputChannel currOutChannel;
-
-        /** The read policy of handlind input data. */
-        private ReadPolicy currPlc;
-
-        /** The last infinished download. */
-        private ReadableChunkedObject stream;
-
-        /**
-         * @param nodeId The remote node id.
-         * @param session The channel handler.
-         */
-        public FileIoReadContext(UUID nodeId, TransmitSessionHandler session) {
-            this.nodeId = nodeId;
-            this.session = session;
-        }
-
-        /** {@inheritDoc} */
-        @Override public String toString() {
-            return S.toString(FileIoReadContext.class, this);
         }
     }
 }
