@@ -52,12 +52,12 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
     }
 
     /**
-     * @param plc The {@link ReadPolicy} to write to channel.
+     * @param intVal Value to write to channel.
      * @throws IOException If fails.
      */
-    public void writePolicy(ReadPolicy plc) throws IOException {
+    public void writeInt(int intVal) throws IOException {
         try {
-            oos.writeInt(plc.ordinal());
+            oos.writeInt(intVal);
 
             oos.flush();
         } catch (IOException e) {

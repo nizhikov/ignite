@@ -56,17 +56,12 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
     }
 
     /**
-     * @return Readed {@link ReadPolicy} from channel.
+     * @return Readed int value from channel.
      * @throws IOException If fails.
      */
-    public ReadPolicy readPolicy() throws IOException {
+    public int readInt() throws IOException {
         try {
-            int plc = ois.readInt();
-
-            if (plc > ReadPolicy.values().length)
-                throw new IOException("The policy received from channel is unknown [order=" + plc + ']');
-
-            return ReadPolicy.values()[plc];
+            return ois.readInt();
         }
         catch (IOException e) {
             throw transformExceptionIfNeed(e);

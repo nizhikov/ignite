@@ -18,12 +18,9 @@
 package org.apache.ignite.internal.managers.communication.transmit;
 
 /**
- * Enumeration of ways how to handle the input data of chunked stream.
+ * Enumeration of ways how to handle input chunked data on node receiver.
  */
 public enum ReadPolicy {
-    /** Default read policy means the read session reached its end.*/
-    NONE,
-
     /** Read the source direcly into the FileChannel. */
     FILE,
 

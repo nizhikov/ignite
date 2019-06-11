@@ -81,6 +81,9 @@ public class GridFileIoManager {
     /** The default timeout for waiting the permits. */
     private static final int DFLT_ACQUIRE_TIMEOUT_MS = 5000;
 
+    /** Flag send to remote on file writer close. */
+    private static final int FILE_WRITER_CLOSED = -1;
+
     /** Kernal context. */
     private final GridKernalContext ctx;
 
@@ -375,9 +378,9 @@ public class GridFileIoManager {
                 checkNotStopped();
 
                 // Read current stream session policy
-                ReadPolicy currPlc = readCtx.currInChannel.readPolicy();
+                int plcInt = readCtx.currInChannel.readInt();
 
-                if (currPlc == ReadPolicy.NONE) {
+                if (plcInt == FILE_WRITER_CLOSED) {
                     readCtx.session.onEnd(readCtx.nodeId);
 
                     sesCtxMap.remove(topic);
@@ -385,9 +388,12 @@ public class GridFileIoManager {
                     break;
                 }
 
-                long startTime = U.currentTimeMillis();
+                if (plcInt < 0 || plcInt > ReadPolicy.values().length)
+                    throw new IOException("The policy received from channel is unknown [order=" + plcInt + ']');
 
-                readCtx.currPlc = currPlc;
+                readCtx.currPlc = ReadPolicy.values()[plcInt];
+
+                long startTime = U.currentTimeMillis();
 
                 if (readCtx.chunkedObj == null) {
                     readCtx.chunkedObj = streamFactory.createInputStream(readCtx.nodeId,
@@ -643,7 +649,7 @@ public class GridFileIoManager {
                         }
 
                         // Write the policy how to handle input data.
-                        out.writePolicy(plc);
+                        out.writeInt(plc.ordinal());
 
                         fileStream.setup(out);
 
@@ -712,7 +718,7 @@ public class GridFileIoManager {
                 if (out != null) {
                     U.log(log, "Writing tombstone on close write session");
 
-                    out.writePolicy(ReadPolicy.NONE);
+                    out.writeInt(FILE_WRITER_CLOSED);
                 }
             }
             catch (IOException e) {
