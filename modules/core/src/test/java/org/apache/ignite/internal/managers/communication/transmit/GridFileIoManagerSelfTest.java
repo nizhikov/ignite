@@ -44,8 +44,8 @@ import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFile;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ReadableChunkedObject;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.ReadableChunkedObject;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
@@ -143,33 +143,33 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         ConcurrentMap<String, Long> fileWithSizes = new ConcurrentHashMap<>();
 
         receiver.context().io().addTransmitSessionHandler(topic, new TransmitSessionHandlerAdapter() {
-                    @Override public void begin(UUID nodeId, String sessionId) {
-                        assertTrue(sender.localNode().id().equals(nodeId));
+            @Override public void begin(UUID nodeId, String sessionId) {
+                assertTrue(sender.localNode().id().equals(nodeId));
+            }
+
+            @Override public FileHandler fileHandler() {
+                return new FileHandler() {
+                    /** */
+                    private final AtomicBoolean inited = new AtomicBoolean();
+
+                    @Override public String fileAbsolutePath(
+                        String name,
+                        long offset,
+                        long size,
+                        Map<String, Serializable> params
+                    ) {
+                        assertTrue(inited.compareAndSet(false, true));
+
+                        return new File(tempStore, name).getAbsolutePath();
                     }
 
-                    @Override public FileHandler fileHandler() {
-                        return new FileHandler() {
-                            /** */
-                            private final AtomicBoolean inited = new AtomicBoolean();
-
-                            @Override public String fileAbsolutePath(
-                                String name,
-                                long offset,
-                                long size,
-                                Map<String, Serializable> params
-                            ) {
-                                assertTrue(inited.compareAndSet(false, true));
-
-                                return new File(tempStore, name).getAbsolutePath();
-                            }
-
-                            @Override public void acceptFile(File file, Map<String, Serializable> params) {
-                                assertTrue(fileWithSizes.containsKey(file.getName()));
-                                assertEquals(fileWithSizes.get(file.getName()), new Long(file.length()));
-                            }
-                        };
+                    @Override public void acceptFile(File file, Map<String, Serializable> params) {
+                        assertTrue(fileWithSizes.containsKey(file.getName()));
+                        assertEquals(fileWithSizes.get(file.getName()), new Long(file.length()));
                     }
-                });
+                };
+            }
+        });
 
         File cacheDirIg0 = cacheWorkDir(sender, DEFAULT_CACHE_NAME);
 
