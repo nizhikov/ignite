@@ -23,7 +23,6 @@ import java.io.ObjectOutputStream;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
 import org.apache.ignite.IgniteLogger;
-import org.apache.ignite.internal.managers.communication.transmit.ReadPolicy;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
