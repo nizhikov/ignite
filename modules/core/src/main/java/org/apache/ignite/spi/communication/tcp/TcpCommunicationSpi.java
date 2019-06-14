@@ -808,9 +808,8 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                                     notifyChannelEvtListener(connKey.nodeId(), channel, msg.message());
                                 }
                                 catch (IgniteCheckedException e) {
-                                    U.error(log, "Configure blocking mode to the qequested channel failed. " +
-                                        "Session will be closed [nodeId=" + connKey.nodeId() +
-                                        ", idx=" + connKey.connectionIndex() + ']', e);
+                                    U.error(log, "Nio session has not been properly closed " +
+                                        "[nodeId=" + connKey.nodeId() + ", idx=" + connKey.connectionIndex() + ']', e);
 
                                     ses.closeSocketOnSessionClose(true);
                                     U.closeQuiet(ses.key().channel());
