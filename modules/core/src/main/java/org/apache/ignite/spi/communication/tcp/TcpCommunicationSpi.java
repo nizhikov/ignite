@@ -4075,7 +4075,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
         CommunicationListener<Message> lsnr0 = lsnr;
 
         if (lsnr0 instanceof CommunicationListenerEx)
-            ((CommunicationListenerEx)lsnr0).onChannelOpened(nodeId, initMsg, channel);
+            ((CommunicationListenerEx<Message>)lsnr0).onChannelOpened(nodeId, initMsg, channel);
     }
 
     /**

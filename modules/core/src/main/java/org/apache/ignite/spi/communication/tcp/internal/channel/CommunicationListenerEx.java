@@ -20,7 +20,6 @@ package org.apache.ignite.spi.communication.tcp.internal.channel;
 import java.io.Serializable;
 import java.nio.channels.Channel;
 import java.util.UUID;
-import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.spi.communication.CommunicationListener;
 
 /**
@@ -32,5 +31,5 @@ public interface CommunicationListenerEx<T extends Serializable> extends Communi
      * @param initMsg Init channel message.
      * @param channel Locally created channel endpoint.
      */
-    public void onChannelOpened(UUID nodeId, Message initMsg, Channel channel);
+    public void onChannelOpened(UUID nodeId, T initMsg, Channel channel);
 }

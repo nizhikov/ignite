@@ -286,7 +286,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     lsnr.onNodeDisconnected(nodeId);
             }
 
-            @Override public void onChannelOpened(UUID nodeId, Message initMsg, Channel channel) {
+            @Override public void onChannelOpened(UUID nodeId, Serializable initMsg, Channel channel) {
                 try {
                     onChannelOpened0(nodeId, (GridIoMessage)initMsg, channel);
                 }
