@@ -291,6 +291,8 @@ public class GridFileIoManager {
             U.warn(log, "Current topic is already being handled. Opened channel will " +
                 "be closed [initMsg=" + initMsg + ", channel=" + channel + ']');
 
+            U.closeQuiet(channel);
+
             return;
         }
 
@@ -330,7 +332,8 @@ public class GridFileIoManager {
                 readCtx.session.onException(t);
         }
         finally {
-            readCtx.inProgress.compareAndSet(true, false);
+            readCtx.inProgress.set(false);
+
             U.closeQuiet(channel);
         }
     }
