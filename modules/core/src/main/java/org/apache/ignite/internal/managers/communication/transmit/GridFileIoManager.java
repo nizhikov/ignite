@@ -284,50 +284,79 @@ public class GridFileIoManager {
 
         FileIoReadContext readCtx = sesCtxMap.computeIfAbsent(topic, t -> new FileIoReadContext(nodeId, session));
 
-        // Do not allow multiple connection for the same session id;
-        if (!readCtx.inProgress.compareAndSet(false, true)) {
-            U.warn(log, "Current topic is already being handled. Opened channel will " +
-                "be closed [initMsg=" + initMsg + ", channel=" + channel + ", fromNodeId=" + nodeId + ']');
-
-            U.closeQuiet(channel);
-
-            return;
-        }
+        InputTransmitChannel in = null;
+        OutputTransmitChannel out = null;
 
         try {
+            in = new InputTransmitChannel(log, (SocketChannel)channel);
+            out = new OutputTransmitChannel(log, (SocketChannel)channel);
+
+            // Do not allow multiple connection for the same session id;
+            if (!readCtx.inProgress.compareAndSet(false, true)) {
+                IgniteCheckedException ex = new IgniteCheckedException("Current topic is already being handled by " +
+                    "another thread. Channel will be closed [initMsg=" + initMsg + ", channel=" + channel +
+                    ", fromNodeId=" + nodeId + ']');
+
+                out.writeMeta(new TransmitMeta(ex));
+
+                U.warn(log, ex);
+
+                return;
+            }
+
             if (!busyLock.enterBusy())
                 return;
 
             try {
-                readCtx.sesId = Objects.requireNonNull(initMsg.sesId());
+                IgniteUuid newSesId = Objects.requireNonNull(initMsg.sesId());
 
-                readCtx.currInChannel = new InputTransmitChannel(log, (SocketChannel)channel);
-                readCtx.currOutChannel = new OutputTransmitChannel(log, (SocketChannel)channel);
+                if (readCtx.sesId == null)
+                    readCtx.sesId = newSesId;
+                else if (!readCtx.sesId.equals(newSesId)) {
+                    // Attempt to receive file with new session id. Context must be reinited,
+                    // previous session must be failed.
+                    readCtx.session.onException(new IgniteCheckedException("The handler has been aborted " +
+                        "by transfer attempt with a new sessionId: " + newSesId));
+
+                    readCtx = new FileIoReadContext(nodeId, session);
+                    readCtx.sesId = newSesId;
+                    readCtx.inProgress.set(true);
+
+                    sesCtxMap.put(topic, readCtx);
+                }
+
+                readCtx.currInChannel = in;
+                readCtx.currOutChannel = out;
+
+                // Send previous context state to sync remote and local node (on manager connected).
+                if (readCtx.chunkedObj == null)
+                    out.writeMeta(new TransmitMeta(readCtx.lastSeenErr));
+                else {
+                    final ReadableChunkedObject obj = readCtx.chunkedObj;
+
+                    out.writeMeta(new TransmitMeta(obj.name(),
+                        obj.startPosition() + obj.transferred(),
+                        obj.count(),
+                        obj.transferred() == 0,
+                        obj.params(),
+                        readCtx.lastSeenErr));
+                }
 
                 try {
-                    // Send previous context state to sync remote and local node (on manager connected).
-                    if (readCtx.chunkedObj == null)
-                        readCtx.currOutChannel.writeMeta(new TransmitMeta(readCtx.lastSeenErr));
-                    else {
-                        final ReadableChunkedObject obj = readCtx.chunkedObj;
-
-                        readCtx.currOutChannel.writeMeta(new TransmitMeta(obj.name(),
-                            obj.startPosition() + obj.transferred(),
-                            obj.count(),
-                            obj.transferred() == 0,
-                            obj.params(),
-                            readCtx.lastSeenErr));
-                    }
-
                     // Init handler.
                     if (readCtx.started.compareAndSet(false, true))
                         readCtx.session.onBegin(nodeId);
                 }
                 catch (Throwable t) {
-                    readCtx.started.compareAndSet(true, false);
+                    readCtx.started.set(false);
 
                     throw t;
                 }
+            }
+            catch (Throwable t) {
+                readCtx.inProgress.set(false);
+
+                throw t;
             }
             finally {
                 busyLock.leaveBusy();
@@ -344,8 +373,8 @@ public class GridFileIoManager {
             readCtx.session.onException(t);
         }
         finally {
-            readCtx.inProgress.set(false);
-
+            U.closeQuiet(in);
+            U.closeQuiet(out);
             U.closeQuiet(channel);
         }
     }
@@ -439,7 +468,7 @@ public class GridFileIoManager {
 
                 readCtx.chunkedObj = null;
 
-                // Write stream processing acknowledge.
+                // Write chunked object processing ack.
                 readCtx.currOutChannel.acknowledge(inChunkedObj.count());
 
                 long downloadTime = U.currentTimeMillis() - startTime;
@@ -466,6 +495,8 @@ public class GridFileIoManager {
             }
         }
         finally {
+            readCtx.inProgress.set(false);
+
             U.closeQuiet(inChunkedObj);
         }
     }
@@ -691,7 +722,7 @@ public class GridFileIoManager {
                         // Node left the grid, no reason to reconnect.
                         throw e;
                     }
-                    catch (IOException | IgniteCheckedException e) {
+                    catch (RemoteTransmitException e) {
                         closeChannelQuiet();
 
                         // Re-establish the new connection to continue upload.

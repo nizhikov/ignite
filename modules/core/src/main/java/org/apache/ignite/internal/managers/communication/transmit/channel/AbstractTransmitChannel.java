@@ -71,6 +71,9 @@ public abstract class AbstractTransmitChannel implements Closeable {
     /** Message if connection has been closed by remote. */
     private static final String CLOSED_BY_REMOTE_MSG = "An existing connection was forcibly closed by the remote host";
 
+    /** Message if conneciton closed by remote handler. */
+    private static final String ABORTED_BY_SOFTWARE_MSG = "An established connection was aborted by the software";
+
     /** Instance of socket channel to work with. */
     private final SocketChannel sockChnl;
 
@@ -142,12 +145,16 @@ public abstract class AbstractTransmitChannel implements Closeable {
             // Improve IOException connection error handling
             String causeMsg = cause.getMessage();
 
-            if (RESET_BY_PEER_MSG.equals(causeMsg) ||
-                CLOSED_BY_REMOTE_MSG.equals(causeMsg)) {
+            if (causeMsg == null)
+                return cause;
+
+            if (causeMsg.startsWith(RESET_BY_PEER_MSG) ||
+                causeMsg.startsWith(CLOSED_BY_REMOTE_MSG) ||
+                causeMsg.startsWith(ABORTED_BY_SOFTWARE_MSG)) {
                 return new RemoteTransmitException("Connection has been dropped by remote due to unhandled error. " +
                     "The connection will be re-established according to the manager's transmission configuration " +
                     "[socket=" + channel() + ']', cause);
-            };
+            }
         }
 
         return cause;

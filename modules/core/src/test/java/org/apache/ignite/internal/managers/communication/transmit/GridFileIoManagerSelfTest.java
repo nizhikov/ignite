@@ -27,7 +27,9 @@ import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.Ignite;
@@ -52,6 +54,7 @@ import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStor
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.wal.crc.FastCrc;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.After;
 import org.junit.Before;
@@ -394,6 +397,63 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
      * @throws Exception If fails.
      */
     @Test
+    public void testFileHandlerNextWriterOpened() throws Exception {
+        final int fileSizeBytes = 5 * 1024 * 1024;
+        final AtomicBoolean networkExThrown = new AtomicBoolean();
+
+        IgniteEx sender = startGrid(0);
+        IgniteEx receiver = startGrid(1);
+
+        sender.cluster().active(true);
+
+        File fileToSend = createFileRandomData("File5MB", fileSizeBytes);
+
+        receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
+            @Override public void onException(Throwable err) {
+                assertEquals("Previous session is not closed properly", IgniteCheckedException.class, err.getClass());
+                assertTrue(err.getMessage().startsWith("The handler has been aborted"));
+            }
+
+            @Override public FileHandler fileHandler(UUID nodeId) {
+                return new FileHandler() {
+                    @Override public String path(String name, Map<String, Serializable> params) throws IOException {
+                        if (networkExThrown.compareAndSet(false, true))
+                            return null;
+
+                        return new File(tempStore, name + "_" + receiver.localNode().id())
+                            .getAbsolutePath();
+                    }
+
+                    @Override public void acceptFile(File file, long offset, long cnt, Map<String, Serializable> params) {
+                        assertEquals(fileToSend.length(), file.length());
+                        assertCrcEquals(fileToSend, file);
+                    }
+                };
+            }
+        });
+
+        try (FileWriter writer = sender.context()
+            .io()
+            .openFileWriter(receiver.localNode().id(), topic)) {
+            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+        }
+        catch (Exception e) {
+            // Expected exception.
+            assertTrue(e.toString(), e.getCause().getMessage().startsWith("Error channel processing"));
+        }
+
+        //Open next session and complete successfull.
+        try (FileWriter writer = sender.context()
+            .io()
+            .openFileWriter(receiver.localNode().id(), topic)) {
+            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+        }
+    }
+
+    /**
+     * @throws Exception If fails.
+     */
+    @Test
     public void testFileHandlerWithDownloadLimit() throws Exception {
         final int fileSizeBytes = 5 * 1024 * 1024;
         final int donwloadSpeedBytes = 1024 * 1024;
@@ -418,7 +478,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
         }
 
         long totalTime = U.currentTimeMillis() - startTime;
@@ -428,6 +488,76 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         assertTrue("Download speed exceeded the limit [total=" + totalTime + ", limit=" + limitMs + ']',
             totalTime <= limitMs);
+    }
+
+    /**
+     * @throws Exception If fails.
+     */
+    @Test(expected = IgniteCheckedException.class)
+    public void testFileHandlerChannelCloseIfAnotherOpened() throws Exception {
+        final int fileSizeBytes = 5 * 1024 * 1024;
+        final CountDownLatch waitLatch = new CountDownLatch(2);
+
+        IgniteEx sender = startGrid(0);
+        IgniteEx receiver = startGrid(1);
+
+        sender.cluster().active(true);
+
+        File fileToSend = createFileRandomData("file5MBSize", fileSizeBytes);
+
+        receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
+            @Override public void onBegin(UUID nodeId) {
+                waitLatch.countDown();
+
+                try {
+                    waitLatch.await(5, TimeUnit.SECONDS);
+                }
+                catch (InterruptedException e) {
+                    throw new IgniteException(e);
+                }
+            }
+
+            @Override public FileHandler fileHandler(UUID nodeId) {
+                return getDefaultFileHandler(receiver, fileToSend);
+            }
+        });
+
+        IgniteCheckedException[] errs = new IgniteCheckedException[1];
+
+        try (FileWriter writer = sender.context()
+            .io()
+            .openFileWriter(receiver.localNode().id(), topic);
+             FileWriter anotherWriter = sender.context()
+                 .io()
+                 .openFileWriter(receiver.localNode().id(), topic)) {
+            // Will connect on write attempt.
+            GridTestUtils.runAsync(new Runnable() {
+                @Override public void run() {
+                    try {
+                        writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+                    }
+                    catch (IgniteCheckedException e) {
+                        errs[0] = e;
+                    }
+                }
+            });
+            GridTestUtils.runAsync(new Runnable() {
+                @Override public void run() {
+                    try {
+                        anotherWriter.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+                    }
+                    catch (IgniteCheckedException e) {
+                        errs[0] = e;
+                    }
+                }
+            });
+
+            waitLatch.await(5, TimeUnit.SECONDS);
+
+            // Expected that one of the writers will throw exception.
+            if (errs[0] != null)
+                throw errs[0];
+        }
     }
 
     /**
