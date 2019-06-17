@@ -480,7 +480,7 @@ public class GridFileIoManager {
      * @return The channel instance to communicate with remote.
      */
     public FileWriter openFileWriter(UUID remoteId, Object topic) {
-        return new FileWriterImpl(remoteId, topic);
+        return new ChunkedFileWriter(remoteId, topic);
     }
 
     /**
@@ -539,9 +539,9 @@ public class GridFileIoManager {
     }
 
     /**
-     * Implementation of file writer session to transfer files.
+     * Implementation of file writer to transfer files with zero-copy algorithm (use {@link ChunkedFile}).
      */
-    private class FileWriterImpl implements FileWriter {
+    private class ChunkedFileWriter implements FileWriter {
         /** Remote node id to connect to. */
         private final UUID remoteId;
 
@@ -561,7 +561,7 @@ public class GridFileIoManager {
          * @param remoteId The remote note to connect to.
          * @param topic The remote topic to connect to.
          */
-        public FileWriterImpl(
+        public ChunkedFileWriter(
             UUID remoteId,
             Object topic
         ) {
