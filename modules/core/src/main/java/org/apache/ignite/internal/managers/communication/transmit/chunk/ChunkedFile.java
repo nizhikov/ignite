@@ -121,7 +121,7 @@ public class ChunkedFile extends AbstractChunkedObject {
 
         long batchSize = Math.min(chunkSize(), count() - transferred.get());
 
-        long readed = channel.readInto(fileIo, startPosition() + transferred.get(), batchSize);
+        long readed = channel.read(fileIo, startPosition() + transferred.get(), batchSize);
 
         if (readed > 0)
             transferred.addAndGet(readed);

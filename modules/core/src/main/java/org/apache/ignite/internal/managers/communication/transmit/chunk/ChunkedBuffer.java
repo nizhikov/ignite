@@ -89,13 +89,16 @@ public class ChunkedBuffer extends AbstractChunkedObject {
     @Override public void readChunk(InputTransmitChannel channel) throws IOException {
         buff.rewind();
 
-        long readed = channel.readInto(buff);
-        long chunkPos = transferred();
+        long readed = channel.read(buff);
+        long chunkPos;
 
         if (readed > 0)
             chunkPos = transferred.getAndAdd(readed);
-        else if (readed < 0 && transferred() < count())
+        else if (readed < 0 || transferred() < count())
             throw new RemoteTransmitException("Socket has been unexpectedly closed, but stream is not fully processed");
+        else
+            // readed == 0
+            return;
 
         buff.flip();
 

@@ -106,7 +106,7 @@ public class InputTransmitChannel extends AbstractTransmitChannel {
      * @return The number of actually readed bytes.
      * @throws IOException If fails.
      */
-    public long readInto(FileIO fileIO, long pos, long cnt) throws IOException {
+    public long read(FileIO fileIO, long pos, long cnt) throws IOException {
         try {
             return fileIO.transferFrom((ReadableByteChannel)channel(), pos, cnt);
         }
@@ -120,8 +120,13 @@ public class InputTransmitChannel extends AbstractTransmitChannel {
      * @return The number of bytes read, possibly zero, or <tt>-1</tt> if the channel has reached end-of-stream.
      * @throws IOException If fails.
      */
-    public long readInto(ByteBuffer buff) throws IOException {
-        return channel().read(buff);
+    public long read(ByteBuffer buff) throws IOException {
+        try {
+            return channel().read(buff);
+        }
+        catch (IOException e) {
+            throw transformExceptionIfNeed(e);
+        }
     }
 
     /** {@inheritDoc} */
