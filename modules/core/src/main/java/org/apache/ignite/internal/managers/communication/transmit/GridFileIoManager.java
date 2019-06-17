@@ -289,14 +289,12 @@ public class GridFileIoManager {
         // Do not allow multiple connection for the same session id;
         if (!readCtx.inProgress.compareAndSet(false, true)) {
             U.warn(log, "Current topic is already being handled. Opened channel will " +
-                "be closed [initMsg=" + initMsg + ", channel=" + channel + ']');
+                "be closed [initMsg=" + initMsg + ", channel=" + channel + ", fromNodeId=" + nodeId + ']');
 
             U.closeQuiet(channel);
 
             return;
         }
-
-        IgniteUuid sesId = null;
 
         try {
             if (!busyLock.enterBusy())
@@ -325,11 +323,12 @@ public class GridFileIoManager {
             onChannelOpened0(topic, readCtx);
         }
         catch (Throwable t) {
-            log.error("Error processing channel creation event [topic=" + topic +
-                ", channel=" + channel + ", sessionId=" + sesId + ']', t);
+            log.error("The download session cannot be finished due to unexpected error " +
+                "[ctx=" + readCtx + ", sesId=" + readCtx.sesId + ']', t);
 
-            if (readCtx != null)
-                readCtx.session.onException(t);
+            readCtx.lastSeenErr = t;
+
+            readCtx.session.onException(t);
         }
         finally {
             readCtx.inProgress.set(false);
@@ -364,9 +363,11 @@ public class GridFileIoManager {
     }
 
     /**
+     * @param topic Topic handler related to.
      * @param readCtx The handler read context.
+     * @throws Exception If processing fails.
      */
-    private void onChannelOpened0(Object topic, FileIoReadContext readCtx) {
+    private void onChannelOpened0(Object topic, FileIoReadContext readCtx) throws Exception {
         ReadableChunkedObject inStream = null;
         TransmitMeta meta = null;
 
@@ -459,12 +460,6 @@ public class GridFileIoManager {
                 readCtx.session.onException(ex);
             }
         }
-        catch (Throwable t) {
-            log.error("The download session cannot be finished due to unexpected error " +
-                "[ctx=" + readCtx + ", sesId=" + readCtx.sesId + ", lastMeta=" + meta + ']', t);
-
-            readCtx.session.onException(t);
-        }
         finally {
             U.closeQuiet(inStream);
         }
@@ -489,7 +484,7 @@ public class GridFileIoManager {
         /** Handler currently in use flag. */
         private final AtomicBoolean inProgress = new AtomicBoolean();
 
-        /** Current sesssion. */
+        /** Current sesssion handler. */
         @GridToStringExclude
         private final FileTransmitHandler session;
 
@@ -515,6 +510,9 @@ public class GridFileIoManager {
 
         /** The last infinished download. */
         private ReadableChunkedObject chunkedObj;
+
+        /** Error occurred while channel has been processed by registered handler. */
+        private Throwable lastSeenErr;
 
         /**
          * @param nodeId The remote node id.
