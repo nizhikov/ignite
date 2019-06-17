@@ -112,11 +112,6 @@ public class ChunkedBuffer extends AbstractChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override public void writeChunk(OutputTransmitChannel channel) throws IOException {
-        throw new UnsupportedOperationException("Buffered chunked write is not supported yet");
-    }
-
-    /** {@inheritDoc} */
     @Override public void close() throws IOException {
         buff = null;
     }

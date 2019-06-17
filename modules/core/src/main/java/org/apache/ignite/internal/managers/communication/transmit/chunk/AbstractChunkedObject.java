@@ -27,14 +27,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
-import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
- * The chunked stream with the basic behaviour.
+ * Class represents base object which can we transferred by chunks of predefined size over a channel.
  */
-abstract class AbstractChunkedObject implements ReadableChunkedObject, WritableChunkedObject {
+abstract class AbstractChunkedObject implements ReadableChunkedObject {
     /** Additional stream params. */
     @GridToStringInclude
     private final Map<String, Serializable> params = new HashMap<>();
@@ -94,8 +93,10 @@ abstract class AbstractChunkedObject implements ReadableChunkedObject, WritableC
         return transferred.get();
     }
 
-    /** {@inheritDoc} */
-    @Override public void transferred(long cnt) {
+    /**
+     * @param cnt The number of bytes which has been already transferred.
+     */
+    public void transferred(long cnt) {
         transferred.set(cnt);
     }
 
@@ -170,26 +171,6 @@ abstract class AbstractChunkedObject implements ReadableChunkedObject, WritableC
             else
                 throw new IgniteCheckedException("The setup of previous stream read failed [new=" + meta.name() +
                     ", old=" + name() + ']');
-        }
-    }
-
-    /** {@inheritDoc} */
-    @Override public void setup(OutputTransmitChannel out) throws IOException {
-        init();
-
-        out.writeMeta(new TransmitMeta(name(),
-            startPosition() + transferred(),
-            count(),
-            transferred() == 0,
-            params(),
-            null));
-    }
-
-    /** {@inheritDoc} */
-    @Override public void checkTransmitComplete() throws IOException {
-        if (transferred() < count()) {
-            throw new IOException("Stream EOF occurred, but the file is not fully transferred " +
-                "[count=" + count() + ", transferred=" + transferred() + ']');
         }
     }
 

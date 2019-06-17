@@ -17,23 +17,62 @@
 
 package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.io.Serializable;
+import java.util.Map;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 
 /**
- * Input stream of chunks to handle.
+ * Class represents an object which can we readed from channel by chunks of
+ * predefined size. Closed when a transmission ends.
  */
-public interface ReadableChunkedObject extends ChunkedObject {
+public interface ReadableChunkedObject extends Closeable {
     /**
-     * @param in The channel to read data from.
-     * @throws IOException If failed.
-     * @throws IgniteCheckedException If failed.
+     * @return Name of chunked object.
+     */
+    public String name();
+
+    /**
+     * @return Number of bytes which has been transfered.
+     */
+    public long transferred();
+
+    /**
+     * @return The start object position.
+     */
+    public long startPosition();
+
+    /**
+     * @return Number of bytes to transfer (read from or write to channel).
+     */
+    public long count();
+
+    /**
+     * @return Size of each chunk in bytes.
+     */
+    public int chunkSize();
+
+    /**
+     * @return Additional stream params.
+     */
+    public Map<String, Serializable> params();
+
+    /**
+     * @return {@code true} if and only if the chunked stream received all the data it expects.
+     */
+    public boolean transmitEnd();
+
+    /**
+     * @param in Channel to read data from.
+     * @throws IOException If read meta input failed.
+     * @throws IgniteCheckedException If validation failed.
      */
     public void setup(InputTransmitChannel in) throws IOException, IgniteCheckedException;
 
     /**
-     * @param in The channel to read data from.
+     * @param in Channel to read data from.
      * @throws IOException If fails.
      */
     public void readChunk(InputTransmitChannel in) throws IOException;

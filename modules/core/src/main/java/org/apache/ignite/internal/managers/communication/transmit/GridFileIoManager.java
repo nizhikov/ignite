@@ -43,8 +43,6 @@ import org.apache.ignite.internal.managers.communication.transmit.channel.Transm
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ReadableChunkedObject;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.WritableChunkedObject;
-import org.apache.ignite.internal.managers.communication.transmit.util.InitChannelMessage;
 import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
 import org.apache.ignite.internal.util.GridSpinBusyLock;
@@ -383,8 +381,7 @@ public class GridFileIoManager {
      * @throws Exception If processing fails.
      */
     private void onChannelOpened0(Object topic, FileIoReadContext readCtx) throws Exception {
-        ReadableChunkedObject inStream = null;
-        TransmitMeta meta = null;
+        ReadableChunkedObject inChunkedObj = null;
 
         try {
             while (!Thread.currentThread().isInterrupted()) {
@@ -415,12 +412,12 @@ public class GridFileIoManager {
                         ioChunkSize);
                 }
 
-                inStream = readCtx.chunkedObj;
+                inChunkedObj = readCtx.chunkedObj;
 
-                inStream.setup(readCtx.currInChannel);
+                inChunkedObj.setup(readCtx.currInChannel);
 
                 // Read data from the input.
-                while (!inStream.transmitEnd()) {
+                while (!inChunkedObj.transmitEnd()) {
                     if (Thread.currentThread().isInterrupted())
                         throw new InterruptedException("The thread has been interrupted. Stop processing input stream.");
 
@@ -435,21 +432,20 @@ public class GridFileIoManager {
                         throw new RemoteTransmitException("Download speed is too slow " +
                             "[downloadSpeed=" + inBytePermits.permitsPerSec() + " byte/sec]");
 
-                    inStream.readChunk(readCtx.currInChannel);
+                    inChunkedObj.readChunk(readCtx.currInChannel);
                 }
 
-                inStream.checkTransmitComplete();
-                inStream.close();
+                inChunkedObj.close();
 
                 readCtx.chunkedObj = null;
 
                 // Write stream processing acknowledge.
-                readCtx.currOutChannel.acknowledge(inStream.count());
+                readCtx.currOutChannel.acknowledge(inChunkedObj.count());
 
                 long downloadTime = U.currentTimeMillis() - startTime;
 
                 U.log(log, "The file has been successfully downloaded " +
-                    "[name=" + inStream.name() + ", transferred=" + inStream.transferred() + " bytes" +
+                    "[name=" + inChunkedObj.name() + ", transferred=" + inChunkedObj.transferred() + " bytes" +
                     ", time=" + (double)((downloadTime) / 1000) + " sec" +
                     ", speed=" + inBytePermits.permitsPerSec() + " byte/sec" +
                     ", retries=" + readCtx.retries);
@@ -470,7 +466,7 @@ public class GridFileIoManager {
             }
         }
         finally {
-            U.closeQuiet(inStream);
+            U.closeQuiet(inChunkedObj);
         }
     }
 
@@ -608,7 +604,7 @@ public class GridFileIoManager {
         ) throws IgniteCheckedException {
             int retries = 0;
 
-            WritableChunkedObject fileStream = new ChunkedFile(
+            ChunkedFile outChunkedObj = new ChunkedFile(
                 new FileHandler() {
                     @Override public String path(String name, Map<String, Serializable> params) {
                         return file.getAbsolutePath();
@@ -651,23 +647,23 @@ public class GridFileIoManager {
 
                             // If not the initial connection for the current session.
                             if (!TransmitMeta.DFLT_TRANSMIT_META.equals(syncMeta)) {
-                                long transferred = syncMeta.offset() - fileStream.startPosition();
+                                long transferred = syncMeta.offset() - outChunkedObj.startPosition();
 
                                 assert transferred >= 0 : "Incorrect sync meta [offset=" + syncMeta.offset() +
-                                    ", startPos=" + fileStream.startPosition() + ']';
-                                assert fileStream.name().equals(syncMeta.name()) : "Attempt to transfer different file " +
-                                    "while previous is not completed [curr=" + fileStream.name() + ", meta=" + syncMeta + ']';
+                                    ", startPos=" + outChunkedObj.startPosition() + ']';
+                                assert outChunkedObj.name().equals(syncMeta.name()) : "Attempt to transfer different file " +
+                                    "while previous is not completed [curr=" + outChunkedObj.name() + ", meta=" + syncMeta + ']';
 
-                                fileStream.transferred(transferred);
+                                outChunkedObj.transferred(transferred);
                             }
                         }
 
                         // Write the policy how to handle input data.
                         out.writeInt(plc.ordinal());
 
-                        fileStream.setup(out);
+                        outChunkedObj.setup(out);
 
-                        while (!fileStream.transmitEnd()) {
+                        while (!outChunkedObj.transmitEnd()) {
                             if (Thread.currentThread().isInterrupted())
                                 throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
 
@@ -675,17 +671,17 @@ public class GridFileIoManager {
 
                             // If the limit of permits at appropriate period of time reached,
                             // the furhter invocations of the #acuqire(int) method will be blocked.
-                            boolean acquired = outBytePermits.tryAcquire(fileStream.chunkSize(),
+                            boolean acquired = outBytePermits.tryAcquire(outChunkedObj.chunkSize(),
                                 DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
                             if (!acquired)
                                 throw new RemoteTransmitException("Upload speed is too slow " +
                                     "[uploadSpeed=" + inBytePermits.permitsPerSec() + " byte/sec]");
 
-                            fileStream.writeChunk(out);
+                            outChunkedObj.writeChunk(out);
                         }
 
-                        fileStream.close();
+                        outChunkedObj.close();
 
                         in.acknowledge();
 
@@ -701,8 +697,8 @@ public class GridFileIoManager {
                         // Re-establish the new connection to continue upload.
                         U.warn(log, "Exception while writing file to remote node. Re-establishing connection " +
                             " [remoteId=" + remoteId + ", file=" + file.getName() + ", sesId=" + sesId +
-                            ", retries=" + retries + ", transferred=" + fileStream.transferred() +
-                            ", count=" + fileStream.count() + ']', e);
+                            ", retries=" + retries + ", transferred=" + outChunkedObj.transferred() +
+                            ", count=" + outChunkedObj.count() + ']', e);
 
                         retries++;
                     }
@@ -722,7 +718,7 @@ public class GridFileIoManager {
                     "[remoteId=" + remoteId + ", file=" + file.getName() + ", sesId=" + sesId + ']', e);
             }
             finally {
-                U.closeQuiet(fileStream);
+                U.closeQuiet(outChunkedObj);
             }
         }
 

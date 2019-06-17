@@ -68,7 +68,7 @@ import org.apache.ignite.internal.managers.GridManagerAdapter;
 import org.apache.ignite.internal.managers.communication.transmit.FileTransmitHandler;
 import org.apache.ignite.internal.managers.communication.transmit.FileWriter;
 import org.apache.ignite.internal.managers.communication.transmit.GridFileIoManager;
-import org.apache.ignite.internal.managers.communication.transmit.util.InitChannelMessage;
+import org.apache.ignite.internal.managers.communication.transmit.InitChannelMessage;
 import org.apache.ignite.internal.managers.deployment.GridDeployment;
 import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
 import org.apache.ignite.internal.managers.eventstorage.GridLocalEventListener;

@@ -26,6 +26,7 @@ import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.managers.communication.transmit.FileHandler;
 import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
@@ -43,9 +44,6 @@ public class ChunkedFile extends AbstractChunkedObject {
 
     /** Handler to notify when a file has been processed. */
     private final FileHandler handler;
-
-    /** The destination object to transfer data to\from. */
-    private String fileAbsPath;
 
     /** The abstract java representation of the chunked file. */
     private File file;
@@ -103,10 +101,25 @@ public class ChunkedFile extends AbstractChunkedObject {
         }
     }
 
+    /**
+     * @param out The channel to write data to.
+     * @throws IOException If failed.
+     */
+    public void setup(OutputTransmitChannel out) throws IOException {
+        init();
+
+        out.writeMeta(new TransmitMeta(name(),
+            startPosition() + transferred(),
+            count(),
+            transferred() == 0,
+            params(),
+            null));
+    }
+
     /** {@inheritDoc} */
     @Override protected void init() throws IOException {
         if (file == null) {
-            fileAbsPath = handler.path(name(), params());
+            String fileAbsPath = handler.path(name(), params());
 
             if (fileAbsPath == null)
                 throw new IOException("Requested for the chunked stream a file absolute path is incorrect: " + this);
@@ -130,13 +143,17 @@ public class ChunkedFile extends AbstractChunkedObject {
             handler.acceptFile(file, startPosition(), count(), params());
     }
 
-    /** {@inheritDoc} */
-    @Override public void writeChunk(OutputTransmitChannel channel) throws IOException {
+
+    /**
+     * @param out Channel to write data into.
+     * @throws IOException If fails.
+     */
+    public void writeChunk(OutputTransmitChannel out) throws IOException {
         open();
 
         long batchSize = Math.min(chunkSize(), count() - transferred.longValue());
 
-        long sent = channel.writeFrom(startPosition() + transferred.longValue(), batchSize, fileIo);
+        long sent = out.writeFrom(startPosition() + transferred.longValue(), batchSize, fileIo);
 
         if (sent > 0)
             transferred.addAndGet(sent);
