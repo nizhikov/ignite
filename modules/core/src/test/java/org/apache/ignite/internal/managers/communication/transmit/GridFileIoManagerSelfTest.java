@@ -289,7 +289,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
-    @Test
+    @Test(expected = Exception.class)
     public void testFileHandlerReconnectOnReadFail() throws Exception {
         final String chunkDownloadExMsg = "Test exception. Chunk processing error.";
 
@@ -339,12 +339,16 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
         }
+        catch (IgniteCheckedException e) {
+            if (e.hasCause(Exception.class))
+                throw (Exception)e.getCause();
+        }
     }
 
     /**
      * @throws Exception If fails.
      */
-    @Test
+    @Test(expected = Exception.class)
     public void testFileHandlerReconnectOnInitFail() throws Exception {
         final int fileSizeBytes = 5 * 1024 * 1024;
         final AtomicBoolean throwFirstTime = new AtomicBoolean();
@@ -379,6 +383,10 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+        }
+        catch (IgniteCheckedException e) {
+            if (e.hasCause(Exception.class))
+                throw (Exception)e.getCause();
         }
     }
 
@@ -523,7 +531,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
-    @Test
+    @Test(expected = Exception.class)
     public void testChuckHandlerReconnectOnInitFail() throws Exception {
         final FileIO[] fileIo = new FileIO[1];
         final AtomicBoolean throwFirstTime = new AtomicBoolean();
@@ -570,6 +578,10 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.BUFF);
+        }
+        catch (IgniteCheckedException e) {
+            if (e.hasCause(Exception.class))
+                throw (Exception)e.getCause();
         }
         finally {
             U.closeQuiet(fileIo[0]);

@@ -60,18 +60,29 @@ public class TransmitMeta implements Externalizable {
     /** Additional file params to transfer (e.g. partition id, partition name etc.). */
     private HashMap<String, Serializable> map = new HashMap<>();
 
+    /** Last seen error if it has been occurred, or {@code null} the otherwise. */
+    private Exception err;
+
     /**
      * Default constructor, usually used to create meta to read channel data into.
      */
     public TransmitMeta() {
-        this(UNNAMED_META);
+        this(UNNAMED_META, null);
+    }
+
+    /**
+     * @param err Last seen error if it has been occurred, or {@code null} the otherwise.
+     */
+    public TransmitMeta(Exception err) {
+        this(UNNAMED_META, err);
     }
 
     /**
      * @param name The name to associate particular meta with.
+     * @param err Last seen error if it has been occurred, or {@code null} the otherwise.
      */
-    public TransmitMeta(String name) {
-        this(name, -1, -1, true, null);
+    public TransmitMeta(String name, Exception err) {
+        this(name, -1, -1, true, null, err);
     }
 
     /**
@@ -80,13 +91,15 @@ public class TransmitMeta implements Externalizable {
      * @param cnt The amount of bytes to receive by remote.
      * @param initial {@code true} if file is send first time, {@code false} means file meta for the next reconnect attempt.
      * @param params Additional transfer meta params.
+     * @param err Last seen error if it has been occurred, or {@code null} the otherwise.
      */
     public TransmitMeta(
         String name,
         long offset,
         long cnt,
         boolean initial,
-        Map<String, Serializable> params
+        Map<String, Serializable> params,
+        Exception err
     ) {
         this.name = Objects.requireNonNull(name);
         this.offset = offset;
@@ -97,6 +110,8 @@ public class TransmitMeta implements Externalizable {
             for (Map.Entry<String, Serializable> key : params.entrySet())
                 map.put(key.getKey(), key.getValue());
         }
+
+        this.err = err;
     }
 
     /**
@@ -134,6 +149,13 @@ public class TransmitMeta implements Externalizable {
         return Collections.unmodifiableMap(map);
     }
 
+    /**
+     * @return An exception instance if it has been previously occurred.
+     */
+    public Exception error() {
+        return err;
+    }
+
     /** {@inheritDoc} */
     @Override public void writeExternal(ObjectOutput out) throws IOException {
         out.writeUTF(name());
@@ -141,6 +163,7 @@ public class TransmitMeta implements Externalizable {
         out.writeLong(cnt);
         out.writeBoolean(initial);
         out.writeObject(map);
+        out.writeObject(err);
     }
 
     /** {@inheritDoc} */
@@ -150,6 +173,7 @@ public class TransmitMeta implements Externalizable {
         cnt = in.readLong();
         initial = in.readBoolean();
         map = (HashMap)in.readObject();
+        err = (Exception)in.readObject();
     }
 
     /** {@inheritDoc} */

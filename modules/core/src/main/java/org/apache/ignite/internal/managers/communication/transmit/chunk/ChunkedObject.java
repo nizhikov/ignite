@@ -38,6 +38,11 @@ public interface ChunkedObject extends Closeable {
     public long transferred();
 
     /**
+     * @return The start stream position.
+     */
+    public long startPosition();
+
+    /**
      * @return The number of bytes to transfer (read from or write to).
      */
     public long count();
@@ -51,11 +56,6 @@ public interface ChunkedObject extends Closeable {
      * @return Additional stream params
      */
     public Map<String, Serializable> params();
-
-    /**
-     * @return Stream meta information.
-     */
-    public TransmitMeta transmitMeta();
 
     /**
      * @throws IOException If the check fails.

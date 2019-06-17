@@ -177,16 +177,12 @@ abstract class AbstractChunkedObject implements ReadableChunkedObject, WritableC
     @Override public void setup(OutputTransmitChannel out) throws IOException {
         init();
 
-        out.writeMeta(transmitMeta());
-    }
-
-    /** {@inheritDoc} */
-    @Override public TransmitMeta transmitMeta() {
-        return new TransmitMeta(name(),
+        out.writeMeta(new TransmitMeta(name(),
             startPosition() + transferred(),
             count(),
             transferred() == 0,
-            params());
+            params(),
+            null));
     }
 
     /** {@inheritDoc} */

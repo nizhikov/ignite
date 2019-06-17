@@ -36,10 +36,10 @@ import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteTransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteTransmitException;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ReadableChunkedObject;
@@ -72,8 +72,8 @@ public class GridFileIoManager {
      */
     public static final int DFLT_CHUNK_SIZE_BYTES = 256 * 1024;
 
-    /** Reconnect attempts count to send single file (value is {@code 5}). */
-    public static final int DFLT_RECONNECT_CNT = 5;
+    /** Retry attempts count to send single file if connection dropped (value is {@code 5}). */
+    public static final int DFLT_RETRY_CNT = 5;
 
     /** The default file limit transmittion rate per node instance (value is {@code 500 MB/sec}). */
     public static final long DFLT_RATE_LIMIT_BYTES = 500 * 1024 * 1024;
@@ -125,8 +125,8 @@ public class GridFileIoManager {
     /** The factory produces chunked stream to process an input data channel. */
     private volatile ChunkedObjectFactory streamFactory = new ChunkedObjectFactory();
 
-    /** The maximum number of reconnect attempts (read or write attempts). */
-    private volatile int reconnectCnt = DFLT_RECONNECT_CNT;
+    /** The maximum number of retry attempts (read or write attempts). */
+    private volatile int retryCnt = DFLT_RETRY_CNT;
 
     /** The size of stream chunks. */
     private int ioChunkSize = DFLT_CHUNK_SIZE_BYTES;
@@ -147,23 +147,23 @@ public class GridFileIoManager {
     }
 
     /**
-     * Get the maximum number of reconnect attempts used for uploading or downloading file when the socket connection
+     * Get the maximum number of retry attempts used for uploading or downloading file when the socket connection
      * has been dropped by network issues.
      *
-     * @return The number of reconnect attempts.
+     * @return The number of retry attempts.
      */
-    public int reconnectCnt() {
-        return reconnectCnt;
+    public int retryCnt() {
+        return retryCnt;
     }
 
     /**
-     * Set the maximum number of reconnect attempts used for uploading or downloading file when the socket connection
+     * Set the maximum number of retry attempts used for uploading or downloading file when the socket connection
      * has been dropped by network issues.
      *
-     * @param reconnectCnt The number of reconnect attempts.
+     * @param retryCnt The number of retry attempts.
      */
-    public void reconnectCnt(int reconnectCnt) {
-        this.reconnectCnt = reconnectCnt;
+    public void retryCnt(int retryCnt) {
+        this.retryCnt = retryCnt;
     }
 
     /**
@@ -307,6 +307,21 @@ public class GridFileIoManager {
                 readCtx.currOutChannel = new OutputTransmitChannel(log, (SocketChannel)channel);
 
                 try {
+                    // Send previous context state to sync remote and local node (on manager connected).
+                    if (readCtx.chunkedObj == null)
+                        readCtx.currOutChannel.writeMeta(new TransmitMeta(readCtx.lastSeenErr));
+                    else {
+                        final ReadableChunkedObject obj = readCtx.chunkedObj;
+
+                        readCtx.currOutChannel.writeMeta(new TransmitMeta(obj.name(),
+                            obj.startPosition() + obj.transferred(),
+                            obj.count(),
+                            obj.transferred() == 0,
+                            obj.params(),
+                            readCtx.lastSeenErr));
+                    }
+
+                    // Init handler.
                     if (readCtx.started.compareAndSet(false, true))
                         readCtx.session.onBegin(nodeId);
                 }
@@ -326,7 +341,7 @@ public class GridFileIoManager {
             log.error("The download session cannot be finished due to unexpected error " +
                 "[ctx=" + readCtx + ", sesId=" + readCtx.sesId + ']', t);
 
-            readCtx.lastSeenErr = t;
+            readCtx.lastSeenErr = new Exception("Error channel processing [nodeId=" + nodeId + ']', t);
 
             readCtx.session.onException(t);
         }
@@ -372,12 +387,6 @@ public class GridFileIoManager {
         TransmitMeta meta = null;
 
         try {
-            // Send previous meta to sync remote and local file transferred states.
-            if (readCtx.chunkedObj == null)
-                readCtx.currOutChannel.writeMeta(TransmitMeta.DFLT_TRANSMIT_META);
-            else
-                readCtx.currOutChannel.writeMeta(readCtx.chunkedObj.transmitMeta());
-
             while (!Thread.currentThread().isInterrupted()) {
                 checkNotStopped();
 
@@ -443,7 +452,7 @@ public class GridFileIoManager {
                     "[name=" + inStream.name() + ", transferred=" + inStream.transferred() + " bytes" +
                     ", time=" + (double)((downloadTime) / 1000) + " sec" +
                     ", speed=" + inBytePermits.permitsPerSec() + " byte/sec" +
-                    ", reconnects=" + readCtx.reconnects);
+                    ", retries=" + readCtx.retries);
             }
         }
         catch (RemoteTransmitException e) {
@@ -451,11 +460,11 @@ public class GridFileIoManager {
             log.warning("The connection lost. Waiting for the new one to continue file upload " +
                 "[sesId=" + readCtx.sesId + ']', e);
 
-            readCtx.reconnects++;
+            readCtx.retries++;
 
-            if (readCtx.reconnects == reconnectCnt) {
-                IOException ex = new IOException("The number of reconnect attempts exceeded the limit. " +
-                    "Max attempts: " + reconnectCnt, e);
+            if (readCtx.retries == retryCnt) {
+                IOException ex = new IOException("The number of retry attempts exceeded the limit. " +
+                    "Max attempts: " + retryCnt, e);
 
                 readCtx.session.onException(ex);
             }
@@ -494,8 +503,8 @@ public class GridFileIoManager {
         /** Unique session request id. */
         private IgniteUuid sesId;
 
-        /** The number of reconnect attempts of current session. */
-        private int reconnects;
+        /** The number of retry attempts of current session. */
+        private int retries;
 
         /** The currently used input channel (updated on reconnect). */
         @GridToStringExclude
@@ -512,7 +521,7 @@ public class GridFileIoManager {
         private ReadableChunkedObject chunkedObj;
 
         /** Error occurred while channel has been processed by registered handler. */
-        private Throwable lastSeenErr;
+        private Exception lastSeenErr;
 
         /**
          * @param nodeId The remote node id.
@@ -597,7 +606,7 @@ public class GridFileIoManager {
             Map<String, Serializable> params,
             ReadPolicy plc
         ) throws IgniteCheckedException {
-            int reconnects = 0;
+            int retries = 0;
 
             WritableChunkedObject fileStream = new ChunkedFile(
                 new FileHandler() {
@@ -627,14 +636,18 @@ public class GridFileIoManager {
                     if (Thread.currentThread().isInterrupted())
                         throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
 
-                    if (reconnects > reconnectCnt)
-                        throw new IOException("The number of reconnect attempts exceeded the limit: " + reconnectCnt);
+                    if (retries > retryCnt)
+                        throw new IOException("The number of retry attempts exceeded the limit: " + retryCnt);
 
                     checkNotStopped();
 
                     try {
                         if (out == null && in == null) {
                             TransmitMeta syncMeta = connect();
+
+                            // Stop in case of any error occurred on remote node during file processing.
+                            if (syncMeta.error() != null)
+                                throw syncMeta.error();
 
                             // If not the initial connection for the current session.
                             if (!TransmitMeta.DFLT_TRANSMIT_META.equals(syncMeta)) {
@@ -688,10 +701,10 @@ public class GridFileIoManager {
                         // Re-establish the new connection to continue upload.
                         U.warn(log, "Exception while writing file to remote node. Re-establishing connection " +
                             " [remoteId=" + remoteId + ", file=" + file.getName() + ", sesId=" + sesId +
-                            ", reconnects=" + reconnects + ", transferred=" + fileStream.transferred() +
+                            ", retries=" + retries + ", transferred=" + fileStream.transferred() +
                             ", count=" + fileStream.count() + ']', e);
 
-                        reconnects++;
+                        retries++;
                     }
                 }
 
@@ -699,7 +712,7 @@ public class GridFileIoManager {
 
                 U.log(log, "The file uploading operation has been completed " +
                     "[name=" + file.getName() + ", uploadTime=" + (double)((uploadTime) / 1000) + " sec" +
-                    ", reconnects=" + reconnects + ']');
+                    ", retries=" + retries + ']');
 
             }
             catch (Exception e) {
