@@ -37,9 +37,9 @@ import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteTransmitException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitOutputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ReadableChunkedObject;
@@ -303,8 +303,8 @@ public class GridFileIoManager {
             try {
                 readCtx.sesId = Objects.requireNonNull(initMsg.sesId());
 
-                readCtx.currInChannel = new TransmitInputChannel(log, (SocketChannel)channel);
-                readCtx.currOutChannel = new TransmitOutputChannel(log, (SocketChannel)channel);
+                readCtx.currInChannel = new InputTransmitChannel(log, (SocketChannel)channel);
+                readCtx.currOutChannel = new OutputTransmitChannel(log, (SocketChannel)channel);
 
                 try {
                     if (readCtx.started.compareAndSet(false, true))
@@ -499,11 +499,11 @@ public class GridFileIoManager {
 
         /** The currently used input channel (updated on reconnect). */
         @GridToStringExclude
-        private TransmitInputChannel currInChannel;
+        private InputTransmitChannel currInChannel;
 
         /** The currently used output channel (updated on reconnect). */
         @GridToStringExclude
-        private TransmitOutputChannel currOutChannel;
+        private OutputTransmitChannel currOutChannel;
 
         /** The read policy of handlind input data. */
         private ReadPolicy currPlc;
@@ -543,10 +543,10 @@ public class GridFileIoManager {
         private IgniteUuid sesId;
 
         /** Data output channel. */
-        private TransmitOutputChannel out;
+        private OutputTransmitChannel out;
 
         /** Data intput channel. */
-        private TransmitInputChannel in;
+        private InputTransmitChannel in;
 
         /**
          * @param remoteId The remote note to connect to.
@@ -570,8 +570,8 @@ public class GridFileIoManager {
                 Channel socket = openClsr.apply(remoteId, topic, new InitChannelMessage(sesId))
                     .get();
 
-                out = new TransmitOutputChannel(log, (SocketChannel)socket);
-                in = new TransmitInputChannel(log, (SocketChannel)socket);
+                out = new OutputTransmitChannel(log, (SocketChannel)socket);
+                in = new InputTransmitChannel(log, (SocketChannel)socket);
 
                 // Synchronize state between remote and local nodes.
                 TransmitMeta syncMeta = new TransmitMeta();

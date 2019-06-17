@@ -33,9 +33,9 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 /**
  * Class represents an input transmission connection channel.
  * <p>
- * Please, see {@link TransmitAbstractChannel} fot details.
+ * Please, see {@link AbstractTransmitChannel} fot details.
  */
-public class TransmitInputChannel extends TransmitAbstractChannel {
+public class InputTransmitChannel extends AbstractTransmitChannel {
     /** Decoreated with data operations socket of input channel. */
     @GridToStringExclude
     private final ObjectInput ois;
@@ -45,7 +45,7 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
      * @param channel Socket channel to read data from.
      * @throws IOException If channel configuration fails.
      */
-    public TransmitInputChannel(
+    public InputTransmitChannel(
         IgniteLogger log,
         SocketChannel channel
     ) throws IOException {
@@ -133,6 +133,6 @@ public class TransmitInputChannel extends TransmitAbstractChannel {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(TransmitInputChannel.class, this, "super", super.toString());
+        return S.toString(InputTransmitChannel.class, this, "super", super.toString());
     }
 }

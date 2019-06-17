@@ -30,9 +30,9 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 /**
  * Class represents an output transmission connection channel.
  * <p>
- * Please, see {@link TransmitAbstractChannel} fot details.
+ * Please, see {@link AbstractTransmitChannel} fot details.
  */
-public class TransmitOutputChannel extends TransmitAbstractChannel {
+public class OutputTransmitChannel extends AbstractTransmitChannel {
     /** Decorated with data operations socket of output channel. */
     private final ObjectOutput oos;
 
@@ -41,7 +41,7 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
      * @param channel Socket channel to expect data from.
      * @throws IOException If fails.
      */
-    public TransmitOutputChannel(
+    public OutputTransmitChannel(
         IgniteLogger log,
         SocketChannel channel
     ) throws IOException {
@@ -120,6 +120,6 @@ public class TransmitOutputChannel extends TransmitAbstractChannel {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(TransmitOutputChannel.class, this, "super", super.toString());
+        return S.toString(OutputTransmitChannel.class, this, "super", super.toString());
     }
 }

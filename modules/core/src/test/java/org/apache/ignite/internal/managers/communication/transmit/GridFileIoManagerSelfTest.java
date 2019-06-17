@@ -41,7 +41,7 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ReadableChunkedObject;
@@ -258,7 +258,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                 int chunkSize
             ) throws IgniteCheckedException {
                 return new ChunkedFile(ses.fileHandler(nodeId), chunkSize) {
-                    @Override public void readChunk(TransmitInputChannel in) throws IOException {
+                    @Override public void readChunk(InputTransmitChannel in) throws IOException {
                         // Read 5 chunks than stop the grid.
                         if (chunksCnt.incrementAndGet() == 5)
                             stopGrid(1, true);
@@ -311,7 +311,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                 assertEquals(policy, ReadPolicy.FILE);
 
                 return new ChunkedFile(ses.fileHandler(nodeId), chunkSize) {
-                    @Override public void readChunk(TransmitInputChannel in) throws IOException {
+                    @Override public void readChunk(InputTransmitChannel in) throws IOException {
                         // Read 4 chunks than throw an exception to emulate error processing.
                         if (readedChunks.incrementAndGet() == 4)
                             throw new IOException(chunkDownloadExMsg);

@@ -61,7 +61,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
  *     </ul>
  * </p>
  */
-public abstract class TransmitAbstractChannel implements Closeable {
+public abstract class AbstractTransmitChannel implements Closeable {
     /** Default timeout in milleseconds to wait an IO data on socket. */
     private static final int DFLT_IO_TIMEOUT_MILLIS = 5_000;
 
@@ -72,7 +72,7 @@ public abstract class TransmitAbstractChannel implements Closeable {
     private static final String CLOSED_BY_REMOTE_MSG = "An existing connection was forcibly closed by the remote host";
 
     /** Instance of socket channel to work with. */
-    private final SocketChannel channel;
+    private final SocketChannel sockChnl;
 
     /** Ignite logger. */
     protected final IgniteLogger log;
@@ -82,39 +82,39 @@ public abstract class TransmitAbstractChannel implements Closeable {
 
     /**
      * @param log Ignite logger.
-     * @param channel Socket channel to upload files to.
+     * @param sockChnl Socket channel to upload files to.
      */
-    protected TransmitAbstractChannel(
+    protected AbstractTransmitChannel(
         IgniteLogger log,
-        SocketChannel channel
+        SocketChannel sockChnl
     ) throws IOException {
-        this(log, channel, DFLT_IO_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        this(log, sockChnl, DFLT_IO_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     /**
      * @param log Ignite logger.
-     * @param channel Socket channel to upload files to.
+     * @param sockChnl Socket channel to upload files to.
      * @param timeout Read\write timeout.
      * @param unit The {@link TimeUnit} of given <tt>timeout</tt>.
      * @throws IOException If channel configuration fails.
      */
-    protected TransmitAbstractChannel(
+    protected AbstractTransmitChannel(
         IgniteLogger log,
-        SocketChannel channel,
+        SocketChannel sockChnl,
         int timeout,
         TimeUnit unit
     ) throws IOException {
         assert log != null;
-        assert channel != null;
+        assert sockChnl != null;
         assert unit != null;
 
-        this.channel = channel;
+        this.sockChnl = sockChnl;
         this.log = log.getLogger(getClass());
         timeoutMillis = timeout <= 0 ? 0 : Math.max((int)unit.toMillis(timeout), DFLT_IO_TIMEOUT_MILLIS);
 
         // Timeout must be enabled prior to entering the blocking mode to have effect.
-        channel.socket().setSoTimeout(timeoutMillis);
-        channel.configureBlocking(true);
+        sockChnl.socket().setSoTimeout(timeoutMillis);
+        sockChnl.configureBlocking(true);
     }
 
     /**
@@ -157,16 +157,16 @@ public abstract class TransmitAbstractChannel implements Closeable {
      * @return Corresponding ignite socket channel.
      */
     protected SocketChannel channel() {
-        return channel;
+        return sockChnl;
     }
 
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
-        U.closeQuiet(channel);
+        U.closeQuiet(sockChnl);
     }
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(TransmitAbstractChannel.class, this);
+        return S.toString(AbstractTransmitChannel.class, this);
     }
 }

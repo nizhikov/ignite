@@ -19,7 +19,7 @@ package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.IOException;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 
 /**
  * Input stream of chunks to handle.
@@ -30,11 +30,11 @@ public interface ReadableChunkedObject extends ChunkedObject {
      * @throws IOException If failed.
      * @throws IgniteCheckedException If failed.
      */
-    public void setup(TransmitInputChannel in) throws IOException, IgniteCheckedException;
+    public void setup(InputTransmitChannel in) throws IOException, IgniteCheckedException;
 
     /**
      * @param in The channel to read data from.
      * @throws IOException If fails.
      */
-    public void readChunk(TransmitInputChannel in) throws IOException;
+    public void readChunk(InputTransmitChannel in) throws IOException;
 }

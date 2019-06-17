@@ -19,7 +19,7 @@ package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.IOException;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitOutputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
 
 /**
  * Output stream of chunks to write to the remote node.
@@ -40,11 +40,11 @@ public interface WritableChunkedObject extends ChunkedObject {
      * @throws IOException If failed.
      * @throws IgniteCheckedException If failed.
      */
-    public void setup(TransmitOutputChannel out) throws IOException, IgniteCheckedException;
+    public void setup(OutputTransmitChannel out) throws IOException, IgniteCheckedException;
 
     /**
      * @param out The channel to write data into.
      * @throws IOException If fails.
      */
-    public void writeChunk(TransmitOutputChannel out) throws IOException;
+    public void writeChunk(OutputTransmitChannel out) throws IOException;
 }

@@ -25,8 +25,8 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.ignite.internal.managers.communication.transmit.ChunkHandler;
 import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteTransmitException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitOutputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
@@ -86,7 +86,7 @@ public class ChunkedBuffer extends AbstractChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override public void readChunk(TransmitInputChannel channel) throws IOException {
+    @Override public void readChunk(InputTransmitChannel channel) throws IOException {
         buff.rewind();
 
         long readed = channel.readInto(buff);
@@ -109,7 +109,7 @@ public class ChunkedBuffer extends AbstractChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override public void writeChunk(TransmitOutputChannel channel) throws IOException {
+    @Override public void writeChunk(OutputTransmitChannel channel) throws IOException {
         throw new UnsupportedOperationException("Buffered chunked write is not supported yet");
     }
 

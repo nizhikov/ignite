@@ -24,7 +24,7 @@ import java.io.IOException;
  * case when the remote peer has closed the connection correctly, so read or write operation over given
  * socket channel will throw an {@link IOException} and it will be converted to this one exception.
  * <p>
- * Please, see {@link TransmitAbstractChannel} for details or such connection error handling.
+ * Please, see {@link AbstractTransmitChannel} for details or such connection error handling.
  */
 public class RemoteTransmitException extends IOException {
     /** Serial version uid. */

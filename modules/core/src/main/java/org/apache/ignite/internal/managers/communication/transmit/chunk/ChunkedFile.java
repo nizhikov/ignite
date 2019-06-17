@@ -24,8 +24,8 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.managers.communication.transmit.FileHandler;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitOutputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
@@ -116,7 +116,7 @@ public class ChunkedFile extends AbstractChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override public void readChunk(TransmitInputChannel channel) throws IOException {
+    @Override public void readChunk(InputTransmitChannel channel) throws IOException {
         open();
 
         long batchSize = Math.min(chunkSize(), count() - transferred.get());
@@ -131,7 +131,7 @@ public class ChunkedFile extends AbstractChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override public void writeChunk(TransmitOutputChannel channel) throws IOException {
+    @Override public void writeChunk(OutputTransmitChannel channel) throws IOException {
         open();
 
         long batchSize = Math.min(chunkSize(), count() - transferred.longValue());

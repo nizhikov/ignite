@@ -25,9 +25,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitInputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitOutputChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
@@ -134,7 +134,7 @@ abstract class AbstractChunkedObject implements ReadableChunkedObject, WritableC
     protected abstract void init() throws IOException;
 
     /** {@inheritDoc} */
-    @Override public void setup(TransmitInputChannel in) throws IOException, IgniteCheckedException {
+    @Override public void setup(InputTransmitChannel in) throws IOException, IgniteCheckedException {
         TransmitMeta meta = new TransmitMeta();
 
         in.readMeta(meta);
@@ -174,7 +174,7 @@ abstract class AbstractChunkedObject implements ReadableChunkedObject, WritableC
     }
 
     /** {@inheritDoc} */
-    @Override public void setup(TransmitOutputChannel out) throws IOException {
+    @Override public void setup(OutputTransmitChannel out) throws IOException {
         init();
 
         out.writeMeta(transmitMeta());
