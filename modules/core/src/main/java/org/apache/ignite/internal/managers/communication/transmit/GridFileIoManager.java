@@ -718,10 +718,6 @@ public class GridFileIoManager {
 
                         break;
                     }
-                    catch (ClusterTopologyCheckedException e) {
-                        // Node left the grid, no reason to reconnect.
-                        throw e;
-                    }
                     catch (RemoteTransmitException e) {
                         closeChannelQuiet();
 
