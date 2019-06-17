@@ -129,12 +129,12 @@ public class ChunkedFile extends AbstractChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override public void readChunk(InputTransmitChannel channel) throws IOException {
+    @Override public void readChunk(InputTransmitChannel in) throws IOException {
         open();
 
         long batchSize = Math.min(chunkSize(), count() - transferred.get());
 
-        long readed = channel.read(fileIo, startPosition() + transferred.get(), batchSize);
+        long readed = in.read(fileIo, startPosition() + transferred.get(), batchSize);
 
         if (readed > 0)
             transferred.addAndGet(readed);
