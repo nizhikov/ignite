@@ -31,7 +31,7 @@ import org.apache.ignite.internal.IgniteDiagnosticMessage;
 import org.apache.ignite.internal.binary.BinaryEnumObjectImpl;
 import org.apache.ignite.internal.binary.BinaryObjectImpl;
 import org.apache.ignite.internal.managers.checkpoint.GridCheckpointRequest;
-import org.apache.ignite.internal.managers.communication.transmit.InitChannelMessage;
+import org.apache.ignite.internal.managers.communication.transmit.SessionChannelMessage;
 import org.apache.ignite.internal.managers.deployment.GridDeploymentInfoBean;
 import org.apache.ignite.internal.managers.deployment.GridDeploymentRequest;
 import org.apache.ignite.internal.managers.deployment.GridDeploymentResponse;
@@ -1174,8 +1174,8 @@ public class GridIoMessageFactory implements MessageFactory {
 
                 break;
 
-            case InitChannelMessage.TYPE_CODE:
-                msg = new InitChannelMessage();
+            case SessionChannelMessage.TYPE_CODE:
+                msg = new SessionChannelMessage();
 
                 break;
 

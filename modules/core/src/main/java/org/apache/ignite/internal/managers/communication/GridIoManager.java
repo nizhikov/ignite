@@ -68,7 +68,7 @@ import org.apache.ignite.internal.managers.GridManagerAdapter;
 import org.apache.ignite.internal.managers.communication.transmit.FileTransmitHandler;
 import org.apache.ignite.internal.managers.communication.transmit.FileWriter;
 import org.apache.ignite.internal.managers.communication.transmit.GridFileIoManager;
-import org.apache.ignite.internal.managers.communication.transmit.InitChannelMessage;
+import org.apache.ignite.internal.managers.communication.transmit.SessionChannelMessage;
 import org.apache.ignite.internal.managers.deployment.GridDeployment;
 import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
 import org.apache.ignite.internal.managers.eventstorage.GridLocalEventListener;
@@ -966,7 +966,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
             pools.poolForPolicy(plc).execute(new Runnable() {
                 @Override public void run() {
-                    fileIoMgr.onChannelOpened(initMsg.topic(), nodeId, (InitChannelMessage)initMsg.message(), channel);
+                    fileIoMgr.onChannelOpened(initMsg.topic(), nodeId, (SessionChannelMessage)initMsg.message(), channel);
                 }
             });
         }

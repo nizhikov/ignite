@@ -30,7 +30,7 @@ import org.apache.ignite.plugin.extensions.communication.MessageWriter;
  * A message with additional {@link Channel} attibutes which is send on connection established and
  * an appropriate channel is opened.
  */
-public class InitChannelMessage implements Message {
+public class SessionChannelMessage implements Message {
     /** Initial channel message type (value is {@code 177}). */
     public static final short TYPE_CODE = 177;
 
@@ -44,14 +44,14 @@ public class InitChannelMessage implements Message {
      * No-op constructor to support {@link Externalizable} interface.
      * This constructor is not meant to be used for other purposes.
      */
-    public InitChannelMessage() {
+    public SessionChannelMessage() {
         // No-op.
     }
 
     /**
      * @param sesId Channel session unique identifier.
      */
-    public InitChannelMessage(IgniteUuid sesId) {
+    public SessionChannelMessage(IgniteUuid sesId) {
         this.sesId = sesId;
     }
 
@@ -66,7 +66,7 @@ public class InitChannelMessage implements Message {
      * @param sesId The unique session id for the channel.
      * @return {@code this} for chaining.
      */
-    public InitChannelMessage sesId(IgniteUuid sesId) {
+    public SessionChannelMessage sesId(IgniteUuid sesId) {
         this.sesId = sesId;
         return this;
     }
@@ -113,7 +113,7 @@ public class InitChannelMessage implements Message {
             reader.incrementState();
         }
 
-        return reader.afterMessageRead(InitChannelMessage.class);
+        return reader.afterMessageRead(SessionChannelMessage.class);
     }
 
     /** {@inheritDoc} */
@@ -128,7 +128,7 @@ public class InitChannelMessage implements Message {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(InitChannelMessage.class, this);
+        return S.toString(SessionChannelMessage.class, this);
     }
 
 }

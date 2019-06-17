@@ -276,7 +276,7 @@ public class GridFileIoManager {
      * @param initMsg Channel initialization message with additional params.
      * @param channel Channel instance.
      */
-    public void onChannelOpened(Object topic, UUID nodeId, InitChannelMessage initMsg, Channel channel) {
+    public void onChannelOpened(Object topic, UUID nodeId, SessionChannelMessage initMsg, Channel channel) {
         FileTransmitHandler session = topicHandlerMap.get(topic);
 
         if (session == null)
@@ -603,7 +603,7 @@ public class GridFileIoManager {
          */
         public TransmitMeta connect() throws IgniteCheckedException {
             try {
-                Channel socket = openClsr.apply(remoteId, topic, new InitChannelMessage(sesId))
+                Channel socket = openClsr.apply(remoteId, topic, new SessionChannelMessage(sesId))
                     .get();
 
                 out = new OutputTransmitChannel(log, (SocketChannel)socket);
