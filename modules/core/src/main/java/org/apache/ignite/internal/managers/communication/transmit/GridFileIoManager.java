@@ -682,6 +682,8 @@ public class GridFileIoManager {
 
                         outChunkedObj.setup(out);
 
+                        boolean acquired;
+
                         while (outChunkedObj.hasNextChunk()) {
                             if (Thread.currentThread().isInterrupted())
                                 throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
@@ -690,12 +692,13 @@ public class GridFileIoManager {
 
                             // If the limit of permits at appropriate period of time reached,
                             // the furhter invocations of the #acuqire(int) method will be blocked.
-                            boolean acquired = outBytePermits.tryAcquire(outChunkedObj.chunkSize(),
+                            acquired = outBytePermits.tryAcquire(outChunkedObj.chunkSize(),
                                 DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
-                            if (!acquired)
+                            if (!acquired) {
                                 throw new TransmitException("Upload speed is too slow " +
                                     "[uploadSpeed=" + inBytePermits.permitsPerSec() + " byte/sec]");
+                            }
 
                             outChunkedObj.writeChunk(out);
                         }
