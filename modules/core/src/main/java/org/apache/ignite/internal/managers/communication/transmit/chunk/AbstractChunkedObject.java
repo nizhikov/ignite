@@ -147,7 +147,7 @@ abstract class AbstractChunkedObject implements Closeable {
     /**
      * @throws IOException If fails.
      */
-    protected void checkExpectedBytesCount() throws IOException {
+    protected void checkTransferLimitCount() throws IOException {
         if (transferred.get() > cnt) {
             throw new IOException("File has been transferred with incorrect size " +
                 "[expect=" + cnt + ", actual=" + transferred.get() + ']');

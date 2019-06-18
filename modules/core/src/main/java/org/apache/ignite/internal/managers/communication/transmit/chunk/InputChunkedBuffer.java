@@ -110,7 +110,7 @@ public class InputChunkedBuffer extends InputChunkedObject {
         if (transferred.get() == cnt)
             handler.end(params());
 
-        checkExpectedBytesCount();
+        checkTransferLimitCount();
     }
 
     /** {@inheritDoc} */

@@ -89,7 +89,7 @@ public class InputChunkedFile extends InputChunkedObject {
         if (transferred.get() == cnt)
             handler.acceptFile(file, startPosition(), count(), params());
 
-        checkExpectedBytesCount();
+        checkTransferLimitCount();
     }
 
     /** {@inheritDoc} */
