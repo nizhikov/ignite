@@ -28,21 +28,21 @@ import org.apache.ignite.internal.managers.communication.transmit.FileTransmitHa
 public class ChunkedObjectFactory {
     /**
      * @param nodeId Remote node id.
-     * @param policy The policy of how to read stream.
-     * @param ses The current ses instance produces handlers.
-     * @param chunkSize The size of chunk to read.
-     * @return The chunked stream instance.
+     * @param plc Policy of how to read input data stream.
+     * @param ses The current handler instance which produces file handlers.
+     * @param chunkSize Size of chunk to read.
+     * @return Chunked object instance.
      * @throws IgniteCheckedException If fails.
      */
     public InputChunkedObject createInputChunkedObject(
         UUID nodeId,
-        ReadPolicy policy,
+        ReadPolicy plc,
         FileTransmitHandler ses,
         int chunkSize
     ) throws IgniteCheckedException {
         InputChunkedObject obj;
 
-        switch (policy) {
+        switch (plc) {
             case FILE:
                 obj = new InputChunkedFile(ses.fileHandler(nodeId), chunkSize);
 
@@ -54,8 +54,8 @@ public class ChunkedObjectFactory {
                 break;
 
             default:
-                throw new IgniteCheckedException("The type of read policy is unknown. The impelentation " +
-                    "required: " + policy);
+                throw new IgniteCheckedException("The type of read plc is unknown. The impelentation " +
+                    "required: " + plc);
         }
 
         return obj;

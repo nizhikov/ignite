@@ -271,7 +271,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         receiver.context().io().fileIoMgr().chunkedStreamFactory(new ChunkedObjectFactory() {
             @Override public InputChunkedObject createInputChunkedObject(
                 UUID nodeId,
-                ReadPolicy policy,
+                ReadPolicy plc,
                 FileTransmitHandler ses,
                 int chunkSize
             ) throws IgniteCheckedException {
@@ -322,11 +322,11 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         receiver.context().io().fileIoMgr().chunkedStreamFactory(new ChunkedObjectFactory() {
             @Override public InputChunkedObject createInputChunkedObject(
                 UUID nodeId,
-                ReadPolicy policy,
+                ReadPolicy plc,
                 FileTransmitHandler ses,
                 int chunkSize
             ) throws IgniteCheckedException {
-                assertEquals(policy, ReadPolicy.FILE);
+                assertEquals(plc, ReadPolicy.FILE);
 
                 return new InputChunkedFile(ses.fileHandler(nodeId), chunkSize) {
                     @Override public void readChunk(InputTransmitChannel in) throws IOException {
