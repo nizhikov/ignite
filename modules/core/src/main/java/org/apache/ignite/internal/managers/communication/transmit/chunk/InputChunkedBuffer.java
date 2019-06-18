@@ -107,8 +107,10 @@ public class InputChunkedBuffer extends InputChunkedObject {
         if (!accepted)
             throw new IOException("The buffer was rejected by handler");
 
-        if (hasNextChunk())
+        if (transferred.get() == cnt)
             handler.end(params());
+
+        checkExpectedBytesCount();
     }
 
     /** {@inheritDoc} */

@@ -19,6 +19,7 @@ package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
@@ -140,7 +141,17 @@ abstract class AbstractChunkedObject implements Closeable {
      * @return {@code true} if and only if a chunked object has received all the data it expects.
      */
     public boolean hasNextChunk() {
-        return transferred.get() == cnt;
+        return transferred.get() < cnt;
+    }
+
+    /**
+     * @throws IOException If fails.
+     */
+    protected void checkExpectedBytesCount() throws IOException {
+        if (transferred.get() > cnt) {
+            throw new IOException("File has been transferred with incorrect size " +
+                "[expect=" + cnt + ", actual=" + transferred.get() + ']');
+        }
     }
 
     /** {@inheritDoc} */

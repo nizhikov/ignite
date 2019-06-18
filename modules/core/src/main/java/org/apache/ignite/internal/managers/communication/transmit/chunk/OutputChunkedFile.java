@@ -111,6 +111,8 @@ public class OutputChunkedFile extends AbstractChunkedObject {
 
         if (sent > 0)
             transferred.addAndGet(sent);
+
+        checkExpectedBytesCount();
     }
 
     /** {@inheritDoc} */

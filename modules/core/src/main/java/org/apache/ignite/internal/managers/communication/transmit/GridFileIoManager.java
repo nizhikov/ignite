@@ -447,7 +447,7 @@ public class GridFileIoManager {
                 inChunkedObj.setup(readCtx.currInChannel);
 
                 // Read data from the input.
-                while (!inChunkedObj.hasNextChunk()) {
+                while (inChunkedObj.hasNextChunk()) {
                     if (Thread.currentThread().isInterrupted())
                         throw new InterruptedException("The thread has been interrupted. Stop processing input stream.");
 
@@ -681,7 +681,7 @@ public class GridFileIoManager {
 
                         outChunkedObj.setup(out);
 
-                        while (!outChunkedObj.hasNextChunk()) {
+                        while (outChunkedObj.hasNextChunk()) {
                             if (Thread.currentThread().isInterrupted())
                                 throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
 
