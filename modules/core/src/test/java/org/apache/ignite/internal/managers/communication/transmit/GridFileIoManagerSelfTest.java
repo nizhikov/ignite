@@ -145,6 +145,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         Map<String, Long> fileSizes = new HashMap<>();
         Map<String, Integer> fileCrcs = new HashMap<>();
+        Map<String, Serializable> fileParams = new HashMap<>();
 
         receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             @Override public void onBegin(UUID nodeId) {
@@ -164,6 +165,8 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
                     @Override public void acceptFile(File file, long offset, long cnt, Map<String, Serializable> params) {
                         assertTrue(fileSizes.containsKey(file.getName()));
+                        // Save all params.
+                        fileParams.putAll(params);
                     }
                 };
             }
@@ -182,8 +185,14 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
             // Iterate over cache partition cacheParts.
-            for (File file : cacheParts)
-                writer.write(file, ReadPolicy.FILE);
+            for (File file : cacheParts) {
+                writer.write(file,
+                    // Put additional params <file_name, file_hashcode> to map.
+                    new HashMap<String, Serializable>() {{
+                        put(file.getName(), file.hashCode());
+                    }},
+                    ReadPolicy.FILE);
+            }
         }
 
         log.info("Writing test cacheParts finished. All Ignite instances will be stopped.");
@@ -192,15 +201,21 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         assertEquals(fileSizes.size(), tempStore.listFiles(fileBinFilter).length);
 
-        // Check received file lenghs
-        for (File file : cacheParts)
+        for (File file : cacheParts) {
+            // Check received file lenghs
             assertEquals("Received file lenght is incorrect: " + file.getName(),
                 fileSizes.get(file.getName()), new Long(file.length()));
 
+            // Check received params
+            assertEquals("File additional parameters are not fully transmitted",
+                fileParams.get(file.getName()), file.hashCode());
+        }
+
         // Check received file CRCs.
-        for (File file : tempStore.listFiles(fileBinFilter))
+        for (File file : tempStore.listFiles(fileBinFilter)) {
             assertEquals("Received file CRC-32 checksum is incorrect: " + file.getName(),
                 fileCrcs.get(file.getName()), new Integer(FastCrc.calcCrc(file)));
+        }
     }
 
     /**
