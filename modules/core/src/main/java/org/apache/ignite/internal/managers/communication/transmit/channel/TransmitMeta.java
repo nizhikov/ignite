@@ -29,7 +29,7 @@ import java.util.Objects;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
- * Class represents a file meta information to send to remote node. Used to initiate a new file transfer
+ * Class represents a file meta information to send to a remote node. Used to initiate a new file transfer
  * process or to continue the previous unfinished from the last transmission point.
  */
 public class TransmitMeta implements Externalizable {

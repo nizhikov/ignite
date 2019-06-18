@@ -31,7 +31,8 @@ import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
- * Class represents base object which can we transferred by chunks of predefined size over a channel.
+ * Class represents base object which can we transferred (written or read) by chunks of
+ * predefined size over a socket channel.
  */
 abstract class AbstractChunkedObject implements ReadableChunkedObject {
     /** Additional stream params. */

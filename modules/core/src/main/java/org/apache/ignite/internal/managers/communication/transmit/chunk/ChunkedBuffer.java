@@ -24,13 +24,13 @@ import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.ignite.internal.managers.communication.transmit.ChunkHandler;
-import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteTransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
-import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteTransmitException;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
- * Buffered chunked stream to handle data input by chunks delivered to {@link ByteBuffer}.
+ * Buffered chunked object is handle input socket channel by chunks of data and
+ * deliver it to an allocated {@link ByteBuffer}.
  */
 public class ChunkedBuffer extends AbstractChunkedObject {
     /** Chunked channel handler to process data with chunks. */

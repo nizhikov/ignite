@@ -82,7 +82,7 @@ public class GridFileIoManager {
     /** Flag send to remote on file writer close. */
     private static final int FILE_WRITER_CLOSED = -1;
 
-    /** Kernal context. */
+    /** Ignite kernal context. */
     private final GridKernalContext ctx;
 
     /** Ignite logger. */
@@ -94,7 +94,7 @@ public class GridFileIoManager {
     /** The map of already known channel read contexts by its registered topics. */
     private final ConcurrentMap<Object, FileIoReadContext> sesCtxMap = new ConcurrentHashMap<>();
 
-    /** The busy lock. */
+    /** Managers busy lock. */
     private final GridSpinBusyLock busyLock = new GridSpinBusyLock();
 
     /**
@@ -530,7 +530,7 @@ public class GridFileIoManager {
         /** Unique session request id. */
         private IgniteUuid sesId;
 
-        /** The number of retry attempts of current session. */
+        /** The number of retry attempts of current session to wait. */
         private int retries;
 
         /** The currently used input channel (updated on reconnect). */
@@ -541,18 +541,18 @@ public class GridFileIoManager {
         @GridToStringExclude
         private OutputTransmitChannel currOutChannel;
 
-        /** The read policy of handlind input data. */
+        /** Read policy of the way of handling input data. */
         private ReadPolicy currPlc;
 
-        /** The last infinished download. */
+        /** Last infinished downloading object. */
         private ReadableChunkedObject chunkedObj;
 
-        /** Error occurred while channel has been processed by registered handler. */
+        /** Last error occurred while channel is processed by registered session handler. */
         private Exception lastSeenErr;
 
         /**
-         * @param nodeId The remote node id.
-         * @param session The channel handler.
+         * @param nodeId Remote node id.
+         * @param session Channel handler of current topic.
          */
         public FileIoReadContext(UUID nodeId, FileTransmitHandler session) {
             this.nodeId = nodeId;
@@ -566,7 +566,8 @@ public class GridFileIoManager {
     }
 
     /**
-     * Implementation of file writer to transfer files with zero-copy algorithm (use {@link ChunkedFile}).
+     * Implementation of file writer to transfer files with the zero-copy algorithm
+     * (used the {@link ChunkedFile} under the hood).
      */
     private class ChunkedFileWriter implements FileWriter {
         /** Remote node id to connect to. */

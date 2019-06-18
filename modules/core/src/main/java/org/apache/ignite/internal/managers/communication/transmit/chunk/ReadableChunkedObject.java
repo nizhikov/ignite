@@ -25,8 +25,8 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 
 /**
- * Class represents an object which can we readed from channel by chunks of
- * predefined size. Closed when a transmission ends.
+ * Class represents an object which can be read from a channel by chunks of
+ * predefined size. Closes when a transmission of represented object ends.
  */
 public interface ReadableChunkedObject extends Closeable {
     /**
@@ -40,7 +40,7 @@ public interface ReadableChunkedObject extends Closeable {
     public long transferred();
 
     /**
-     * @return The start object position.
+     * @return Start chunked object position (same as a file offset) .
      */
     public long startPosition();
 
@@ -55,12 +55,12 @@ public interface ReadableChunkedObject extends Closeable {
     public int chunkSize();
 
     /**
-     * @return Additional stream params.
+     * @return Additional chunekd object params.
      */
     public Map<String, Serializable> params();
 
     /**
-     * @return {@code true} if and only if the chunked stream received all the data it expects.
+     * @return {@code true} if and only if a chunked object has received all the data it expects.
      */
     public boolean transmitEnd();
 

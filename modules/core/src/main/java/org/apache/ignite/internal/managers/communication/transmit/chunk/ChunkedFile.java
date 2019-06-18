@@ -20,6 +20,7 @@ package org.apache.ignite.internal.managers.communication.transmit.chunk;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.channels.FileChannel;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.ignite.IgniteException;
@@ -35,7 +36,8 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 
 /**
- * File stream implementation of chunked stream which supports zero-copy streaming algorithm.
+ * Class represents a file chunked object which supports the zero-copy streaming algorithm,
+ * see {@link FileChannel#transferTo(long, long, java.nio.channels.WritableByteChannel)} for details.
  */
 public class ChunkedFile extends AbstractChunkedObject {
     /** The default factory to provide IO oprations over underlying file. */

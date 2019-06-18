@@ -65,16 +65,16 @@ public abstract class AbstractTransmitChannel implements Closeable {
     /** Default timeout in milleseconds to wait an IO data on socket. */
     private static final int DFLT_IO_TIMEOUT_MILLIS = 5_000;
 
-    /** Message if connection have been dropped by remote. */
+    /** Message if connection have been dropped by remote by network issues. */
     private static final String RESET_BY_PEER_MSG = "Connection reset by peer";
 
-    /** Message if connection has been closed by remote. */
+    /** Message if connection has been closed by remote (e.g. thread interrupted). */
     private static final String CLOSED_BY_REMOTE_MSG = "An existing connection was forcibly closed by the remote host";
 
-    /** Message if conneciton closed by remote handler. */
+    /** Message if conneciton has been closed by remote handler. */
     private static final String ABORTED_BY_SOFTWARE_MSG = "An established connection was aborted by the software";
 
-    /** Instance of socket channel to work with. */
+    /** Instance of opened socket channel to work with. */
     private final SocketChannel sockChnl;
 
     /** Ignite logger. */
