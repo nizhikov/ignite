@@ -20,6 +20,7 @@ package org.apache.ignite.internal.managers.communication.transmit;
 import java.io.Closeable;
 import java.io.File;
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.ignite.IgniteCheckedException;
 
@@ -56,5 +57,17 @@ public interface FileWriter extends Closeable {
         ReadPolicy plc
     ) throws IgniteCheckedException {
         write(file, 0, file.length(), params, plc);
+    }
+
+    /**
+     * @param file Source file to send to remote.
+     * @param plc The policy of handling data on remote.
+     * @throws IgniteCheckedException If fails.
+     */
+    public default void write(
+        File file,
+        ReadPolicy plc
+    ) throws IgniteCheckedException {
+        write(file, 0, file.length(), new HashMap<>(), plc);
     }
 }

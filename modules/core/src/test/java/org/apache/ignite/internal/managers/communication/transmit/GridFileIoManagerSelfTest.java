@@ -183,7 +183,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             .openFileWriter(receiver.localNode().id(), topic)) {
             // Iterate over cache partition cacheParts.
             for (File file : cacheParts)
-                writer.write(file, new HashMap<>(), ReadPolicy.FILE);
+                writer.write(file, ReadPolicy.FILE);
         }
 
         log.info("Writing test cacheParts finished. All Ignite instances will be stopped.");
@@ -234,7 +234,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, ReadPolicy.FILE);
         }
     }
 
@@ -281,7 +281,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, ReadPolicy.FILE);
         }
         catch (IgniteCheckedException e) {
             if (e.hasCause(ClusterTopologyCheckedException.class))
@@ -340,7 +340,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, ReadPolicy.FILE);
         }
         catch (IgniteCheckedException e) {
             if (e.hasCause(Exception.class))
@@ -385,7 +385,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, ReadPolicy.FILE);
         }
         catch (IgniteCheckedException e) {
             if (e.hasCause(Exception.class))
@@ -435,7 +435,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, ReadPolicy.FILE);
         }
         catch (Exception e) {
             // Expected exception.
@@ -446,7 +446,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, ReadPolicy.FILE);
         }
     }
 
@@ -478,7 +478,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, ReadPolicy.FILE);
         }
 
         long totalTime = U.currentTimeMillis() - startTime;
@@ -534,7 +534,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             GridTestUtils.runAsync(new Runnable() {
                 @Override public void run() {
                     try {
-                        writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+                        writer.write(fileToSend, ReadPolicy.FILE);
                     }
                     catch (IgniteCheckedException e) {
                         errs[0] = e;
@@ -544,7 +544,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             GridTestUtils.runAsync(new Runnable() {
                 @Override public void run() {
                     try {
-                        anotherWriter.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+                        anotherWriter.write(fileToSend, ReadPolicy.FILE);
                     }
                     catch (IgniteCheckedException e) {
                         errs[0] = e;
@@ -588,7 +588,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, new HashMap<>(), ReadPolicy.FILE);
+            writer.write(fileToSend, ReadPolicy.FILE);
         }
 
         long totalTime = U.currentTimeMillis() - startTime;
@@ -651,7 +651,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, new HashMap<>(), ReadPolicy.BUFF);
+            writer.write(fileToSend, ReadPolicy.BUFF);
         }
         finally {
             U.closeQuiet(fileIo[0]);
@@ -707,7 +707,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         try (FileWriter writer = sender.context()
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, 0, fileToSend.length(), new HashMap<>(), ReadPolicy.BUFF);
+            writer.write(fileToSend, ReadPolicy.BUFF);
         }
         catch (IgniteCheckedException e) {
             if (e.hasCause(Exception.class))
