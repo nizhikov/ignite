@@ -17,30 +17,28 @@
 
 package org.apache.ignite.internal.managers.communication.transmit.channel;
 
-import java.io.IOException;
+import org.apache.ignite.IgniteCheckedException;
 
 /**
- * The class represents an exception on the transport level transmission (not the handler one). For instance,
- * case when the remote peer has closed the connection correctly, so read or write operation over given
- * socket channel will throw an {@link IOException} and it will be converted to this one exception.
- * <p>
- * Please, see {@link AbstractTransmitChannel} for details or such connection error handling.
+ * The class represents an exception which handler is thrown on remote node. For instance,
+ * remote handler can throw an `Not enough space` IOException. Sender will receive it on
+ * reconnect and must stop the file transmisson.
  */
-public class RemoteTransmitException extends IOException {
+public class RemoteHandlerException extends IgniteCheckedException {
     /** Serial version uid. */
     private static final long serialVersionUID = 0L;
 
     /**
-     * Constructs an {@code RemoteTransmitException} with the specified detail message.
+     * Constructs an {@code RemoteHandlerException} with the specified detail message.
      */
-    public RemoteTransmitException(String msg) {
+    public RemoteHandlerException(String msg) {
         super(msg);
     }
 
     /**
-     * Constructs an {@code RemoteTransmitException} with the specified detail message and cause.
+     * Constructs an {@code RemoteHandlerException} with the specified detail message and cause.
      */
-    public RemoteTransmitException(String msg, Throwable cause) {
+    public RemoteHandlerException(String msg, Throwable cause) {
         super(msg, cause);
     }
 }

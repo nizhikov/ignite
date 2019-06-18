@@ -44,6 +44,7 @@ import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
+import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteHandlerException;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedObject;
@@ -221,7 +222,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
-    @Test(expected = IgniteCheckedException.class)
+    @Test(expected = RemoteHandlerException.class)
     public void testFileHandlerOnBeginFails() throws Exception {
         final String exTestMessage = "Test exception. Handler initialization failed at onBegin.";
 
@@ -230,7 +231,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         sender.cluster().active(true);
 
-        File fileToSend = createFileRandomData("50Mb", 50 * 1024 * 1024);
+        File fileToSend = createFileRandomData("1Mb", 1024 * 1024);
 
         receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             @Override public void onBegin(UUID nodeId) {
@@ -250,6 +251,10 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, ReadPolicy.FILE);
+        }
+        catch (IgniteCheckedException e) {
+            if (e.hasCause(RemoteHandlerException.class))
+                throw (RemoteHandlerException)e.getCause();
         }
     }
 
@@ -307,7 +312,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
-    @Test(expected = Exception.class)
+    @Test(expected = RemoteHandlerException.class)
     public void testFileHandlerReconnectOnReadFail() throws Exception {
         final String chunkDownloadExMsg = "Test exception. Chunk processing error.";
 
@@ -358,15 +363,15 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             writer.write(fileToSend, ReadPolicy.FILE);
         }
         catch (IgniteCheckedException e) {
-            if (e.hasCause(Exception.class))
-                throw (Exception)e.getCause();
+            if (e.hasCause(RemoteHandlerException.class))
+                throw (RemoteHandlerException)e.getCause();
         }
     }
 
     /**
      * @throws Exception If fails.
      */
-    @Test(expected = Exception.class)
+    @Test(expected = RemoteHandlerException.class)
     public void testFileHandlerReconnectOnInitFail() throws Exception {
         final int fileSizeBytes = 5 * 1024 * 1024;
         final AtomicBoolean throwFirstTime = new AtomicBoolean();
@@ -403,8 +408,8 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             writer.write(fileToSend, ReadPolicy.FILE);
         }
         catch (IgniteCheckedException e) {
-            if (e.hasCause(Exception.class))
-                throw (Exception)e.getCause();
+            if (e.hasCause(RemoteHandlerException.class))
+                throw (RemoteHandlerException)e.getCause();
         }
     }
 
@@ -508,7 +513,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
-    @Test(expected = IgniteCheckedException.class)
+    @Test(expected = RemoteHandlerException.class)
     public void testFileHandlerChannelCloseIfAnotherOpened() throws Exception {
         final int fileSizeBytes = 5 * 1024 * 1024;
         final CountDownLatch waitLatch = new CountDownLatch(2);
@@ -570,8 +575,16 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             waitLatch.await(5, TimeUnit.SECONDS);
 
             // Expected that one of the writers will throw exception.
-            if (errs[0] != null)
-                throw errs[0];
+            assertFalse("An error must be thrown if connected to the same topic during processing",
+                errs[0] == null);
+
+            throw errs[0];
+        }
+        catch (IgniteCheckedException e) {
+            U.warn(log, e);
+
+            if (e.hasCause(RemoteHandlerException.class))
+                throw (RemoteHandlerException)e.getCause();
         }
     }
 
@@ -619,7 +632,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
      * @throws Exception If fails.
      */
     @Test
-    public void testChuckHandlerBase() throws Exception {
+    public void testChunkHandlerBase() throws Exception {
         final FileIO[] fileIo = new FileIO[1];
 
         IgniteEx sender = startGrid(0);
@@ -676,44 +689,30 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
-    @Test(expected = Exception.class)
-    public void testChuckHandlerReconnectOnInitFail() throws Exception {
-        final FileIO[] fileIo = new FileIO[1];
-        final AtomicBoolean throwFirstTime = new AtomicBoolean();
-
+    @Test(expected = RemoteHandlerException.class)
+    public void testChunkHandlerRejectChunkOnRead() throws Exception {
         IgniteEx sender = startGrid(0);
         IgniteEx receiver = startGrid(1);
 
         sender.cluster().active(true);
 
-        File fileToSend = createFileRandomData("testFile", 10 * 1024 * 1024);
+        File fileToSend = createFileRandomData("File1MB", 1024 * 1024);
 
         receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             /** {@inheritDoc} */
             @Override public ChunkHandler chunkHandler(UUID nodeId) {
                 return new ChunkHandler() {
-                    /** */
-                    private File file;
-
                     @Override public int begin(String name, Map<String, Serializable> params) throws IOException {
-                        if (throwFirstTime.compareAndSet(false, true))
-                            throw new IOException("Test exception. Initialization failed");
-
-                        file = new File(tempStore, name + "_" + receiver.localNode().id());
-                        fileIo[0] = ioFactory.create(file);
-
-                        return 16 * 1024;
+                        return 4 * 1024;
                     }
 
                     @Override public boolean chunk(ByteBuffer buff, long pos) throws IOException {
-                        fileIo[0].writeFully(buff);
-
-                        return true;
+                        // Reject the chunk.
+                        return false;
                     }
 
                     @Override public void end(Map<String, Serializable> params) {
-                        assertEquals(fileToSend.length(), file.length());
-                        assertCrcEquals(fileToSend, file);
+                        // No-op.
                     }
                 };
             }
@@ -725,11 +724,50 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             writer.write(fileToSend, ReadPolicy.BUFF);
         }
         catch (IgniteCheckedException e) {
-            if (e.hasCause(Exception.class))
-                throw (Exception)e.getCause();
+            if (e.hasCause(RemoteHandlerException.class))
+                throw (RemoteHandlerException)e.getCause();
         }
-        finally {
-            U.closeQuiet(fileIo[0]);
+    }
+
+    /**
+     * @throws Exception If fails.
+     */
+    @Test(expected = RemoteHandlerException.class)
+    public void testChunkHandlerReconnectOnInitFail() throws Exception {
+        IgniteEx sender = startGrid(0);
+        IgniteEx receiver = startGrid(1);
+
+        sender.cluster().active(true);
+
+        File fileToSend = createFileRandomData("testFile", 1024 * 1024);
+
+        receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
+            /** {@inheritDoc} */
+            @Override public ChunkHandler chunkHandler(UUID nodeId) {
+                return new ChunkHandler() {
+                    @Override public int begin(String name, Map<String, Serializable> params) throws IOException {
+                        throw new IOException("Test exception. Initialization failed");
+                    }
+
+                    @Override public boolean chunk(ByteBuffer buff, long pos) throws IOException {
+                        return true;
+                    }
+
+                    @Override public void end(Map<String, Serializable> params) {
+                        // No-op.
+                    }
+                };
+            }
+        });
+
+        try (FileWriter writer = sender.context()
+            .io()
+            .openFileWriter(receiver.localNode().id(), topic)) {
+            writer.write(fileToSend, ReadPolicy.BUFF);
+        }
+        catch (IgniteCheckedException e) {
+            if (e.hasCause(RemoteHandlerException.class))
+                throw (RemoteHandlerException)e.getCause();
         }
     }
 

@@ -130,14 +130,14 @@ public abstract class AbstractTransmitChannel implements Closeable {
             cause instanceof ClosedChannelException ||
             cause instanceof ClosedByInterruptException) {
             // Return the new one with detailed message.
-            return new RemoteTransmitException(
+            return new TransmitException(
                 "Lost connection to the remote node. The connection will be re-established according " +
                     "to the manager's transmission configuration [socket=" + channel() + ']', cause);
         }
         // Connection timeout issues.
         else if (cause instanceof SocketTimeoutException ||
             cause instanceof AsynchronousCloseException) {
-            return new RemoteTransmitException(
+            return new TransmitException(
                 "The connection has been timeouted. The connection will be re-established according " +
                     "to the manager's transmission configuration [socket=" + channel() + ']', cause);
         }
@@ -151,7 +151,7 @@ public abstract class AbstractTransmitChannel implements Closeable {
             if (causeMsg.startsWith(RESET_BY_PEER_MSG) ||
                 causeMsg.startsWith(CLOSED_BY_REMOTE_MSG) ||
                 causeMsg.startsWith(ABORTED_BY_SOFTWARE_MSG)) {
-                return new RemoteTransmitException("Connection has been dropped by remote due to unhandled error. " +
+                return new TransmitException("Connection has been dropped by remote due to unhandled error. " +
                     "The connection will be re-established according to the manager's transmission configuration " +
                     "[socket=" + channel() + ']', cause);
             }

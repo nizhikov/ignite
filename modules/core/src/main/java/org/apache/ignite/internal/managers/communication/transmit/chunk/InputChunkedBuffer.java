@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.ignite.internal.managers.communication.transmit.ChunkHandler;
 import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
-import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteTransmitException;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
@@ -95,7 +95,7 @@ public class InputChunkedBuffer extends InputChunkedObject {
         if (readed > 0)
             chunkPos = transferred.getAndAdd(readed);
         else if (readed < 0 || transferred() < count())
-            throw new RemoteTransmitException("Socket has been unexpectedly closed, but stream is not fully processed");
+            throw new TransmitException("Socket has been unexpectedly closed, but stream is not fully processed");
         else
             // readed == 0
             return;

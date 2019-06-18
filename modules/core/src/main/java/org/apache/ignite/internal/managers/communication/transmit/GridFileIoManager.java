@@ -38,7 +38,8 @@ import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
-import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteTransmitException;
+import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteHandlerException;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
@@ -294,7 +295,7 @@ public class GridFileIoManager {
 
             // Do not allow multiple connection for the same session id;
             if (!readCtx.inProgress.compareAndSet(false, true)) {
-                IgniteCheckedException ex = new IgniteCheckedException("Current topic is already being handled by " +
+                RemoteHandlerException ex = new RemoteHandlerException("Current topic is already being handled by " +
                     "another thread. Channel will be closed [initMsg=" + initMsg + ", channel=" + channel +
                     ", fromNodeId=" + nodeId + ']');
 
@@ -369,7 +370,7 @@ public class GridFileIoManager {
             log.error("The download session cannot be finished due to unexpected error " +
                 "[ctx=" + readCtx + ", sesId=" + readCtx.sesId + ']', t);
 
-            readCtx.lastSeenErr = new Exception("Error channel processing [nodeId=" + nodeId + ']', t);
+            readCtx.lastSeenErr = new RemoteHandlerException("Error channel processing [nodeId=" + nodeId + ']', t);
 
             readCtx.session.onException(t);
         }
@@ -459,7 +460,7 @@ public class GridFileIoManager {
                         DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
                     if (!acquired)
-                        throw new RemoteTransmitException("Download speed is too slow " +
+                        throw new TransmitException("Download speed is too slow " +
                             "[downloadSpeed=" + inBytePermits.permitsPerSec() + " byte/sec]");
 
                     inChunkedObj.readChunk(readCtx.currInChannel);
@@ -481,7 +482,7 @@ public class GridFileIoManager {
                     ", retries=" + readCtx.retries);
             }
         }
-        catch (RemoteTransmitException e) {
+        catch (TransmitException e) {
             // Waiting for re-establishing connection.
             log.warning("The connection lost. Waiting for the new one to continue file upload " +
                 "[sesId=" + readCtx.sesId + ']', e);
@@ -549,7 +550,7 @@ public class GridFileIoManager {
         private InputChunkedObject chunkedObj;
 
         /** Last error occurred while channel is processed by registered session handler. */
-        private Exception lastSeenErr;
+        private RemoteHandlerException lastSeenErr;
 
         /**
          * @param nodeId Remote node id.
@@ -693,7 +694,7 @@ public class GridFileIoManager {
                                 DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
                             if (!acquired)
-                                throw new RemoteTransmitException("Upload speed is too slow " +
+                                throw new TransmitException("Upload speed is too slow " +
                                     "[uploadSpeed=" + inBytePermits.permitsPerSec() + " byte/sec]");
 
                             outChunkedObj.writeChunk(out);
@@ -705,7 +706,7 @@ public class GridFileIoManager {
 
                         break;
                     }
-                    catch (RemoteTransmitException e) {
+                    catch (TransmitException e) {
                         closeChannelQuiet();
 
                         // Re-establish the new connection to continue upload.
