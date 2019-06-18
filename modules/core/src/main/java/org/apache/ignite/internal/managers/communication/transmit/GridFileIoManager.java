@@ -447,6 +447,8 @@ public class GridFileIoManager {
 
                 inChunkedObj.setup(readCtx.currInChannel);
 
+                boolean acquired;
+
                 // Read data from the input.
                 while (inChunkedObj.hasNextChunk()) {
                     if (Thread.currentThread().isInterrupted())
@@ -456,12 +458,13 @@ public class GridFileIoManager {
 
                     // If the limit of permits at appropriate period of time reached,
                     // the furhter invocations of the #acuqire(int) method will be blocked.
-                    boolean acquired = inBytePermits.tryAcquire(readCtx.chunkedObj.chunkSize(),
+                    acquired = inBytePermits.tryAcquire(readCtx.chunkedObj.chunkSize(),
                         DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
-                    if (!acquired)
+                    if (!acquired) {
                         throw new TransmitException("Download speed is too slow " +
                             "[downloadSpeed=" + inBytePermits.permitsPerSec() + " byte/sec]");
+                    }
 
                     inChunkedObj.readChunk(readCtx.currInChannel);
                 }
