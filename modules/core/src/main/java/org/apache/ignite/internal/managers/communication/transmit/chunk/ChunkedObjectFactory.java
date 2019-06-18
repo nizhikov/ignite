@@ -23,7 +23,7 @@ import org.apache.ignite.internal.managers.communication.transmit.ReadPolicy;
 import org.apache.ignite.internal.managers.communication.transmit.FileTransmitHandler;
 
 /**
- * Factory to create a new chunked objectwhen a file read or write event requested.
+ * Factory to create a new chunked object when a file read or write event requested.
  */
 public class ChunkedObjectFactory {
     /**

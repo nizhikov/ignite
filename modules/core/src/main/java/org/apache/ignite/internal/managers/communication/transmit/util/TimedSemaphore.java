@@ -33,7 +33,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
  * will allow to make a progress during 1-sec period configured amout of permits is not enough.
  */
 public class TimedSemaphore {
-    /** The constant which represents unlimited number of permits being acquired. */
+    /** The constant which represents unlimited number of permits being acquired (value is {@code -1}). */
     public static final int UNLIMITED_PERMITS = -1;
 
     /** The time period to release all available permits when it ends. */
