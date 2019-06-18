@@ -24,8 +24,6 @@ import java.nio.channels.FileChannel;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.ignite.IgniteException;
-import org.apache.ignite.internal.managers.communication.transmit.FileHandler;
-import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
@@ -36,16 +34,13 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 
 /**
- * Class represents a file chunked object which supports the zero-copy streaming algorithm,
+ * Class represents a writable file chunked object which supports the zero-copy streaming algorithm,
  * see {@link FileChannel#transferTo(long, long, java.nio.channels.WritableByteChannel)} for details.
  */
-public class ChunkedFile extends AbstractChunkedObject {
+public class OutputChunkedFile extends AbstractChunkedObject {
     /** The default factory to provide IO oprations over underlying file. */
     @GridToStringExclude
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
-
-    /** Handler to notify when a file has been processed. */
-    private final FileHandler handler;
 
     /** The abstract java representation of the chunked file. */
     private File file;
@@ -55,48 +50,31 @@ public class ChunkedFile extends AbstractChunkedObject {
     private FileIO fileIo;
 
     /**
-     * @param handler The file handler to process download result.
-     * @param chunkSize The size of chunk to read.
+     * @param file File representation of current object.
+     * @param pos File offset.
+     * @param cnt Number of bytes to transfer.
+     * @param chunkSize Size of each chunk.
+     * @param params Additional file params.
      */
-    public ChunkedFile(
-        FileHandler handler,
-        String name,
+    public OutputChunkedFile(
+        File file,
         long pos,
         long cnt,
         int chunkSize,
         Map<String, Serializable> params
     ) {
-        super(name, pos, cnt, chunkSize, params);
+        super(file.getName(), pos, cnt, chunkSize, params);
 
-        this.handler = Objects.requireNonNull(handler);
-    }
-
-    /**
-     * @param handler The file handler to process download result.
-     * @param chunkSize The size of chunk to read.
-     */
-    public ChunkedFile(FileHandler handler, int chunkSize) {
-        this(handler, null, -1, -1, chunkSize, null);
-    }
-
-    /**
-     * Explicitly open the underlying file if not done yet.
-     */
-    public void open() throws IOException {
-        if (fileIo == null) {
-            fileIo = dfltIoFactory.create(Objects.requireNonNull(file));
-
-            fileIo.position(startPosition());
-        }
+        this.file = file;
     }
 
     /** {@inheritDoc} */
     @Override public void transferred(long cnt) {
-        super.transferred(cnt);
-
         try {
             if (fileIo != null)
                 fileIo.position(startPosition() + cnt);
+
+            super.transferred(cnt);
         }
         catch (IOException e) {
             throw new IgniteException("Unable to set new start file channel position [pos=" + (startPosition() + cnt) + ']');
@@ -108,8 +86,6 @@ public class ChunkedFile extends AbstractChunkedObject {
      * @throws IOException If failed.
      */
     public void setup(OutputTransmitChannel out) throws IOException {
-        init();
-
         out.writeMeta(new TransmitMeta(name(),
             startPosition() + transferred(),
             count(),
@@ -118,40 +94,16 @@ public class ChunkedFile extends AbstractChunkedObject {
             null));
     }
 
-    /** {@inheritDoc} */
-    @Override protected void init() throws IOException {
-        if (file == null) {
-            String fileAbsPath = handler.path(name(), params());
-
-            if (fileAbsPath == null)
-                throw new IOException("Requested for the chunked stream a file absolute path is incorrect: " + this);
-
-            file = new File(fileAbsPath);
-        }
-    }
-
-    /** {@inheritDoc} */
-    @Override public void readChunk(InputTransmitChannel in) throws IOException {
-        open();
-
-        long batchSize = Math.min(chunkSize(), count() - transferred.get());
-
-        long readed = in.read(fileIo, startPosition() + transferred.get(), batchSize);
-
-        if (readed > 0)
-            transferred.addAndGet(readed);
-
-        if (transmitEnd())
-            handler.acceptFile(file, startPosition(), count(), params());
-    }
-
-
     /**
      * @param out Channel to write data into.
      * @throws IOException If fails.
      */
     public void writeChunk(OutputTransmitChannel out) throws IOException {
-        open();
+        if (fileIo == null) {
+            fileIo = dfltIoFactory.create(Objects.requireNonNull(file));
+
+            fileIo.position(startPosition());
+        }
 
         long batchSize = Math.min(chunkSize(), count() - transferred.longValue());
 
@@ -159,9 +111,6 @@ public class ChunkedFile extends AbstractChunkedObject {
 
         if (sent > 0)
             transferred.addAndGet(sent);
-
-        if (transmitEnd())
-            handler.acceptFile(file, startPosition(), count(), params());
     }
 
     /** {@inheritDoc} */
@@ -173,6 +122,6 @@ public class ChunkedFile extends AbstractChunkedObject {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(ChunkedFile.class, this, "super", super.toString());
+        return S.toString(OutputChunkedFile.class, this, "super", super.toString());
     }
 }

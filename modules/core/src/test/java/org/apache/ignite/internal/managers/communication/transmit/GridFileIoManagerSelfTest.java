@@ -44,9 +44,9 @@ import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFile;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ReadableChunkedObject;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedObject;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
@@ -254,13 +254,13 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         File fileToSend = createFileRandomData("testFile", fileSizeBytes);
 
         receiver.context().io().fileIoMgr().chunkedStreamFactory(new ChunkedObjectFactory() {
-            @Override public ReadableChunkedObject createInputStream(
+            @Override public InputChunkedObject createInputChunkedObject(
                 UUID nodeId,
                 ReadPolicy policy,
                 FileTransmitHandler ses,
                 int chunkSize
             ) throws IgniteCheckedException {
-                return new ChunkedFile(ses.fileHandler(nodeId), chunkSize) {
+                return new InputChunkedFile(ses.fileHandler(nodeId), chunkSize) {
                     @Override public void readChunk(InputTransmitChannel in) throws IOException {
                         // Read 5 chunks than stop the grid.
                         if (chunksCnt.incrementAndGet() == 5)
@@ -305,7 +305,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         final AtomicInteger readedChunks = new AtomicInteger();
 
         receiver.context().io().fileIoMgr().chunkedStreamFactory(new ChunkedObjectFactory() {
-            @Override public ReadableChunkedObject createInputStream(
+            @Override public InputChunkedObject createInputChunkedObject(
                 UUID nodeId,
                 ReadPolicy policy,
                 FileTransmitHandler ses,
@@ -313,7 +313,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             ) throws IgniteCheckedException {
                 assertEquals(policy, ReadPolicy.FILE);
 
-                return new ChunkedFile(ses.fileHandler(nodeId), chunkSize) {
+                return new InputChunkedFile(ses.fileHandler(nodeId), chunkSize) {
                     @Override public void readChunk(InputTransmitChannel in) throws IOException {
                         // Read 4 chunks than throw an exception to emulate error processing.
                         if (readedChunks.incrementAndGet() == 4)

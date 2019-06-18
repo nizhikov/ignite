@@ -40,9 +40,10 @@ import org.apache.ignite.internal.managers.communication.transmit.channel.InputT
 import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteTransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedFile;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ReadableChunkedObject;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedObject;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.OutputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
 import org.apache.ignite.internal.util.GridSpinBusyLock;
@@ -332,7 +333,7 @@ public class GridFileIoManager {
                 if (readCtx.chunkedObj == null)
                     out.writeMeta(new TransmitMeta(readCtx.lastSeenErr));
                 else {
-                    final ReadableChunkedObject obj = readCtx.chunkedObj;
+                    final InputChunkedObject obj = readCtx.chunkedObj;
 
                     out.writeMeta(new TransmitMeta(obj.name(),
                         obj.startPosition() + obj.transferred(),
@@ -410,7 +411,7 @@ public class GridFileIoManager {
      * @throws Exception If processing fails.
      */
     private void onChannelOpened0(Object topic, FileIoReadContext readCtx) throws Exception {
-        ReadableChunkedObject inChunkedObj = null;
+        InputChunkedObject inChunkedObj = null;
 
         try {
             while (!Thread.currentThread().isInterrupted()) {
@@ -435,7 +436,7 @@ public class GridFileIoManager {
                 long startTime = U.currentTimeMillis();
 
                 if (readCtx.chunkedObj == null) {
-                    readCtx.chunkedObj = streamFactory.createInputStream(readCtx.nodeId,
+                    readCtx.chunkedObj = streamFactory.createInputChunkedObject(readCtx.nodeId,
                         readCtx.currPlc,
                         readCtx.session,
                         ioChunkSize);
@@ -446,7 +447,7 @@ public class GridFileIoManager {
                 inChunkedObj.setup(readCtx.currInChannel);
 
                 // Read data from the input.
-                while (!inChunkedObj.transmitEnd()) {
+                while (!inChunkedObj.hasNextChunk()) {
                     if (Thread.currentThread().isInterrupted())
                         throw new InterruptedException("The thread has been interrupted. Stop processing input stream.");
 
@@ -545,7 +546,7 @@ public class GridFileIoManager {
         private ReadPolicy currPlc;
 
         /** Last infinished downloading object. */
-        private ReadableChunkedObject chunkedObj;
+        private InputChunkedObject chunkedObj;
 
         /** Last error occurred while channel is processed by registered session handler. */
         private Exception lastSeenErr;
@@ -567,7 +568,7 @@ public class GridFileIoManager {
 
     /**
      * Implementation of file writer to transfer files with the zero-copy algorithm
-     * (used the {@link ChunkedFile} under the hood).
+     * (used the {@link InputChunkedFile} under the hood).
      */
     private class ChunkedFileWriter implements FileWriter {
         /** Remote node id to connect to. */
@@ -636,22 +637,7 @@ public class GridFileIoManager {
         ) throws IgniteCheckedException {
             int retries = 0;
 
-            ChunkedFile outChunkedObj = new ChunkedFile(
-                new FileHandler() {
-                    @Override public String path(String name, Map<String, Serializable> params) {
-                        return file.getAbsolutePath();
-                    }
-
-                    @Override public void acceptFile(File file, long offset, long cnt, Map<String, Serializable> params) {
-                        if (log.isDebugEnabled())
-                            log.debug("File has been successfully uploaded: " + file.getName());
-                    }
-                },
-                file.getName(),
-                offset,
-                count,
-                ioChunkSize,
-                params);
+            OutputChunkedFile outChunkedObj = new OutputChunkedFile(file, offset, count, ioChunkSize, params);
 
             try {
                 if (log.isDebugEnabled())
@@ -695,7 +681,7 @@ public class GridFileIoManager {
 
                         outChunkedObj.setup(out);
 
-                        while (!outChunkedObj.transmitEnd()) {
+                        while (!outChunkedObj.hasNextChunk()) {
                             if (Thread.currentThread().isInterrupted())
                                 throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
 

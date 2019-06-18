@@ -34,22 +34,22 @@ public class ChunkedObjectFactory {
      * @return The chunked stream instance.
      * @throws IgniteCheckedException If fails.
      */
-    public ReadableChunkedObject createInputStream(
+    public InputChunkedObject createInputChunkedObject(
         UUID nodeId,
         ReadPolicy policy,
         FileTransmitHandler ses,
         int chunkSize
     ) throws IgniteCheckedException {
-        ReadableChunkedObject stream;
+        InputChunkedObject obj;
 
         switch (policy) {
             case FILE:
-                stream = new ChunkedFile(ses.fileHandler(nodeId), chunkSize);
+                obj = new InputChunkedFile(ses.fileHandler(nodeId), chunkSize);
 
                 break;
 
             case BUFF:
-                stream = new ChunkedBuffer(ses.chunkHandler(nodeId), chunkSize);
+                obj = new InputChunkedBuffer(ses.chunkHandler(nodeId), chunkSize);
 
                 break;
 
@@ -58,6 +58,6 @@ public class ChunkedObjectFactory {
                     "required: " + policy);
         }
 
-        return stream;
+        return obj;
     }
 }
