@@ -30,26 +30,24 @@ public class ChunkedObjectFactory {
      * @param nodeId Remote node id.
      * @param plc Policy of how to read input data stream.
      * @param ses The current handler instance which produces file handlers.
-     * @param chunkSize Size of chunk to read.
      * @return Chunked object instance.
      * @throws IgniteCheckedException If fails.
      */
     public InputChunkedObject createInputChunkedObject(
         UUID nodeId,
         ReadPolicy plc,
-        FileTransmitHandler ses,
-        int chunkSize
+        FileTransmitHandler ses
     ) throws IgniteCheckedException {
         InputChunkedObject obj;
 
         switch (plc) {
             case FILE:
-                obj = new InputChunkedFile(ses.fileHandler(nodeId), chunkSize);
+                obj = new InputChunkedFile(ses.fileHandler(nodeId));
 
                 break;
 
             case BUFF:
-                obj = new InputChunkedBuffer(ses.chunkHandler(nodeId), chunkSize);
+                obj = new InputChunkedBuffer(ses.chunkHandler(nodeId));
 
                 break;
 

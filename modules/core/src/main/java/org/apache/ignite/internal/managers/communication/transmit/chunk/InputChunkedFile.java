@@ -51,17 +51,18 @@ public class InputChunkedFile extends InputChunkedObject {
 
     /**
      * @param handler The file handler to process download result.
-     * @param chunkSize The size of chunk to read.
      */
-    public InputChunkedFile(FileHandler handler, int chunkSize) {
-        super(null, -1, -1, chunkSize, null);
+    public InputChunkedFile(FileHandler handler) {
+        super(null, -1, -1, null);
 
         this.handler = Objects.requireNonNull(handler);
     }
 
     /** {@inheritDoc} */
-    @Override protected void init() throws IOException {
+    @Override protected void init(int chunkSize) throws IOException {
         if (file == null) {
+            chunkSize(chunkSize);
+
             String fileAbsPath = handler.path(name(), params());
 
             if (fileAbsPath == null)

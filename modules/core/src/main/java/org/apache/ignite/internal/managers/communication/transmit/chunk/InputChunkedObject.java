@@ -17,7 +17,6 @@
 
 package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
@@ -37,23 +36,22 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
      * @param name The unique file name within transfer process.
      * @param startPos The position from which the transfer should start to.
      * @param cnt The number of bytes to expect of transfer.
-     * @param chunkSize The size of chunk to read.
      * @param params Additional stream params.
      */
     protected InputChunkedObject(
         String name,
         long startPos,
         long cnt,
-        int chunkSize,
         Map<String, Serializable> params
     ) {
-        super(name, startPos, cnt, chunkSize, params);
+        super(name, startPos, cnt, params);
     }
 
     /**
+     * @param chunkSize The size of chunk to read.
      * @throws IOException If fails.
      */
-    protected abstract void init() throws IOException;
+    protected abstract void init(int chunkSize) throws IOException;
 
     /**
      * @param in Channel to read data from.
@@ -62,11 +60,12 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
     public abstract void readChunk(InputTransmitChannel in) throws IOException;
 
     /**
+     * @param chunkSize The size of chunk to read.
      * @param in Channel to read data from.
      * @throws IOException If read meta input failed.
      * @throws IgniteCheckedException If validation failed.
      */
-    public void setup(InputTransmitChannel in) throws IOException, IgniteCheckedException {
+    public void setup(int chunkSize, InputTransmitChannel in) throws IOException, IgniteCheckedException {
         TransmitMeta meta = new TransmitMeta();
 
         in.readMeta(meta);
@@ -78,7 +77,7 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
                 cnt = meta.count();
                 params.putAll(meta.params());
 
-                init();
+                init(chunkSize);
 
                 inited = true;
             }

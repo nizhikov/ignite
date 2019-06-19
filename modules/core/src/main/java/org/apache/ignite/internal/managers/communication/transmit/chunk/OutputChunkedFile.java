@@ -53,17 +53,15 @@ public class OutputChunkedFile extends AbstractChunkedObject {
      * @param file File representation of current object.
      * @param pos File offset.
      * @param cnt Number of bytes to transfer.
-     * @param chunkSize Size of each chunk.
      * @param params Additional file params.
      */
     public OutputChunkedFile(
         File file,
         long pos,
         long cnt,
-        int chunkSize,
         Map<String, Serializable> params
     ) {
-        super(file.getName(), pos, cnt, chunkSize, params);
+        super(file.getName(), pos, cnt, params);
 
         this.file = file;
     }
@@ -82,10 +80,13 @@ public class OutputChunkedFile extends AbstractChunkedObject {
     }
 
     /**
+     * @param chunkSize The size of chunk to read.
      * @param out The channel to write data to.
      * @throws IOException If failed.
      */
-    public void setup(OutputTransmitChannel out) throws IOException {
+    public void setup(int chunkSize, OutputTransmitChannel out) throws IOException {
+        chunkSize(chunkSize);
+
         out.writeMeta(new TransmitMeta(name(),
             startPosition() + transferred(),
             count(),

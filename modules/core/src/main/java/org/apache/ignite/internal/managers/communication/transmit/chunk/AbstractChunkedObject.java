@@ -42,7 +42,7 @@ abstract class AbstractChunkedObject implements Closeable {
     protected final AtomicLong transferred = new AtomicLong();
 
     /** The size of segment for the read. */
-    protected int chunkSize;
+    private int chunkSize;
 
     /** The unique input name to identify particular transfer part. */
     protected String name;
@@ -60,20 +60,17 @@ abstract class AbstractChunkedObject implements Closeable {
      * @param name The unique file name within transfer process.
      * @param startPos The position from which the transfer should start to.
      * @param cnt The number of bytes to expect of transfer.
-     * @param chunkSize The size of chunk to read.
      * @param params Additional stream params.
      */
     protected AbstractChunkedObject(
         String name,
         long startPos,
         long cnt,
-        int chunkSize,
         Map<String, Serializable> params
     ) {
         this.name = name;
         this.startPos = startPos;
         this.cnt = cnt;
-        this.chunkSize = chunkSize;
 
         if (params != null)
             this.params.putAll(params);

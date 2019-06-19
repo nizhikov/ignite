@@ -277,10 +277,9 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             @Override public InputChunkedObject createInputChunkedObject(
                 UUID nodeId,
                 ReadPolicy plc,
-                FileTransmitHandler ses,
-                int chunkSize
+                FileTransmitHandler ses
             ) throws IgniteCheckedException {
-                return new InputChunkedFile(ses.fileHandler(nodeId), chunkSize) {
+                return new InputChunkedFile(ses.fileHandler(nodeId)) {
                     @Override public void readChunk(InputTransmitChannel in) throws IOException {
                         // Read 5 chunks than stop the grid.
                         if (chunksCnt.incrementAndGet() == 5)
@@ -328,12 +327,10 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             @Override public InputChunkedObject createInputChunkedObject(
                 UUID nodeId,
                 ReadPolicy plc,
-                FileTransmitHandler ses,
-                int chunkSize
-            ) throws IgniteCheckedException {
+                FileTransmitHandler ses) throws IgniteCheckedException {
                 assertEquals(plc, ReadPolicy.FILE);
 
-                return new InputChunkedFile(ses.fileHandler(nodeId), chunkSize) {
+                return new InputChunkedFile(ses.fileHandler(nodeId)) {
                     @Override public void readChunk(InputTransmitChannel in) throws IOException {
                         // Read 4 chunks than throw an exception to emulate error processing.
                         if (readedChunks.incrementAndGet() == 4)

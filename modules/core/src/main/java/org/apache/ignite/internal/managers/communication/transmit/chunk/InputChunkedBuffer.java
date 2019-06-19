@@ -36,9 +36,6 @@ public class InputChunkedBuffer extends InputChunkedObject {
     /** Chunked channel handler to process data with chunks. */
     private final ChunkHandler handler;
 
-    /** The size of destination buffer. */
-    private int buffSize;
-
     /** The destination object to transfer data to\from. */
     private ByteBuffer buff;
 
@@ -47,7 +44,6 @@ public class InputChunkedBuffer extends InputChunkedObject {
      * @param name The unique file name within transfer process.
      * @param pos The pos from which the transfer should start to.
      * @param cnt The number of bytes to expect of transfer.
-     * @param chunkSize The size of chunk to read.
      * @param params Additional stream params.
      */
     public InputChunkedBuffer(
@@ -55,33 +51,31 @@ public class InputChunkedBuffer extends InputChunkedObject {
         String name,
         long pos,
         long cnt,
-        int chunkSize,
         Map<String, Serializable> params
     ) {
-        super(name, pos, cnt, chunkSize, params);
+        super(name, pos, cnt, params);
 
         this.handler = Objects.requireNonNull(handler);
     }
 
     /**
      * @param handler The chunk handler to process each chunk.
-     * @param chunkSize The size of chunk to read.
      */
-    public InputChunkedBuffer(ChunkHandler handler, int chunkSize) {
-        this(handler, null, -1, -1, chunkSize, null);
+    public InputChunkedBuffer(ChunkHandler handler) {
+        this(handler, null, -1, -1, null);
     }
 
     /** {@inheritDoc} */
-    @Override protected void init() throws IOException {
+    @Override protected void init(int chunkSize) throws IOException {
         if (buff == null) {
-            buffSize = handler.begin(name(), params());
+            int buffSize = handler.begin(name(), params());
 
-            assert buffSize > 0;
+            int size = buffSize > 0 ? buffSize : chunkSize;
 
-            buff = ByteBuffer.allocate(buffSize);
+            chunkSize(size);
+
+            buff = ByteBuffer.allocate(size);
             buff.order(ByteOrder.nativeOrder());
-
-            chunkSize(buffSize);
         }
     }
 

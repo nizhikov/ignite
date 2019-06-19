@@ -128,8 +128,8 @@ public class GridFileIoManager {
     /** The maximum number of retry attempts (read or write attempts). */
     private volatile int retryCnt = DFLT_RETRY_CNT;
 
-    /** The size of stream chunks. */
-    private int ioChunkSize = DFLT_CHUNK_SIZE_BYTES;
+    /** The size of each chunks of chunked objects. */
+    private int chunkSize = DFLT_CHUNK_SIZE_BYTES;
 
     /**
      * @param ctx Kernal context.
@@ -439,13 +439,12 @@ public class GridFileIoManager {
                 if (readCtx.chunkedObj == null) {
                     readCtx.chunkedObj = streamFactory.createInputChunkedObject(readCtx.nodeId,
                         readCtx.currPlc,
-                        readCtx.session,
-                        ioChunkSize);
+                        readCtx.session);
                 }
 
                 inChunkedObj = readCtx.chunkedObj;
 
-                inChunkedObj.setup(readCtx.currInChannel);
+                inChunkedObj.setup(chunkSize, readCtx.currInChannel);
 
                 boolean acquired;
 
@@ -641,7 +640,7 @@ public class GridFileIoManager {
         ) throws IgniteCheckedException {
             int retries = 0;
 
-            OutputChunkedFile outChunkedObj = new OutputChunkedFile(file, offset, count, ioChunkSize, params);
+            OutputChunkedFile outChunkedObj = new OutputChunkedFile(file, offset, count, params);
 
             try {
                 if (log.isDebugEnabled())
@@ -683,7 +682,7 @@ public class GridFileIoManager {
                         // Write the policy how to handle input data.
                         out.writeInt(plc.ordinal());
 
-                        outChunkedObj.setup(out);
+                        outChunkedObj.setup(chunkSize, out);
 
                         boolean acquired;
 
