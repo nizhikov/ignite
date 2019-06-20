@@ -109,12 +109,12 @@ public class OutputChunkedFile extends AbstractChunkedObject {
             fileIo.position(startPosition());
         }
 
-        long batchSize = Math.min(chunkSize(), count() - transferred.longValue());
+        long batchSize = Math.min(chunkSize(), count() - transferred);
 
-        long sent = fileIo.transferTo(startPosition() + transferred.longValue(), batchSize, ch);
+        long sent = fileIo.transferTo(startPosition() + transferred, batchSize, ch);
 
         if (sent > 0)
-            transferred.addAndGet(sent);
+            transferred += sent;
 
         checkTransferLimitCount();
     }

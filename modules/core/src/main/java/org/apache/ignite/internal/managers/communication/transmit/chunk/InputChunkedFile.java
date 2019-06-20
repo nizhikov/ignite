@@ -80,14 +80,14 @@ public class InputChunkedFile extends InputChunkedObject {
             fileIo.position(startPosition());
         }
 
-        long batchSize = Math.min(chunkSize(), count() - transferred.get());
+        long batchSize = Math.min(chunkSize(), count() - transferred);
 
-        long readed = fileIo.transferFrom(ch, startPosition() + transferred.get(), batchSize);
+        long readed = fileIo.transferFrom(ch, startPosition() + transferred, batchSize);
 
         if (readed > 0)
-            transferred.addAndGet(readed);
+            transferred += readed;
 
-        if (transferred.get() == cnt)
+        if (transferred == cnt)
             handler.acceptFile(file, startPosition(), count(), params());
 
         checkTransferLimitCount();

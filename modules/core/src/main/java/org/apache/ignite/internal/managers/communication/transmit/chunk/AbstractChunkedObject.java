@@ -24,7 +24,6 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
@@ -38,8 +37,7 @@ abstract class AbstractChunkedObject implements Closeable {
     protected final Map<String, Serializable> params = new HashMap<>();
 
     /** The number of bytes successfully transferred druring iteration. */
-    @GridToStringInclude
-    protected final AtomicLong transferred = new AtomicLong();
+    protected long transferred;
 
     /** The size of segment for the read. */
     private int chunkSize;
@@ -117,14 +115,16 @@ abstract class AbstractChunkedObject implements Closeable {
      * @return Number of bytes which has been transfered.
      */
     public long transferred() {
-        return transferred.get();
+        return transferred;
     }
 
     /**
      * @param cnt The number of bytes which has been already transferred.
      */
     public void transferred(long cnt) {
-        transferred.set(cnt);
+        assert cnt >= 0;
+
+        transferred = cnt;
     }
 
     /**
@@ -138,16 +138,16 @@ abstract class AbstractChunkedObject implements Closeable {
      * @return {@code true} if and only if a chunked object has received all the data it expects.
      */
     public boolean hasNextChunk() {
-        return transferred.get() < cnt;
+        return transferred < cnt;
     }
 
     /**
      * @throws IOException If fails.
      */
     protected void checkTransferLimitCount() throws IOException {
-        if (transferred.get() > cnt) {
+        if (transferred > cnt) {
             throw new IOException("File has been transferred with incorrect size " +
-                "[expect=" + cnt + ", actual=" + transferred.get() + ']');
+                "[expect=" + cnt + ", actual=" + transferred + ']');
         }
     }
 

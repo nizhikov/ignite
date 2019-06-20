@@ -333,7 +333,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
                         super.readChunk(ch);
 
-                        assertTrue(transferred.get() > 0);
+                        assertTrue(transferred > 0);
                     }
                 };
             }

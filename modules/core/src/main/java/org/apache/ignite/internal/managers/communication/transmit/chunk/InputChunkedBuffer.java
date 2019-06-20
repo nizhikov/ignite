@@ -85,10 +85,10 @@ public class InputChunkedBuffer extends InputChunkedObject {
 
         long readed = ch.read(buff);
 
-        long chunkPos;
+        long chunkPos = transferred;
 
         if (readed > 0)
-            chunkPos = transferred.getAndAdd(readed);
+            transferred += readed;
         else if (readed < 0 || transferred() < count())
             throw new TransmitException("Socket has been unexpectedly closed, but stream is not fully processed");
         else
@@ -102,7 +102,7 @@ public class InputChunkedBuffer extends InputChunkedObject {
         if (!accepted)
             throw new IOException("The buffer was rejected by handler");
 
-        if (transferred.get() == cnt)
+        if (transferred == cnt)
             handler.end(params());
 
         checkTransferLimitCount();
