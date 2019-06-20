@@ -85,14 +85,13 @@ public class InputChunkedBuffer extends InputChunkedObject {
     @Override public void readChunk(ReadableByteChannel ch) throws IOException {
         buff.rewind();
 
-        long readed = ch.read(buff);
-
+        long readed = readFully(ch, buff);
         long chunkPos = transferred;
 
         if (readed > 0)
             transferred += readed;
         else if (readed < 0 || transferred() < count())
-            throw new TransmitException("Socket has been unexpectedly closed, but stream is not fully processed");
+            throw new TransmitException("Input data channel reached its end, but chunked object is not fully loaded");
         else
             // readed == 0
             return;
@@ -108,6 +107,30 @@ public class InputChunkedBuffer extends InputChunkedObject {
             handler.end(params());
 
         checkTransferLimitCount();
+    }
+
+    /**
+     * Reads data from input channel utill the given buffer will be completely
+     * filled ({@code buff.remaining()} returns 0).
+     *
+     * @param ch Channel to read data from.
+     * @param buff Buffer to write data to.
+     * @return {@code -1} if the end is reached before any bytes are read, or number of bytes actually readed.
+     */
+    private static int readFully(ReadableByteChannel ch, ByteBuffer buff) throws IOException {
+        int total = 0;
+
+        while (true) {
+            int readed = ch.read(buff);
+
+            if (readed < 0)
+                return total == 0 ? -1 : total;
+
+            total += readed;
+
+            if (total == buff.capacity() || buff.position() == buff.capacity())
+                return total;
+        }
     }
 
     /** {@inheritDoc} */
