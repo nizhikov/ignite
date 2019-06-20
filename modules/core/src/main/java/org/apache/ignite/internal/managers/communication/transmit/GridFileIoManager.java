@@ -472,7 +472,7 @@ public class GridFileIoManager {
                 readCtx.chunkedObj = null;
 
                 // Write chunked object processing ack.
-                out.writeLong(inChunkedObj.count());
+                out.writeLong(inChunkedObj.transferred());
                 out.flush();
 
                 long downloadTime = U.currentTimeMillis() - startTime;
@@ -750,7 +750,9 @@ public class GridFileIoManager {
                         outChunkedObj.close();
 
                         // Read file received acknowledge.
-                        in.readLong();
+                        long total = in.readLong();
+
+                        assert total == outChunkedObj.transferred();
 
                         break;
                     }
