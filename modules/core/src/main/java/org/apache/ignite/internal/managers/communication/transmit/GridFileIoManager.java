@@ -237,9 +237,7 @@ public class GridFileIoManager {
                     FileIoReadContext ioctx = sesEntry.getValue();
 
                     if (ioctx.nodeId.equals(leftNodeId)) {
-                        ClusterTopologyCheckedException ex;
-
-                        ioctx.hndlr.onException(ex = new ClusterTopologyCheckedException("Failed to proceed download. " +
+                        ioctx.hndlr.onException(new ClusterTopologyCheckedException("Failed to proceed download. " +
                             "The remote node node left the grid: " + leftNodeId));
 
                         sesCtxMap.remove(sesEntry.getKey());
