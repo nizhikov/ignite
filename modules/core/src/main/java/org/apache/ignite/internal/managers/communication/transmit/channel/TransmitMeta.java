@@ -167,13 +167,18 @@ public class TransmitMeta implements Externalizable {
     }
 
     /** {@inheritDoc} */
-    @Override public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-        name = Objects.requireNonNull(in.readUTF());
-        offset = in.readLong();
-        cnt = in.readLong();
-        initial = in.readBoolean();
-        map = (HashMap)in.readObject();
-        err = (Exception)in.readObject();
+    @Override public void readExternal(ObjectInput in) throws IOException {
+        try {
+            name = Objects.requireNonNull(in.readUTF());
+            offset = in.readLong();
+            cnt = in.readLong();
+            initial = in.readBoolean();
+            map = (HashMap)in.readObject();
+            err = (Exception)in.readObject();
+        }
+        catch (ClassNotFoundException e) {
+            throw new IOException("Required class information for deserializing meta not found", e);
+        }
     }
 
     /** {@inheritDoc} */
