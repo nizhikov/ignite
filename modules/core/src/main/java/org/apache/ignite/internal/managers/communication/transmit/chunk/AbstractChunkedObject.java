@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
+import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
@@ -35,6 +35,15 @@ abstract class AbstractChunkedObject implements Closeable {
     /** Additional stream params. */
     @GridToStringInclude
     protected final Map<String, Serializable> params = new HashMap<>();
+
+    /**
+     * Read opration speed limiter. Provide single permit per loaded byte
+     * within <tt>1</tt> sec period of time.
+     */
+    protected TimedSemaphore limiter;
+
+    /** Node stopping checker. */
+    protected Runnable nodeStopChecker;
 
     /** The number of bytes successfully transferred druring iteration. */
     protected long transferred;
@@ -53,6 +62,9 @@ abstract class AbstractChunkedObject implements Closeable {
 
     /** The total number of bytes to send. */
     protected long cnt;
+
+    /** Initialization completion flag. */
+    protected boolean inited;
 
     /**
      * @param name The unique file name within transfer process.
@@ -103,28 +115,10 @@ abstract class AbstractChunkedObject implements Closeable {
     }
 
     /**
-     * @param chunkSize The size of chunk in bytes.
-     */
-    protected void chunkSize(int chunkSize) {
-        assert chunkSize > 0;
-
-        this.chunkSize = chunkSize;
-    }
-
-    /**
      * @return Number of bytes which has been transfered.
      */
     public long transferred() {
         return transferred;
-    }
-
-    /**
-     * @param cnt The number of bytes which has been already transferred.
-     */
-    public void transferred(long cnt) {
-        assert cnt >= 0;
-
-        transferred = cnt;
     }
 
     /**
@@ -135,9 +129,27 @@ abstract class AbstractChunkedObject implements Closeable {
     }
 
     /**
+     * @param chunkSize The size of chunk in bytes.
+     */
+    protected void chunkSize(int chunkSize) {
+        assert chunkSize > 0;
+
+        this.chunkSize = chunkSize;
+    }
+
+    /**
+     * @param cnt The number of bytes which has been already transferred.
+     */
+    protected void transferred(long cnt) {
+        assert cnt >= 0;
+
+        transferred = cnt;
+    }
+
+    /**
      * @return {@code true} if and only if a chunked object has received all the data it expects.
      */
-    public boolean hasNextChunk() {
+    protected boolean hasNextChunk() {
         return transferred < cnt;
     }
 

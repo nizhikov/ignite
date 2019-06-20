@@ -18,21 +18,21 @@
 package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.IOException;
-import java.io.ObjectInputStream;
+import java.io.ObjectInput;
 import java.io.Serializable;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
+import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 
 /**
  * Class represents an object which can be read from a channel by chunks of
  * predefined size. Closes when a transmission of represented object ends.
  */
 public abstract class InputChunkedObject extends AbstractChunkedObject {
-    /** Initialization completion flag. */
-    private boolean inited;
-
     /**
      * @param name The unique file name within transfer process.
      * @param startPos The position from which the transfer should start to.
@@ -58,15 +58,63 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
      * @param ch Channel to read data from.
      * @throws IOException If fails.
      */
-    public abstract void readChunk(ReadableByteChannel ch) throws IOException;
+    protected abstract void readChunk(ReadableByteChannel ch) throws IOException;
 
     /**
-     * @param chunkSize The size of chunk to read.
+     * @param ch Input channel to read data from.
+     * @param timeout Maximum time to wait permission on each chunk.
+     * @param unit Time unit of the {@code timeout} argument.
+     * @throws IOException If an io exception occurred.
+     * @throws IgniteCheckedException If some check failed.
+     * @throws InterruptedException If operation has been interrupted.
+     */
+    public void doRead(ReadableByteChannel ch, int timeout, TimeUnit unit)
+        throws IOException, IgniteCheckedException, InterruptedException {
+        if (!inited)
+            throw new IgniteCheckedException("Read operation stopped. Chunked object is not initialized");
+
+        boolean acquired;
+
+        // Read data from the input.
+        while (hasNextChunk()) {
+            if (Thread.currentThread().isInterrupted())
+                throw new InterruptedException("Thread has been interrupted. Channel processing has been stopped.");
+
+            nodeStopChecker.run();
+
+            // If the limit of permits at appropriate period of time reached,
+            // the furhter invocations of the #acuqire(int) method will be blocked.
+            acquired = limiter.tryAcquire(chunkSize(), timeout, unit);
+
+            if (!acquired) {
+                throw new TransmitException("Download speed is too slow " +
+                    "[downloadSpeed=" + limiter.permitsPerSec() + " byte/sec]");
+            }
+
+            readChunk(ch);
+        }
+    }
+
+    /**
      * @param in Channel to read data from.
+     * @param chunkSize The size of chunk to read.
+     * @param limiter Input data speed limiter.
+     * @param checker Node stopping flag.
      * @throws IOException If read meta input failed.
      * @throws IgniteCheckedException If validation failed.
      */
-    public void setup(int chunkSize, ObjectInputStream in) throws IOException, IgniteCheckedException {
+    public void setup(
+        ObjectInput in,
+        int chunkSize,
+        TimedSemaphore limiter,
+        Runnable checker
+    ) throws IOException, IgniteCheckedException {
+        assert checker != null;
+        assert limiter != null;
+
+        this.nodeStopChecker = checker;
+        this.limiter = limiter;
+
         TransmitMeta meta = new TransmitMeta();
 
         meta.readExternal(in);

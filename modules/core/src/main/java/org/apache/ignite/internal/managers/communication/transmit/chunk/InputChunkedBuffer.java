@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.ChunkHandler;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -86,6 +88,7 @@ public class InputChunkedBuffer extends InputChunkedObject {
         buff.rewind();
 
         long readed = readFully(ch, buff);
+
         long chunkPos = transferred;
 
         if (readed > 0)
@@ -102,6 +105,15 @@ public class InputChunkedBuffer extends InputChunkedObject {
 
         if (!accepted)
             throw new IOException("The buffer was rejected by handler");
+    }
+
+    /** {@inheritDoc} */
+    @Override public void doRead(
+        ReadableByteChannel ch,
+        int timeout,
+        TimeUnit unit
+    ) throws IOException, IgniteCheckedException, InterruptedException {
+        super.doRead(ch, timeout, unit);
 
         if (transferred == cnt)
             handler.end(params());

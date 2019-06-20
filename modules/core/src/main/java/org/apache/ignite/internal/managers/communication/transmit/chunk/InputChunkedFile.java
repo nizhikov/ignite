@@ -21,6 +21,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
+import java.util.concurrent.TimeUnit;
+import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.FileHandler;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
@@ -76,6 +78,20 @@ public class InputChunkedFile extends InputChunkedObject {
 
     /** {@inheritDoc} */
     @Override public void readChunk(ReadableByteChannel ch) throws IOException {
+        long batchSize = Math.min(chunkSize(), count() - transferred);
+
+        long readed = fileIo.transferFrom(ch, startPosition() + transferred, batchSize);
+
+        if (readed > 0)
+            transferred += readed;
+    }
+
+    /** {@inheritDoc} */
+    @Override public void doRead(
+        ReadableByteChannel ch,
+        int timeout,
+        TimeUnit unit
+    ) throws IOException, IgniteCheckedException, InterruptedException {
         if (fileIo == null) {
             if (file == null)
                 throw new IOException("Chunked file instance is not initialized");
@@ -85,12 +101,7 @@ public class InputChunkedFile extends InputChunkedObject {
             fileIo.position(startPosition());
         }
 
-        long batchSize = Math.min(chunkSize(), count() - transferred);
-
-        long readed = fileIo.transferFrom(ch, startPosition() + transferred, batchSize);
-
-        if (readed > 0)
-            transferred += readed;
+        super.doRead(ch, timeout, unit);
 
         if (transferred == cnt)
             handler.acceptFile(file, startPosition(), count(), params());

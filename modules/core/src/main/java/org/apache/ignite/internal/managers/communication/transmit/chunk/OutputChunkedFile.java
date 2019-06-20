@@ -24,8 +24,12 @@ import java.io.Serializable;
 import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
+import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
@@ -54,18 +58,22 @@ public class OutputChunkedFile extends AbstractChunkedObject {
      * @param pos File offset.
      * @param cnt Number of bytes to transfer.
      * @param params Additional file params.
+     * @param chunkSize The size of chunk to read.
      */
     public OutputChunkedFile(
         File file,
         long pos,
         long cnt,
-        Map<String, Serializable> params
+        Map<String, Serializable> params,
+        int chunkSize
     ) {
         super(file.getName(), pos, cnt, params);
 
         assert file != null;
 
         this.file = file;
+
+        chunkSize(chunkSize);
     }
 
     /** {@inheritDoc} */
@@ -82,12 +90,25 @@ public class OutputChunkedFile extends AbstractChunkedObject {
     }
 
     /**
-     * @param chunkSize The size of chunk to read.
-     * @param oo Object output stream to write data to.
-     * @throws IOException If failed.
+     * @param oo Channel to write data to.
+     * @param uploadedBytes Number of bytes transferred on previous attempt.
+     * @param limiter Input data speed limiter.
+     * @param checker Node stop checker.
+     * @throws IOException If write meta input failed.
      */
-    public void setup(int chunkSize, ObjectOutput oo) throws IOException {
-        chunkSize(chunkSize);
+    public void setup(
+        ObjectOutput oo,
+        long uploadedBytes,
+        TimedSemaphore limiter,
+        Runnable checker
+    ) throws IOException {
+        assert checker != null;
+        assert limiter != null;
+
+        this.limiter = limiter;
+        this.nodeStopChecker = checker;
+
+        transferred(uploadedBytes);
 
         TransmitMeta meta = new TransmitMeta(name(),
             startPosition() + transferred(),
@@ -97,27 +118,66 @@ public class OutputChunkedFile extends AbstractChunkedObject {
             null);
 
         meta.writeExternal(oo);
+
+        inited = true;
     }
 
     /**
-     * @param ch Channel to write data into.
-     * @throws IOException If fails.
+     * @param ch Output channel to write data to.
+     * @param timeout Maximum time to wait permission on each chunk.
+     * @param unit Time unit of the {@code timeout} argument.
+     * @throws IOException If an io exception occurred.
+     * @throws IgniteCheckedException If fails.
+     * @throws InterruptedException If operation has been interrupted.
      */
-    public void writeChunk(WritableByteChannel ch) throws IOException {
+    public void doWrite(
+        WritableByteChannel ch,
+        int timeout,
+        TimeUnit unit
+    ) throws IOException, IgniteCheckedException, InterruptedException {
+        if (!inited)
+            throw new IgniteCheckedException("Write operation stopped. Chunked object is not initialized");
+
         if (fileIo == null) {
             fileIo = dfltIoFactory.create(file);
 
             fileIo.position(startPosition());
         }
 
+        boolean acquired;
+
+        while (hasNextChunk()) {
+            if (Thread.currentThread().isInterrupted())
+                throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
+
+            nodeStopChecker.run();
+
+            // If the limit of permits at appropriate period of time reached,
+            // the furhter invocations of the #acuqire(int) method will be blocked.
+            acquired = limiter.tryAcquire(chunkSize(), timeout, unit);
+
+            if (!acquired) {
+                throw new TransmitException("Upload speed is too slow " +
+                    "[uploadSpeed=" + limiter.permitsPerSec() + " byte/sec]");
+            }
+
+            writeChunk(ch);
+        }
+
+        checkTransferLimitCount();
+    }
+
+    /**
+     * @param ch Channel to write data into.
+     * @throws IOException If fails.
+     */
+    private void writeChunk(WritableByteChannel ch) throws IOException {
         long batchSize = Math.min(chunkSize(), count() - transferred);
 
         long sent = fileIo.transferTo(startPosition() + transferred, batchSize, ch);
 
         if (sent > 0)
             transferred += sent;
-
-        checkTransferLimitCount();
     }
 
     /** {@inheritDoc} */
