@@ -17,11 +17,21 @@
 
 package org.apache.ignite.internal.managers.communication.transmit;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.net.SocketTimeoutException;
+import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.Channel;
+import java.nio.channels.ClosedChannelException;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -36,8 +46,6 @@ import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
-import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
@@ -82,6 +90,18 @@ public class GridFileIoManager {
 
     /** Flag send to remote on file writer close. */
     private static final int FILE_WRITER_CLOSED = -1;
+
+    /** Default timeout in milleseconds to wait an IO data on socket. See Socket#setSoTimeout(int). */
+    private static final int DFLT_IO_TIMEOUT_MILLIS = 5_000;
+
+    /** Message if connection have been dropped by remote by network issues. */
+    private static final String RESET_BY_PEER_MSG = "Connection reset by peer";
+
+    /** Message if connection has been closed by remote (e.g. thread interrupted). */
+    private static final String CLOSED_BY_REMOTE_MSG = "An existing connection was forcibly closed by the remote host";
+
+    /** Message if conneciton has been closed by remote handler. */
+    private static final String ABORTED_BY_SOFTWARE_MSG = "An established connection was aborted by the software";
 
     /** Ignite kernal context. */
     private final GridKernalContext ctx;
@@ -143,26 +163,6 @@ public class GridFileIoManager {
 
         inBytePermits = new TimedSemaphore(DFLT_RATE_LIMIT_BYTES);
         outBytePermits = new TimedSemaphore(DFLT_RATE_LIMIT_BYTES);
-    }
-
-    /**
-     * Get the maximum number of retry attempts used for uploading or downloading file when the socket connection
-     * has been dropped by network issues.
-     *
-     * @return The number of retry attempts.
-     */
-    public int retryCnt() {
-        return retryCnt;
-    }
-
-    /**
-     * Set the maximum number of retry attempts used for uploading or downloading file when the socket connection
-     * has been dropped by network issues.
-     *
-     * @param retryCnt The number of retry attempts.
-     */
-    public void retryCnt(int retryCnt) {
-        this.retryCnt = retryCnt;
     }
 
     /**
@@ -228,7 +228,7 @@ public class GridFileIoManager {
                     if (ioctx.nodeId.equals(leftNodeId)) {
                         ClusterTopologyCheckedException ex;
 
-                        ioctx.session.onException(ex = new ClusterTopologyCheckedException("Failed to proceed download. " +
+                        ioctx.hndlr.onException(ex = new ClusterTopologyCheckedException("Failed to proceed download. " +
                             "The remote node node left the grid: " + leftNodeId));
 
                         sesCtxMap.remove(sesEntry.getKey());
@@ -277,7 +277,7 @@ public class GridFileIoManager {
      * @param initMsg Channel initialization message with additional params.
      * @param channel Channel instance.
      */
-    public void onChannelOpened(Object topic, UUID nodeId, SessionChannelMessage initMsg, Channel channel) {
+    public void onChannelOpened(Object topic, UUID nodeId, SessionChannelMessage initMsg, SocketChannel channel) {
         FileTransmitHandler session = topicHandlerMap.get(topic);
 
         if (session == null)
@@ -285,22 +285,26 @@ public class GridFileIoManager {
 
         FileIoReadContext readCtx = sesCtxMap.computeIfAbsent(topic, t -> new FileIoReadContext(nodeId, session));
 
-        InputTransmitChannel in = null;
-        OutputTransmitChannel out = null;
+        ObjectInputStream in = null;
+        ObjectOutputStream out = null;
 
         try {
-            in = new InputTransmitChannel(log, (SocketChannel)channel);
-            out = new OutputTransmitChannel(log, (SocketChannel)channel);
+            configureBlocking(channel);
+
+            in = new ObjectInputStream(channel.socket().getInputStream());
+            out = new ObjectOutputStream(channel.socket().getOutputStream());
 
             // Do not allow multiple connection for the same session id;
             if (!readCtx.inProgress.compareAndSet(false, true)) {
-                IgniteCheckedException ex = new IgniteCheckedException("Current topic is already being handled by " +
+                IgniteCheckedException ex;
+
+                U.warn(log, ex = new IgniteCheckedException("Current topic is already being handled by " +
                     "another thread. Channel will be closed [initMsg=" + initMsg + ", channel=" + channel +
-                    ", fromNodeId=" + nodeId + ']');
+                    ", fromNodeId=" + nodeId + ']'));
 
-                out.writeMeta(new TransmitMeta(ex));
+                TransmitMeta exMeta = new TransmitMeta(ex);
 
-                U.warn(log, ex);
+                exMeta.writeExternal(out);
 
                 return;
             }
@@ -316,7 +320,7 @@ public class GridFileIoManager {
                 else if (!readCtx.sesId.equals(newSesId)) {
                     // Attempt to receive file with new session id. Context must be reinited,
                     // previous session must be failed.
-                    readCtx.session.onException(new IgniteCheckedException("The handler has been aborted " +
+                    readCtx.hndlr.onException(new IgniteCheckedException("The handler has been aborted " +
                         "by transfer attempt with a new sessionId: " + newSesId));
 
                     readCtx = new FileIoReadContext(nodeId, session);
@@ -326,27 +330,28 @@ public class GridFileIoManager {
                     sesCtxMap.put(topic, readCtx);
                 }
 
-                readCtx.currInChannel = in;
-                readCtx.currOutChannel = out;
+                TransmitMeta meta;
 
                 // Send previous context state to sync remote and local node (on manager connected).
                 if (readCtx.chunkedObj == null)
-                    out.writeMeta(new TransmitMeta(readCtx.lastSeenErr));
+                    meta = new TransmitMeta(readCtx.lastSeenErr);
                 else {
                     final InputChunkedObject obj = readCtx.chunkedObj;
 
-                    out.writeMeta(new TransmitMeta(obj.name(),
+                    meta = new TransmitMeta(obj.name(),
                         obj.startPosition() + obj.transferred(),
                         obj.count(),
                         obj.transferred() == 0,
                         obj.params(),
-                        readCtx.lastSeenErr));
+                        readCtx.lastSeenErr);
                 }
+
+                meta.writeExternal(out);
 
                 try {
                     // Init handler.
                     if (readCtx.started.compareAndSet(false, true))
-                        readCtx.session.onBegin(nodeId);
+                        readCtx.hndlr.onBegin(nodeId);
                 }
                 catch (Throwable t) {
                     readCtx.started.set(false);
@@ -363,15 +368,15 @@ public class GridFileIoManager {
                 busyLock.leaveBusy();
             }
 
-            onChannelOpened0(topic, readCtx);
+            onChannelOpened0(topic, readCtx, in, out, channel);
         }
         catch (Throwable t) {
-            log.error("The download session cannot be finished due to unexpected error " +
+            U.error(log, "The download session cannot be finished due to unexpected error " +
                 "[ctx=" + readCtx + ", sesId=" + readCtx.sesId + ']', t);
 
-            readCtx.lastSeenErr = new IgniteCheckedException("Error channel processing [nodeId=" + nodeId + ']', t);
+            readCtx.lastSeenErr = new IgniteCheckedException("Channel processing error [nodeId=" + nodeId + ']', t);
 
-            readCtx.session.onException(t);
+            readCtx.hndlr.onException(t);
         }
         finally {
             U.closeQuiet(in);
@@ -410,7 +415,13 @@ public class GridFileIoManager {
      * @param readCtx The handler read context.
      * @throws Exception If processing fails.
      */
-    private void onChannelOpened0(Object topic, FileIoReadContext readCtx) throws Exception {
+    private void onChannelOpened0(
+        Object topic,
+        FileIoReadContext readCtx,
+        ObjectInputStream in,
+        ObjectOutputStream out,
+        ReadableByteChannel channel
+    ) throws Exception {
         InputChunkedObject inChunkedObj = null;
 
         try {
@@ -418,10 +429,10 @@ public class GridFileIoManager {
                 checkNotStopped();
 
                 // Read current stream session policy
-                int plcInt = readCtx.currInChannel.readInt();
+                int plcInt = in.readInt();
 
                 if (plcInt == FILE_WRITER_CLOSED) {
-                    readCtx.session.onEnd(readCtx.nodeId);
+                    readCtx.hndlr.onEnd(readCtx.nodeId);
 
                     sesCtxMap.remove(topic);
 
@@ -438,12 +449,12 @@ public class GridFileIoManager {
                 if (readCtx.chunkedObj == null) {
                     readCtx.chunkedObj = streamFactory.createInputChunkedObject(readCtx.nodeId,
                         readCtx.currPlc,
-                        readCtx.session);
+                        readCtx.hndlr);
                 }
 
                 inChunkedObj = readCtx.chunkedObj;
 
-                inChunkedObj.setup(chunkSize, readCtx.currInChannel);
+                inChunkedObj.setup(chunkSize, in);
 
                 boolean acquired;
 
@@ -464,7 +475,7 @@ public class GridFileIoManager {
                             "[downloadSpeed=" + inBytePermits.permitsPerSec() + " byte/sec]");
                     }
 
-                    inChunkedObj.readChunk(readCtx.currInChannel);
+                    inChunkedObj.readChunk(channel);
                 }
 
                 inChunkedObj.close();
@@ -472,7 +483,8 @@ public class GridFileIoManager {
                 readCtx.chunkedObj = null;
 
                 // Write chunked object processing ack.
-                readCtx.currOutChannel.acknowledge(inChunkedObj.count());
+                out.writeLong(inChunkedObj.count());
+                out.flush();
 
                 long downloadTime = U.currentTimeMillis() - startTime;
 
@@ -483,19 +495,21 @@ public class GridFileIoManager {
                     ", retries=" + readCtx.retries);
             }
         }
-        catch (TransmitException e) {
-            // Waiting for re-establishing connection.
-            log.warning("The connection lost. Waiting for the new one to continue file upload " +
-                "[sesId=" + readCtx.sesId + ']', e);
+        catch (IOException e) {
+            if (transmitIOException(e)) {
+                // Waiting for re-establishing connection.
+                U.warn(log, "Сonnection from the remote node lost. Will wait for the new one to continue file " +
+                    "download " + "[nodeId=" + readCtx.nodeId + ", sesId=" + readCtx.sesId + ']', e);
 
-            readCtx.retries++;
+                readCtx.retries++;
 
-            if (readCtx.retries == retryCnt) {
-                IOException ex = new IOException("The number of retry attempts exceeded the limit. " +
-                    "Max attempts: " + retryCnt, e);
-
-                readCtx.session.onException(ex);
+                if (readCtx.retries == retryCnt) {
+                    throw  new IOException("Number of retry attempts to download file exceeded the limit. " +
+                        "Max attempts: " + retryCnt, e);
+                }
             }
+            else
+                throw e;
         }
         finally {
             readCtx.inProgress.set(false);
@@ -514,6 +528,45 @@ public class GridFileIoManager {
     }
 
     /**
+     * @param channel Socket channel to configure blocking mode.
+     * @throws IOException If fails.
+     */
+    private static void configureBlocking(SocketChannel channel) throws IOException {
+        // Timeout must be enabled prior to entering the blocking mode to have effect.
+        channel.socket().setSoTimeout(DFLT_IO_TIMEOUT_MILLIS);
+        channel.configureBlocking(true);
+    }
+
+    /**
+     * @param ex IO exception to check.
+     * @return {@code true} if an IOException related to connection problems.
+     */
+    private static boolean transmitIOException(IOException ex) {
+        // The set of local issues with connection.
+        if (ex instanceof TransmitException ||
+            ex instanceof EOFException ||
+            ex instanceof ClosedChannelException ||
+            ex instanceof SocketTimeoutException ||
+            ex instanceof AsynchronousCloseException) {
+            // Return the new one with detailed message.
+            return true;
+        }
+        else if (ex instanceof IOException) {
+            // Improve IOException connection error handling
+            String causeMsg = ex.getMessage();
+
+            if (causeMsg == null)
+                return false;
+
+            return causeMsg.startsWith(RESET_BY_PEER_MSG) ||
+                causeMsg.startsWith(CLOSED_BY_REMOTE_MSG) ||
+                causeMsg.startsWith(ABORTED_BY_SOFTWARE_MSG);
+        }
+
+        return false;
+    }
+
+    /**
      * Read context holds all the information about current transfer read from channel process.
      */
     private static class FileIoReadContext {
@@ -525,7 +578,7 @@ public class GridFileIoManager {
 
         /** Current sesssion handler. */
         @GridToStringExclude
-        private final FileTransmitHandler session;
+        private final FileTransmitHandler hndlr;
 
         /** Flag indicates session started. */
         private final AtomicBoolean started = new AtomicBoolean();
@@ -535,14 +588,6 @@ public class GridFileIoManager {
 
         /** The number of retry attempts of current session to wait. */
         private int retries;
-
-        /** The currently used input channel (updated on reconnect). */
-        @GridToStringExclude
-        private InputTransmitChannel currInChannel;
-
-        /** The currently used output channel (updated on reconnect). */
-        @GridToStringExclude
-        private OutputTransmitChannel currOutChannel;
 
         /** Read policy of the way of handling input data. */
         private ReadPolicy currPlc;
@@ -555,11 +600,11 @@ public class GridFileIoManager {
 
         /**
          * @param nodeId Remote node id.
-         * @param session Channel handler of current topic.
+         * @param hndlr Channel handler of current topic.
          */
-        public FileIoReadContext(UUID nodeId, FileTransmitHandler session) {
+        public FileIoReadContext(UUID nodeId, FileTransmitHandler hndlr) {
             this.nodeId = nodeId;
-            this.session = session;
+            this.hndlr = hndlr;
         }
 
         /** {@inheritDoc} */
@@ -582,11 +627,14 @@ public class GridFileIoManager {
         /** Current unique session id to transfer files. */
         private IgniteUuid sesId;
 
-        /** Data output channel. */
-        private OutputTransmitChannel out;
+        /** Instance of opened writable channel to work with. */
+        private WritableByteChannel sockChnl;
 
-        /** Data intput channel. */
-        private InputTransmitChannel in;
+        /** Decorated with data operations socket of output channel. */
+        private ObjectOutput out;
+
+        /** Decoreated with data operations socket of input channel. */
+        private ObjectInput in;
 
         /**
          * @param remoteId The remote note to connect to.
@@ -604,29 +652,24 @@ public class GridFileIoManager {
         /**
          * @return The syncronization meta if case connection has been reset.
          * @throws IgniteCheckedException If fails.
+         * @throws IOException If fails.
          */
-        public TransmitMeta connect() throws IgniteCheckedException {
-            try {
-                Channel socket = openClsr.apply(remoteId, topic, new SessionChannelMessage(sesId))
-                    .get();
+        public TransmitMeta connect() throws IgniteCheckedException, IOException {
+            SocketChannel channel = (SocketChannel)openClsr.apply(remoteId, topic, new SessionChannelMessage(sesId))
+                .get();
 
-                out = new OutputTransmitChannel(log, (SocketChannel)socket);
-                in = new InputTransmitChannel(log, (SocketChannel)socket);
+            configureBlocking(channel);
 
-                // Synchronize state between remote and local nodes.
-                TransmitMeta syncMeta = new TransmitMeta();
+            sockChnl = (WritableByteChannel)channel;
+            out = new ObjectOutputStream(channel.socket().getOutputStream());
+            in = new ObjectInputStream(channel.socket().getInputStream());
 
-                in.readMeta(syncMeta);
+            // Synchronize state between remote and local nodes.
+            TransmitMeta syncMeta = new TransmitMeta();
 
-                return syncMeta;
-            }
-            catch (ClusterTopologyCheckedException e) {
-                throw e;
-            }
-            catch (IgniteCheckedException | IOException e) {
-                throw new IgniteCheckedException("Unable to initialize an i\\o channel connection to the remote node " +
-                    "[remoteId=" + remoteId + ", topic=" + topic + ']', e);
-            }
+            syncMeta.readExternal(in);
+
+            return syncMeta;
         }
 
         /** {@inheritDoc} */
@@ -701,25 +744,31 @@ public class GridFileIoManager {
                                     "[uploadSpeed=" + inBytePermits.permitsPerSec() + " byte/sec]");
                             }
 
-                            outChunkedObj.writeChunk(out);
+                            outChunkedObj.writeChunk(sockChnl);
                         }
 
                         outChunkedObj.close();
 
-                        in.acknowledge();
+                        // Read file received acknowledge.
+                        in.readLong();
 
                         break;
                     }
-                    catch (TransmitException e) {
-                        closeChannelQuiet();
+                    catch (IOException e) {
+                        if (transmitIOException(e)) {
+                            closeChannelQuiet();
 
-                        // Re-establish the new connection to continue upload.
-                        U.warn(log, "Exception while writing file to remote node. Re-establishing connection " +
-                            " [remoteId=" + remoteId + ", file=" + file.getName() + ", sesId=" + sesId +
-                            ", retries=" + retries + ", transferred=" + outChunkedObj.transferred() +
-                            ", count=" + outChunkedObj.count() + ']', e);
+                            // Re-establish the new connection to continue upload.
+                            U.warn(log, "Connection lost while writing file to remote node and " +
+                                "will be re-establishing [remoteId=" + remoteId + ", file=" + file.getName() +
+                                ", sesId=" + sesId + ", retries=" + retries +
+                                ", transferred=" + outChunkedObj.transferred() +
+                                ", count=" + outChunkedObj.count() + ']', e);
 
-                        retries++;
+                            retries++;
+                        }
+                        else
+                            throw e;
                     }
                 }
 
@@ -764,9 +813,11 @@ public class GridFileIoManager {
         private void closeChannelQuiet() {
             U.closeQuiet(out);
             U.closeQuiet(in);
+            U.closeQuiet(sockChnl);
 
             out = null;
             in = null;
+            sockChnl = null;
         }
     }
 }

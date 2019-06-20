@@ -19,6 +19,7 @@ package org.apache.ignite.internal.managers.communication;
 
 import java.io.Serializable;
 import java.nio.channels.Channel;
+import java.nio.channels.SocketChannel;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -966,7 +967,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
             pools.poolForPolicy(plc).execute(new Runnable() {
                 @Override public void run() {
-                    fileIoMgr.onChannelOpened(initMsg.topic(), nodeId, (SessionChannelMessage)initMsg.message(), channel);
+                    fileIoMgr.onChannelOpened(initMsg.topic(), nodeId, (SessionChannelMessage)initMsg.message(),
+                        (SocketChannel)channel);
                 }
             });
         }

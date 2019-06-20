@@ -19,12 +19,13 @@ package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.ObjectOutput;
 import java.io.Serializable;
 import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.ignite.IgniteException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
@@ -81,25 +82,27 @@ public class OutputChunkedFile extends AbstractChunkedObject {
 
     /**
      * @param chunkSize The size of chunk to read.
-     * @param out The channel to write data to.
+     * @param oo Object output stream to write data to.
      * @throws IOException If failed.
      */
-    public void setup(int chunkSize, OutputTransmitChannel out) throws IOException {
+    public void setup(int chunkSize, ObjectOutput oo) throws IOException {
         chunkSize(chunkSize);
 
-        out.writeMeta(new TransmitMeta(name(),
+        TransmitMeta meta = new TransmitMeta(name(),
             startPosition() + transferred(),
             count(),
             transferred() == 0,
             params(),
-            null));
+            null);
+
+        meta.writeExternal(oo);
     }
 
     /**
-     * @param out Channel to write data into.
+     * @param ch Channel to write data into.
      * @throws IOException If fails.
      */
-    public void writeChunk(OutputTransmitChannel out) throws IOException {
+    public void writeChunk(WritableByteChannel ch) throws IOException {
         if (fileIo == null) {
             fileIo = dfltIoFactory.create(Objects.requireNonNull(file));
 
@@ -108,7 +111,7 @@ public class OutputChunkedFile extends AbstractChunkedObject {
 
         long batchSize = Math.min(chunkSize(), count() - transferred.longValue());
 
-        long sent = out.writeFrom(startPosition() + transferred.longValue(), batchSize, fileIo);
+        long sent = fileIo.transferTo(startPosition() + transferred.longValue(), batchSize, ch);
 
         if (sent > 0)
             transferred.addAndGet(sent);

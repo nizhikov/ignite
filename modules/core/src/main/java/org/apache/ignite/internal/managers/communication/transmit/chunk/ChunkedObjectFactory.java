@@ -29,33 +29,25 @@ public class ChunkedObjectFactory {
     /**
      * @param nodeId Remote node id.
      * @param plc Policy of how to read input data stream.
-     * @param ses The current handler instance which produces file handlers.
+     * @param hndlr The current handler instance which produces file handlers.
      * @return Chunked object instance.
      * @throws IgniteCheckedException If fails.
      */
     public InputChunkedObject createInputChunkedObject(
         UUID nodeId,
         ReadPolicy plc,
-        FileTransmitHandler ses
+        FileTransmitHandler hndlr
     ) throws IgniteCheckedException {
-        InputChunkedObject obj;
-
         switch (plc) {
             case FILE:
-                obj = new InputChunkedFile(ses.fileHandler(nodeId));
-
-                break;
+                return new InputChunkedFile(hndlr.fileHandler(nodeId));
 
             case BUFF:
-                obj = new InputChunkedBuffer(ses.chunkHandler(nodeId));
-
-                break;
+                return new InputChunkedBuffer(hndlr.chunkHandler(nodeId));
 
             default:
                 throw new IgniteCheckedException("The type of read plc is unknown. The impelentation " +
                     "required: " + plc);
         }
-
-        return obj;
     }
 }

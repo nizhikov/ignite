@@ -18,10 +18,11 @@
 package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.io.Serializable;
+import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 
 /**
@@ -54,10 +55,10 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
     protected abstract void init(int chunkSize) throws IOException;
 
     /**
-     * @param in Channel to read data from.
+     * @param ch Channel to read data from.
      * @throws IOException If fails.
      */
-    public abstract void readChunk(InputTransmitChannel in) throws IOException;
+    public abstract void readChunk(ReadableByteChannel ch) throws IOException;
 
     /**
      * @param chunkSize The size of chunk to read.
@@ -65,10 +66,10 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
      * @throws IOException If read meta input failed.
      * @throws IgniteCheckedException If validation failed.
      */
-    public void setup(int chunkSize, InputTransmitChannel in) throws IOException, IgniteCheckedException {
+    public void setup(int chunkSize, ObjectInputStream in) throws IOException, IgniteCheckedException {
         TransmitMeta meta = new TransmitMeta();
 
-        in.readMeta(meta);
+        meta.readExternal(in);
 
         if (meta.initial()) {
             if (!inited) {

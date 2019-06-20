@@ -20,9 +20,9 @@ package org.apache.ignite.internal.managers.communication.transmit.chunk;
 import java.io.File;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.channels.ReadableByteChannel;
 import java.util.Objects;
 import org.apache.ignite.internal.managers.communication.transmit.FileHandler;
-import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
@@ -73,7 +73,7 @@ public class InputChunkedFile extends InputChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override public void readChunk(InputTransmitChannel in) throws IOException {
+    @Override public void readChunk(ReadableByteChannel ch) throws IOException {
         if (fileIo == null) {
             fileIo = dfltIoFactory.create(Objects.requireNonNull(file));
 
@@ -82,7 +82,7 @@ public class InputChunkedFile extends InputChunkedObject {
 
         long batchSize = Math.min(chunkSize(), count() - transferred.get());
 
-        long readed = in.read(fileIo, startPosition() + transferred.get(), batchSize);
+        long readed = fileIo.transferFrom(ch, startPosition() + transferred.get(), batchSize);
 
         if (readed > 0)
             transferred.addAndGet(readed);

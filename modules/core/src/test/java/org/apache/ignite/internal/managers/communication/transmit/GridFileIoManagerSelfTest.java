@@ -24,6 +24,7 @@ import java.io.RandomAccessFile;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.ReadableByteChannel;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -43,7 +44,6 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedObject;
@@ -272,15 +272,15 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             @Override public InputChunkedObject createInputChunkedObject(
                 UUID nodeId,
                 ReadPolicy plc,
-                FileTransmitHandler ses
+                FileTransmitHandler hndlr
             ) throws IgniteCheckedException {
-                return new InputChunkedFile(ses.fileHandler(nodeId)) {
-                    @Override public void readChunk(InputTransmitChannel in) throws IOException {
+                return new InputChunkedFile(hndlr.fileHandler(nodeId)) {
+                    @Override public void readChunk(ReadableByteChannel ch) throws IOException {
                         // Read 5 chunks than stop the grid.
                         if (chunksCnt.incrementAndGet() == 5)
                             stopGrid(1, true);
 
-                        super.readChunk(in);
+                        super.readChunk(ch);
                     }
                 };
             }
@@ -322,16 +322,16 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             @Override public InputChunkedObject createInputChunkedObject(
                 UUID nodeId,
                 ReadPolicy plc,
-                FileTransmitHandler ses) throws IgniteCheckedException {
+                FileTransmitHandler hndlr) throws IgniteCheckedException {
                 assertEquals(plc, ReadPolicy.FILE);
 
-                return new InputChunkedFile(ses.fileHandler(nodeId)) {
-                    @Override public void readChunk(InputTransmitChannel in) throws IOException {
+                return new InputChunkedFile(hndlr.fileHandler(nodeId)) {
+                    @Override public void readChunk(ReadableByteChannel ch) throws IOException {
                         // Read 4 chunks than throw an exception to emulate error processing.
                         if (readedChunks.incrementAndGet() == 4)
                             throw new IOException(chunkDownloadExMsg);
 
-                        super.readChunk(in);
+                        super.readChunk(ch);
 
                         assertTrue(transferred.get() > 0);
                     }
@@ -443,7 +443,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         }
         catch (Exception e) {
             // Expected exception.
-            assertTrue(e.toString(), e.getCause().getMessage().startsWith("Error channel processing"));
+            assertTrue(e.toString(), e.getCause().getMessage().startsWith("Channel processing error"));
         }
 
         //Open next session and complete successfull.

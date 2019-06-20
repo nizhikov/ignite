@@ -21,10 +21,10 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.ignite.internal.managers.communication.transmit.ChunkHandler;
-import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
@@ -80,10 +80,11 @@ public class InputChunkedBuffer extends InputChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override public void readChunk(InputTransmitChannel channel) throws IOException {
+    @Override public void readChunk(ReadableByteChannel ch) throws IOException {
         buff.rewind();
 
-        long readed = channel.read(buff);
+        long readed = ch.read(buff);
+
         long chunkPos;
 
         if (readed > 0)
