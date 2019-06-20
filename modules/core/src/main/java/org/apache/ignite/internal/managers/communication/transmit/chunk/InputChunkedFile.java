@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
-import java.util.Objects;
 import org.apache.ignite.internal.managers.communication.transmit.FileHandler;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
@@ -55,27 +54,33 @@ public class InputChunkedFile extends InputChunkedObject {
     public InputChunkedFile(FileHandler handler) {
         super(null, -1, -1, null);
 
-        this.handler = Objects.requireNonNull(handler);
+        assert handler != null;
+
+        this.handler = handler;
     }
 
     /** {@inheritDoc} */
     @Override protected void init(int chunkSize) throws IOException {
-        if (file == null) {
-            chunkSize(chunkSize);
+        if (file != null)
+            return;
 
-            String fileAbsPath = handler.path(name(), params());
+        chunkSize(chunkSize);
 
-            if (fileAbsPath == null)
-                throw new IOException("Requested for the chunked stream a file absolute path is incorrect: " + this);
+        String fileAbsPath = handler.path(name(), params());
 
-            file = new File(fileAbsPath);
-        }
+        if (fileAbsPath == null)
+            throw new IOException("Requested for the chunked stream a file absolute path is incorrect: " + this);
+
+        file = new File(fileAbsPath);
     }
 
     /** {@inheritDoc} */
     @Override public void readChunk(ReadableByteChannel ch) throws IOException {
         if (fileIo == null) {
-            fileIo = dfltIoFactory.create(Objects.requireNonNull(file));
+            if (file == null)
+                throw new IOException("Chunked file instance is not initialized");
+
+            fileIo = dfltIoFactory.create(file);
 
             fileIo.position(startPosition());
         }

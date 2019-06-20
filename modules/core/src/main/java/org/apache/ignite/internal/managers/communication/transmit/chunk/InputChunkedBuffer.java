@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.ignite.internal.managers.communication.transmit.ChunkHandler;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -55,7 +54,9 @@ public class InputChunkedBuffer extends InputChunkedObject {
     ) {
         super(name, pos, cnt, params);
 
-        this.handler = Objects.requireNonNull(handler);
+        assert handler != null;
+
+        this.handler = handler;
     }
 
     /**
@@ -67,16 +68,17 @@ public class InputChunkedBuffer extends InputChunkedObject {
 
     /** {@inheritDoc} */
     @Override protected void init(int chunkSize) throws IOException {
-        if (buff == null) {
-            int buffSize = handler.begin(name(), params());
+        if (buff != null)
+            return;
 
-            int size = buffSize > 0 ? buffSize : chunkSize;
+        int buffSize = handler.begin(name(), params());
 
-            chunkSize(size);
+        int size = buffSize > 0 ? buffSize : chunkSize;
 
-            buff = ByteBuffer.allocate(size);
-            buff.order(ByteOrder.nativeOrder());
-        }
+        chunkSize(size);
+
+        buff = ByteBuffer.allocate(size);
+        buff.order(ByteOrder.nativeOrder());
     }
 
     /** {@inheritDoc} */

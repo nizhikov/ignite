@@ -101,7 +101,9 @@ public class TransmitMeta implements Externalizable {
         Map<String, Serializable> params,
         Exception err
     ) {
-        this.name = Objects.requireNonNull(name);
+        assert name != null;
+
+        this.name = name;
         this.offset = offset;
         this.cnt = cnt;
         this.initial = initial;
@@ -118,7 +120,9 @@ public class TransmitMeta implements Externalizable {
      * The string representation name of particular file.
      */
     public String name() {
-        return Objects.requireNonNull(name);
+        assert name != null;
+
+        return name;
     }
 
     /**
@@ -169,7 +173,7 @@ public class TransmitMeta implements Externalizable {
     /** {@inheritDoc} */
     @Override public void readExternal(ObjectInput in) throws IOException {
         try {
-            name = Objects.requireNonNull(in.readUTF());
+            name = in.readUTF();
             offset = in.readLong();
             cnt = in.readLong();
             initial = in.readBoolean();

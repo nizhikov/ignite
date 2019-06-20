@@ -24,7 +24,6 @@ import java.io.Serializable;
 import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
@@ -44,7 +43,7 @@ public class OutputChunkedFile extends AbstractChunkedObject {
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
 
     /** The abstract java representation of the chunked file. */
-    private File file;
+    private final File file;
 
     /** The corresponding file channel to work with. */
     @GridToStringExclude
@@ -63,6 +62,8 @@ public class OutputChunkedFile extends AbstractChunkedObject {
         Map<String, Serializable> params
     ) {
         super(file.getName(), pos, cnt, params);
+
+        assert file != null;
 
         this.file = file;
     }
@@ -104,7 +105,7 @@ public class OutputChunkedFile extends AbstractChunkedObject {
      */
     public void writeChunk(WritableByteChannel ch) throws IOException {
         if (fileIo == null) {
-            fileIo = dfltIoFactory.create(Objects.requireNonNull(file));
+            fileIo = dfltIoFactory.create(file);
 
             fileIo.position(startPosition());
         }

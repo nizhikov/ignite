@@ -33,7 +33,6 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -290,17 +289,22 @@ public class GridFileIoManager {
      * @param channel Channel instance.
      */
     public void onChannelOpened(Object topic, UUID nodeId, SessionChannelMessage initMsg, SocketChannel channel) {
-        FileTransmitHandler session = topicHandlerMap.get(topic);
-
-        if (session == null)
-            return;
-
-        FileIoReadContext readCtx = sesCtxMap.computeIfAbsent(topic, t -> new FileIoReadContext(nodeId, session));
-
+        FileIoReadContext readCtx = null;
+        IgniteUuid newSesId = null;
         ObjectInputStream in = null;
         ObjectOutputStream out = null;
 
         try {
+            FileTransmitHandler session = topicHandlerMap.get(topic);
+
+            if (session == null)
+                return;
+
+            if (initMsg == null || initMsg.sesId() == null)
+                return;
+
+            readCtx = sesCtxMap.computeIfAbsent(topic, t -> new FileIoReadContext(nodeId, session));
+
             configureBlocking(channel);
 
             in = new ObjectInputStream(channel.socket().getInputStream());
@@ -325,7 +329,7 @@ public class GridFileIoManager {
                 return;
 
             try {
-                IgniteUuid newSesId = Objects.requireNonNull(initMsg.sesId());
+                newSesId = initMsg.sesId();
 
                 if (readCtx.sesId == null)
                     readCtx.sesId = newSesId;
@@ -384,11 +388,13 @@ public class GridFileIoManager {
         }
         catch (Throwable t) {
             U.error(log, "The download session cannot be finished due to unexpected error " +
-                "[ctx=" + readCtx + ", sesId=" + readCtx.sesId + ']', t);
+                "[ctx=" + readCtx + ", sesId=" + newSesId + ']', t);
 
-            readCtx.lastSeenErr = new IgniteCheckedException("Channel processing error [nodeId=" + nodeId + ']', t);
+            if (readCtx != null) {
+                readCtx.lastSeenErr = new IgniteCheckedException("Channel processing error [nodeId=" + nodeId + ']', t);
 
-            readCtx.hndlr.onException(t);
+                readCtx.hndlr.onException(t);
+            }
         }
         finally {
             U.closeQuiet(in);

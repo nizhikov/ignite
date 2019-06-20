@@ -78,7 +78,7 @@ abstract class AbstractChunkedObject implements Closeable {
      * @return Name of chunked object.
      */
     public String name() {
-        return Objects.requireNonNull(name);
+        return name;
     }
 
     /**
