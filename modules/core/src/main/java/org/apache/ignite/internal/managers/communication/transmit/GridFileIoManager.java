@@ -94,13 +94,25 @@ public class GridFileIoManager {
     /** Default timeout in milleseconds to wait an IO data on socket. See Socket#setSoTimeout(int). */
     private static final int DFLT_IO_TIMEOUT_MILLIS = 5_000;
 
-    /** Message if connection have been dropped by remote by network issues. */
+    /**
+     * A connection reset by peer message means that the node we are connected to has reset the connection.
+     * This is usually caused by a high amount of traffic on the host, but may be caused by a server error as well.
+     */
     private static final String RESET_BY_PEER_MSG = "Connection reset by peer";
 
-    /** Message if connection has been closed by remote (e.g. thread interrupted). */
+    /**
+     * A message means that the remote node closed the connection by sending a TCP/IP RST packet.
+     * This is usually caused by: sending malformed data, the network link between nodes is going
+     * down for some reason, the remote node is crashed by a bug, the remote node has exhausted
+     * system resources.
+     */
     private static final String CLOSED_BY_REMOTE_MSG = "An existing connection was forcibly closed by the remote host";
 
-    /** Message if conneciton has been closed by remote handler. */
+    /**
+     * A message means that at some point of time remote node decides simply to drop the connection. It can
+     * happen while the local node is still sending data on the connection, and still able to do so. When the
+     * local node attempts to get the next response from remote, it fails with such error.
+     */
     private static final String ABORTED_BY_SOFTWARE_MSG = "An established connection was aborted by the software";
 
     /** Ignite kernal context. */
