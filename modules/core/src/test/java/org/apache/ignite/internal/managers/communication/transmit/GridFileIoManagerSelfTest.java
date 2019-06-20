@@ -635,12 +635,13 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
                         fileIo[0] = ioFactory.create(file);
 
-                        return 4 * 1024; // Page size
+                        return 1024; // Page size
                     }
 
                     @Override public boolean chunk(ByteBuffer buff, long pos) throws IOException {
                         assertTrue(buff.order() == ByteOrder.nativeOrder());
                         assertEquals(0, buff.position());
+                        assertEquals(buff.limit(), buff.capacity());
 
                         fileIo[0].position(pos);
                         fileIo[0].writeFully(buff);
