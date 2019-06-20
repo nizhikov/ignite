@@ -38,11 +38,10 @@ import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
 import org.apache.ignite.internal.managers.communication.transmit.channel.OutputTransmitChannel;
-import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteHandlerException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedObject;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.OutputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
@@ -295,7 +294,7 @@ public class GridFileIoManager {
 
             // Do not allow multiple connection for the same session id;
             if (!readCtx.inProgress.compareAndSet(false, true)) {
-                RemoteHandlerException ex = new RemoteHandlerException("Current topic is already being handled by " +
+                IgniteCheckedException ex = new IgniteCheckedException("Current topic is already being handled by " +
                     "another thread. Channel will be closed [initMsg=" + initMsg + ", channel=" + channel +
                     ", fromNodeId=" + nodeId + ']');
 
@@ -370,7 +369,7 @@ public class GridFileIoManager {
             log.error("The download session cannot be finished due to unexpected error " +
                 "[ctx=" + readCtx + ", sesId=" + readCtx.sesId + ']', t);
 
-            readCtx.lastSeenErr = new RemoteHandlerException("Error channel processing [nodeId=" + nodeId + ']', t);
+            readCtx.lastSeenErr = new IgniteCheckedException("Error channel processing [nodeId=" + nodeId + ']', t);
 
             readCtx.session.onException(t);
         }
@@ -552,7 +551,7 @@ public class GridFileIoManager {
         private InputChunkedObject chunkedObj;
 
         /** Last error occurred while channel is processed by registered session handler. */
-        private RemoteHandlerException lastSeenErr;
+        private IgniteCheckedException lastSeenErr;
 
         /**
          * @param nodeId Remote node id.

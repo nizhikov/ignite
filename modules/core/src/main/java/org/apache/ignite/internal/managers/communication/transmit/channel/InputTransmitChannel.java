@@ -91,11 +91,8 @@ public class InputTransmitChannel extends AbstractTransmitChannel {
             if (log.isDebugEnabled())
                 log.debug("The file meta info have been received [meta=" + meta + ']');
         }
-        catch (EOFException e) {
+        catch (IOException e) {
             throw transformExceptionIfNeed(e);
-        }
-        catch (ClassNotFoundException e) {
-            throw new IOException("The required transmit meta class information not found", e);
         }
     }
 

@@ -44,9 +44,8 @@ import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.InputTransmitChannel;
-import org.apache.ignite.internal.managers.communication.transmit.channel.RemoteHandlerException;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedObject;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
@@ -222,7 +221,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
-    @Test(expected = RemoteHandlerException.class)
+    @Test(expected = IgniteCheckedException.class)
     public void testFileHandlerOnBeginFails() throws Exception {
         final String exTestMessage = "Test exception. Handler initialization failed at onBegin.";
 
@@ -251,10 +250,6 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, ReadPolicy.FILE);
-        }
-        catch (IgniteCheckedException e) {
-            if (e.hasCause(RemoteHandlerException.class))
-                throw (RemoteHandlerException)e.getCause();
         }
     }
 
@@ -311,7 +306,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
-    @Test(expected = RemoteHandlerException.class)
+    @Test(expected = IgniteCheckedException.class)
     public void testFileHandlerReconnectOnReadFail() throws Exception {
         final String chunkDownloadExMsg = "Test exception. Chunk processing error.";
 
@@ -359,16 +354,12 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, ReadPolicy.FILE);
         }
-        catch (IgniteCheckedException e) {
-            if (e.hasCause(RemoteHandlerException.class))
-                throw (RemoteHandlerException)e.getCause();
-        }
     }
 
     /**
      * @throws Exception If fails.
      */
-    @Test(expected = RemoteHandlerException.class)
+    @Test(expected = IgniteCheckedException.class)
     public void testFileHandlerReconnectOnInitFail() throws Exception {
         final int fileSizeBytes = 5 * 1024 * 1024;
         final AtomicBoolean throwFirstTime = new AtomicBoolean();
@@ -403,10 +394,6 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, ReadPolicy.FILE);
-        }
-        catch (IgniteCheckedException e) {
-            if (e.hasCause(RemoteHandlerException.class))
-                throw (RemoteHandlerException)e.getCause();
         }
     }
 
@@ -510,7 +497,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
-    @Test(expected = RemoteHandlerException.class)
+    @Test(expected = IgniteCheckedException.class)
     public void testFileHandlerChannelCloseIfAnotherOpened() throws Exception {
         final int fileSizeBytes = 5 * 1024 * 1024;
         final CountDownLatch waitLatch = new CountDownLatch(2);
@@ -576,12 +563,6 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                 errs[0] == null);
 
             throw errs[0];
-        }
-        catch (IgniteCheckedException e) {
-            U.warn(log, e);
-
-            if (e.hasCause(RemoteHandlerException.class))
-                throw (RemoteHandlerException)e.getCause();
         }
     }
 
@@ -686,7 +667,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
-    @Test(expected = RemoteHandlerException.class)
+    @Test(expected = IgniteCheckedException.class)
     public void testChunkHandlerRejectChunkOnRead() throws Exception {
         IgniteEx sender = startGrid(0);
         IgniteEx receiver = startGrid(1);
@@ -720,16 +701,12 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, ReadPolicy.BUFF);
         }
-        catch (IgniteCheckedException e) {
-            if (e.hasCause(RemoteHandlerException.class))
-                throw (RemoteHandlerException)e.getCause();
-        }
     }
 
     /**
      * @throws Exception If fails.
      */
-    @Test(expected = RemoteHandlerException.class)
+    @Test(expected = IgniteCheckedException.class)
     public void testChunkHandlerReconnectOnInitFail() throws Exception {
         IgniteEx sender = startGrid(0);
         IgniteEx receiver = startGrid(1);
@@ -761,10 +738,6 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, ReadPolicy.BUFF);
-        }
-        catch (IgniteCheckedException e) {
-            if (e.hasCause(RemoteHandlerException.class))
-                throw (RemoteHandlerException)e.getCause();
         }
     }
 
