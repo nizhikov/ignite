@@ -47,7 +47,7 @@ import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
+import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedBuffer;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedObject;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.OutputChunkedFile;
@@ -144,16 +144,16 @@ public class GridFileIoManager {
     private final TimedSemaphore outBytePermits;
 
     /** Closure to open a new channel to remote node. */
-    private final IgniteTriClosure<UUID, Object, Message, IgniteInternalFuture<Channel>> openClsr;
+    private final IgniteTriClosure<UUID, Object, Message, IgniteInternalFuture<Channel>> openChannelClsr;
+
+    /** The factory produces chunked objects to process an input data channel. */
+    private IgniteTriClosure<UUID, ReadPolicy, FileTransmitHandler, InputChunkedObject> chunkedObjFactory;
 
     /** Listener to handle NODE_LEFT, NODE_FAIL events while waiting for remote reconnects. */
     private DiscoveryEventListener discoLsnr;
 
     /** Processor stopping flag. */
     private volatile boolean stopped;
-
-    /** The factory produces chunked stream to process an input data channel. */
-    private volatile ChunkedObjectFactory streamFactory = new ChunkedObjectFactory();
 
     /** The maximum number of retry attempts (read or write attempts). */
     private volatile int retryCnt = DFLT_RETRY_CNT;
@@ -166,14 +166,16 @@ public class GridFileIoManager {
      */
     public GridFileIoManager(
         GridKernalContext ctx,
-        IgniteTriClosure<UUID, Object, Message, IgniteInternalFuture<Channel>> openClsr
+        IgniteTriClosure<UUID, Object, Message, IgniteInternalFuture<Channel>> openChannelClsr
     ) {
         this.ctx = ctx;
         log = ctx.log(getClass());
-        this.openClsr = openClsr;
+        this.openChannelClsr = openChannelClsr;
 
         inBytePermits = new TimedSemaphore(DFLT_RATE_LIMIT_BYTES);
         outBytePermits = new TimedSemaphore(DFLT_RATE_LIMIT_BYTES);
+
+        chunkedObjFactory = this::createChunkedObject;
     }
 
     /**
@@ -420,13 +422,6 @@ public class GridFileIoManager {
     }
 
     /**
-     * @param factory A new factory instance to set.
-     */
-    void chunkedStreamFactory(ChunkedObjectFactory factory) {
-        streamFactory = factory;
-    }
-
-    /**
      * @param topic Topic handler related to.
      * @param readCtx The handler read context.
      * @throws Exception If processing fails.
@@ -463,7 +458,7 @@ public class GridFileIoManager {
                 long startTime = U.currentTimeMillis();
 
                 if (readCtx.chunkedObj == null) {
-                    readCtx.chunkedObj = streamFactory.createInputChunkedObject(readCtx.nodeId,
+                    readCtx.chunkedObj = chunkedObjFactory.apply(readCtx.nodeId,
                         readCtx.currPlc,
                         readCtx.hndlr);
                 }
@@ -531,6 +526,38 @@ public class GridFileIoManager {
             readCtx.inProgress.set(false);
 
             U.closeQuiet(inChunkedObj);
+        }
+    }
+
+    /**
+     * @param factory A new factory instance to set.
+     */
+    void chunkedObjectFactory(IgniteTriClosure<UUID, ReadPolicy, FileTransmitHandler, InputChunkedObject> factory) {
+        chunkedObjFactory = factory;
+    }
+
+    /**
+     * @param nodeId Remote node id.
+     * @param plc Policy of how to read input data stream.
+     * @param hndlr The current handler instance which produces file handlers.
+     * @return Chunked object instance.
+     * @throws IgniteCheckedException If fails.
+     */
+    private InputChunkedObject createChunkedObject(
+        UUID nodeId,
+        ReadPolicy plc,
+        FileTransmitHandler hndlr
+    ) throws IgniteCheckedException {
+        switch (plc) {
+            case FILE:
+                return new InputChunkedFile(hndlr.fileHandler(nodeId));
+
+            case BUFF:
+                return new InputChunkedBuffer(hndlr.chunkHandler(nodeId));
+
+            default:
+                throw new IgniteCheckedException("The type of read plc is unknown. The impelentation " +
+                    "required: " + plc);
         }
     }
 
@@ -671,7 +698,7 @@ public class GridFileIoManager {
          * @throws IOException If fails.
          */
         public TransmitMeta connect() throws IgniteCheckedException, IOException {
-            SocketChannel channel = (SocketChannel)openClsr.apply(remoteId, topic, new SessionChannelMessage(sesId))
+            SocketChannel channel = (SocketChannel)openChannelClsr.apply(remoteId, topic, new SessionChannelMessage(sesId))
                 .get();
 
             configureBlocking(channel);

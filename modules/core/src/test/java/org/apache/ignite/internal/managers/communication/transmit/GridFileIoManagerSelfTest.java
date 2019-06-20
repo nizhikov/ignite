@@ -44,7 +44,6 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.ChunkedObjectFactory;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedObject;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
@@ -54,6 +53,7 @@ import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStor
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.wal.crc.FastCrc;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.lang.IgniteTriClosure;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.After;
@@ -268,23 +268,24 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("testFile", fileSizeBytes);
 
-        receiver.context().io().fileIoMgr().chunkedStreamFactory(new ChunkedObjectFactory() {
-            @Override public InputChunkedObject createInputChunkedObject(
-                UUID nodeId,
-                ReadPolicy plc,
-                FileTransmitHandler hndlr
-            ) throws IgniteCheckedException {
-                return new InputChunkedFile(hndlr.fileHandler(nodeId)) {
-                    @Override public void readChunk(ReadableByteChannel ch) throws IOException {
-                        // Read 5 chunks than stop the grid.
-                        if (chunksCnt.incrementAndGet() == 5)
-                            stopGrid(1, true);
+        receiver.context().io().fileIoMgr()
+            .chunkedObjectFactory(new IgniteTriClosure<UUID, ReadPolicy, FileTransmitHandler, InputChunkedObject>() {
+                @Override public InputChunkedObject apply(
+                    UUID nodeId,
+                    ReadPolicy plc,
+                    FileTransmitHandler hndlr
+                ) throws IgniteCheckedException {
+                    return new InputChunkedFile(hndlr.fileHandler(nodeId)) {
+                        @Override public void readChunk(ReadableByteChannel ch) throws IOException {
+                            // Read 5 chunks than stop the grid.
+                            if (chunksCnt.incrementAndGet() == 5)
+                                stopGrid(1, true);
 
-                        super.readChunk(ch);
-                    }
-                };
-            }
-        });
+                            super.readChunk(ch);
+                        }
+                    };
+                }
+            });
 
         receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             @Override public FileHandler fileHandler(UUID nodeId) {
@@ -318,26 +319,28 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         File fileToSend = createFileRandomData("testFile", 5 * 1024 * 1024);
         final AtomicInteger readedChunks = new AtomicInteger();
 
-        receiver.context().io().fileIoMgr().chunkedStreamFactory(new ChunkedObjectFactory() {
-            @Override public InputChunkedObject createInputChunkedObject(
-                UUID nodeId,
-                ReadPolicy plc,
-                FileTransmitHandler hndlr) throws IgniteCheckedException {
-                assertEquals(plc, ReadPolicy.FILE);
+        receiver.context().io().fileIoMgr()
+            .chunkedObjectFactory(new IgniteTriClosure<UUID, ReadPolicy, FileTransmitHandler, InputChunkedObject>() {
+                @Override public InputChunkedObject apply(
+                    UUID nodeId,
+                    ReadPolicy plc,
+                    FileTransmitHandler hndlr
+                ) throws IgniteCheckedException {
+                    assertEquals(plc, ReadPolicy.FILE);
 
-                return new InputChunkedFile(hndlr.fileHandler(nodeId)) {
-                    @Override public void readChunk(ReadableByteChannel ch) throws IOException {
-                        // Read 4 chunks than throw an exception to emulate error processing.
-                        if (readedChunks.incrementAndGet() == 4)
-                            throw new IOException(chunkDownloadExMsg);
+                    return new InputChunkedFile(hndlr.fileHandler(nodeId)) {
+                        @Override public void readChunk(ReadableByteChannel ch) throws IOException {
+                            // Read 4 chunks than throw an exception to emulate error processing.
+                            if (readedChunks.incrementAndGet() == 4)
+                                throw new IOException(chunkDownloadExMsg);
 
-                        super.readChunk(ch);
+                            super.readChunk(ch);
 
-                        assertTrue(transferred > 0);
-                    }
-                };
-            }
-        });
+                            assertTrue(transferred > 0);
+                        }
+                    };
+                }
+            });
 
         receiver.context().io().addFileTransmitHandler(topic, new FileTransmitHandlerAdapter() {
             @Override public FileHandler fileHandler(UUID nodeId) {
