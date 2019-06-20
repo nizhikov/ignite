@@ -172,9 +172,9 @@ public class OutputChunkedFile extends AbstractChunkedObject {
      * @throws IOException If fails.
      */
     private void writeChunk(WritableByteChannel ch) throws IOException {
-        long batchSize = Math.min(chunkSize(), count() - transferred);
+        long batchSize = Math.min(chunkSize(), count() - transferred());
 
-        long sent = fileIo.transferTo(startPosition() + transferred, batchSize, ch);
+        long sent = fileIo.transferTo(startPosition() + transferred(), batchSize, ch);
 
         if (sent > 0)
             transferred += sent;

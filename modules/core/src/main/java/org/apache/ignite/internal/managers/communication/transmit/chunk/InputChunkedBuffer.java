@@ -89,7 +89,7 @@ public class InputChunkedBuffer extends InputChunkedObject {
 
         long readed = readFully(ch, buff);
 
-        long chunkPos = transferred;
+        long prevReaded = transferred();
 
         if (readed > 0)
             transferred += readed;
@@ -101,7 +101,7 @@ public class InputChunkedBuffer extends InputChunkedObject {
 
         buff.flip();
 
-        boolean accepted = handler.chunk(buff, startPosition() + chunkPos);
+        boolean accepted = handler.chunk(buff, startPosition() + prevReaded);
 
         if (!accepted)
             throw new IOException("The buffer was rejected by handler");
@@ -115,7 +115,7 @@ public class InputChunkedBuffer extends InputChunkedObject {
     ) throws IOException, IgniteCheckedException, InterruptedException {
         super.doRead(ch, timeout, unit);
 
-        if (transferred == cnt)
+        if (transferred() == count())
             handler.end(params());
 
         checkTransferLimitCount();
