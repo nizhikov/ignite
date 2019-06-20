@@ -66,11 +66,4 @@ public class TransmitException extends IOException {
     public TransmitException(String msg) {
         super(msg);
     }
-
-    /**
-     * Constructs an {@code TransmitException} with the specified detail message and cause.
-     */
-    public TransmitException(String msg, Throwable cause) {
-        super(msg, cause);
-    }
 }
