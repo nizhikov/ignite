@@ -26,9 +26,9 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 
 /**
- * The class represents an exception on the transport level transmission (not the handler one). For instance,
- * case when the remote peer has closed the connection correctly, so read or write operation over given
- * socket channel will throw an {@link IOException} and it will be converted to this one exception.
+ * The class represents an transport level exception of transmission file manager (not the channel handler one).
+ * For instance, case when the remote peer has closed the connection correctly, so read or write operation over given
+ * socket channel will throw an {@link IOException} or returns <tt>-1</tt>. See details below.
  *
  * <p>
  *     <h3>Channel exception handling</h3>
