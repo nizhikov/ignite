@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
-import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.FileHandler;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
@@ -87,11 +86,7 @@ public class InputChunkedFile extends InputChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override public void doRead(
-        ReadableByteChannel ch,
-        int timeout,
-        TimeUnit unit
-    ) throws IOException, IgniteCheckedException, InterruptedException {
+    @Override public void doRead(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
         if (fileIo == null) {
             if (file == null)
                 throw new IOException("Chunked file instance is not initialized");
@@ -101,7 +96,7 @@ public class InputChunkedFile extends InputChunkedObject {
             fileIo.position(startPosition());
         }
 
-        super.doRead(ch, timeout, unit);
+        super.doRead(ch);
 
         if (transferred() == count())
             handler.accept(file, startPosition(), count(), params());

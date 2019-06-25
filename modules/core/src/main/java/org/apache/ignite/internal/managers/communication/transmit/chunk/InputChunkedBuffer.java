@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.ChunkHandler;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
@@ -102,12 +101,8 @@ public class InputChunkedBuffer extends InputChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override public void doRead(
-        ReadableByteChannel ch,
-        int timeout,
-        TimeUnit unit
-    ) throws IOException, IgniteCheckedException, InterruptedException {
-        super.doRead(ch, timeout, unit);
+    @Override public void doRead(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
+        super.doRead(ch);
 
         if (transferred() == count())
             handler.end(params());

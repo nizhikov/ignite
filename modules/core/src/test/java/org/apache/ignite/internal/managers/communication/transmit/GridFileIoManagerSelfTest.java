@@ -442,46 +442,6 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
-    @Test
-    public void testFileHandlerWithDownloadLimit() throws Exception {
-        final int fileSizeBytes = 5 * 1024 * 1024;
-        final int donwloadSpeedBytes = 1024 * 1024;
-
-        IgniteEx sender = startGrid(0);
-        IgniteEx receiver = startGrid(1);
-
-        sender.cluster().active(true);
-
-        File fileToSend = createFileRandomData("testFile", fileSizeBytes);
-
-        receiver.context().io().fileIoMgr().downloadRate(donwloadSpeedBytes);
-
-        receiver.context().io().addFileTransmitHandler(topic, new TransmissionHandlerAdapter() {
-            @Override public FileHandler fileHandler(UUID nodeId) {
-                return getDefaultFileHandler(receiver, fileToSend);
-            }
-        });
-
-        long startTime = U.currentTimeMillis();
-
-        try (FileWriter writer = sender.context()
-            .io()
-            .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, ReadPolicy.FILE);
-        }
-
-        long totalTime = U.currentTimeMillis() - startTime;
-        int limitMs = (fileSizeBytes / donwloadSpeedBytes) * 1000;
-
-        log.info("Register the file download time  [total=" + totalTime + ", limit=" + limitMs + ']');
-
-        assertTrue("Download speed exceeded the limit [total=" + totalTime + ", limit=" + limitMs + ']',
-            totalTime <= limitMs);
-    }
-
-    /**
-     * @throws Exception If fails.
-     */
     @Test(expected = IgniteCheckedException.class)
     public void testFileHandlerChannelCloseIfAnotherOpened() throws Exception {
         final int fileSizeBytes = 5 * 1024 * 1024;
@@ -555,46 +515,6 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
             throw errs[0];
         }
-    }
-
-    /**
-     * @throws Exception If fails.
-     */
-    @Test
-    public void testFileHandlerWithUploadLimit() throws Exception {
-        final int fileSizeBytes = 5 * 1024 * 1024;
-        final int uploadSpeedBytesSec = 1024 * 1024;
-
-        IgniteEx sender = startGrid(0);
-        IgniteEx receiver = startGrid(1);
-
-        sender.cluster().active(true);
-
-        File fileToSend = createFileRandomData("testFile", fileSizeBytes);
-
-        sender.context().io().fileIoMgr().uploadRate(uploadSpeedBytesSec);
-
-        receiver.context().io().addFileTransmitHandler(topic, new TransmissionHandlerAdapter() {
-            @Override public FileHandler fileHandler(UUID nodeId) {
-                return getDefaultFileHandler(receiver, fileToSend);
-            }
-        });
-
-        long startTime = U.currentTimeMillis();
-
-        try (FileWriter writer = sender.context()
-            .io()
-            .openFileWriter(receiver.localNode().id(), topic)) {
-            writer.write(fileToSend, ReadPolicy.FILE);
-        }
-
-        long totalTime = U.currentTimeMillis() - startTime;
-        int limitMs = (fileSizeBytes / uploadSpeedBytesSec) * 1000;
-
-        log.info("Register the file upload time  [total=" + totalTime + ", limit=" + limitMs + ']');
-
-        assertTrue("Upload speed exceeded the limit [total=" + totalTime + ", limit=" + limitMs + ']',
-            totalTime <= limitMs);
     }
 
     /**

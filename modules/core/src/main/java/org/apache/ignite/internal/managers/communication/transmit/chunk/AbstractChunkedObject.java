@@ -24,7 +24,6 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
-import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
@@ -36,12 +35,6 @@ abstract class AbstractChunkedObject implements Closeable {
     /** Additional stream params. */
     @GridToStringInclude
     protected final Map<String, Serializable> params = new HashMap<>();
-
-    /**
-     * Read opration speed limiter. Provide single permit per loaded byte
-     * within <tt>1</tt> sec period of time.
-     */
-    protected TimedSemaphore limiter;
 
     /** Node stopping checker. */
     protected Supplier<Boolean> nodeStopped;

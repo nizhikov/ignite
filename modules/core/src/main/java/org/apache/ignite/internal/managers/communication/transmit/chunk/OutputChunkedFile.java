@@ -24,13 +24,10 @@ import java.io.Serializable;
 import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
-import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
@@ -93,21 +90,17 @@ public class OutputChunkedFile extends AbstractChunkedObject {
     /**
      * @param oo Channel to write data to.
      * @param uploadedBytes Number of bytes transferred on previous attempt.
-     * @param limiter Input data speed limiter.
      * @param checker Node stop checker.
      * @throws IOException If write meta input failed.
      */
     public void setup(
         ObjectOutput oo,
         long uploadedBytes,
-        TimedSemaphore limiter,
         Supplier<Boolean> checker
     ) throws IOException {
         assert checker != null;
-        assert limiter != null;
 
-        this.limiter = limiter;
-        this.nodeStopped = checker;
+        nodeStopped = checker;
 
         transferred(uploadedBytes);
 
@@ -125,17 +118,10 @@ public class OutputChunkedFile extends AbstractChunkedObject {
 
     /**
      * @param ch Output channel to write data to.
-     * @param timeout Maximum time to wait permission on each chunk.
-     * @param unit Time unit of the {@code timeout} argument.
      * @throws IOException If an io exception occurred.
      * @throws IgniteCheckedException If fails.
-     * @throws InterruptedException If operation has been interrupted.
      */
-    public void doWrite(
-        WritableByteChannel ch,
-        int timeout,
-        TimeUnit unit
-    ) throws IOException, IgniteCheckedException, InterruptedException {
+    public void doWrite(WritableByteChannel ch) throws IOException, IgniteCheckedException {
         if (!inited)
             throw new IgniteCheckedException("Write operation stopped. Chunked object is not initialized");
 
@@ -151,15 +137,6 @@ public class OutputChunkedFile extends AbstractChunkedObject {
             if (Thread.currentThread().isInterrupted() || nodeStopped.get()) {
                 throw new IgniteCheckedException("Thread has been interrupted or operation has been cancelled " +
                     "due to node is stopping. Channel processing has been stopped.");
-            }
-
-            // If the limit of permits at appropriate period of time reached,
-            // the furhter invocations of the #acuqire(int) method will be blocked.
-            acquired = limiter.tryAcquire(chunkSize(), timeout, unit);
-
-            if (!acquired) {
-                throw new TransmitException("Upload speed is too slow " +
-                    "[uploadSpeed=" + limiter.permitsPerSec() + " byte/sec]");
             }
 
             writeChunk(ch);

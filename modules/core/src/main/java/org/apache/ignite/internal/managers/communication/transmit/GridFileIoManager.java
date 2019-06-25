@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
@@ -51,7 +50,6 @@ import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChu
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedObject;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.OutputChunkedFile;
-import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
 import org.apache.ignite.internal.util.GridSpinBusyLock;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -80,12 +78,6 @@ public class GridFileIoManager {
 
     /** Retry attempts count to send single file if connection dropped (value is {@code 5}). */
     public static final int DFLT_RETRY_CNT = 5;
-
-    /** The default file limit transmittion rate per node instance (value is {@code 500 MB/sec}). */
-    public static final long DFLT_RATE_LIMIT_BYTES = 500 * 1024 * 1024;
-
-    /** The default timeout for waiting the permits. */
-    private static final int DFLT_ACQUIRE_TIMEOUT_MS = 5000;
 
     /** Flag send to remote on file writer close. */
     private static final int FILE_WRITER_CLOSED = -1;
@@ -129,20 +121,6 @@ public class GridFileIoManager {
     /** Managers busy lock. */
     private final GridSpinBusyLock busyLock = new GridSpinBusyLock();
 
-    /**
-     * The total amount of permits for the 1 second period of time per the node instance for download.
-     * To limit the download speed of reading the stream of data we will acuire a permit per byte.
-     * <p>
-     * For instance, for the 128 Kb/sec rate you should specify total <tt>131_072</tt> permits.
-     */
-    private final TimedSemaphore inBytesLimiter;
-
-    /**
-     * The total amount of permits for the 1 second period of time per the node instance for upload.
-     * See for details descriptoin of {@link #inBytesLimiter}.
-     */
-    private final TimedSemaphore outBytesLimiter;
-
     /** Closure to open a new channel to remote node. */
     private final IgniteTriClosure<UUID, Object, Message, IgniteInternalFuture<Channel>> openChannelClsr;
 
@@ -172,52 +150,7 @@ public class GridFileIoManager {
         log = ctx.log(getClass());
         this.openChannelClsr = openChannelClsr;
 
-        inBytesLimiter = new TimedSemaphore(DFLT_RATE_LIMIT_BYTES);
-        outBytesLimiter = new TimedSemaphore(DFLT_RATE_LIMIT_BYTES);
-
         chunkedObjFactory = this::createChunkedObject;
-    }
-
-    /**
-     * Set the download rate per second in bytes. It is possible to modify the download rate at runtime.
-     * Reducing the speed takes effect immediately by blocking incoming requests on the
-     * semaphore {@link #inBytesLimiter}. If the speed is increased than waiting threads
-     * are not released immediately, but will be wake up when the next time period of
-     * {@link TimedSemaphore} runs out.
-     * <p>
-     * Setting the count to {@link TimedSemaphore#UNLIMITED_PERMITS} will switch off the
-     * configured {@link #inBytesLimiter} limit.
-     *
-     * @param count Number of bytes per second for the donwload speed.
-     */
-    public void downloadRate(int count) {
-        if (count <= 0)
-            inBytesLimiter.permitsPerSec(TimedSemaphore.UNLIMITED_PERMITS);
-        else
-            inBytesLimiter.permitsPerSec(count);
-
-        U.log(log, "The file download speed has been set to: " + count + " bytes per sec.");
-    }
-
-    /**
-     * Set the upload rate per second in bytes. It is possible to modify the download rate at runtime.
-     * Reducing the speed takes effect immediately by blocking incoming requests on the
-     * semaphore {@link #outBytesLimiter}. If the speed is increased than waiting threads
-     * are not released immediately, but will be wake up when the next time period of
-     * {@link TimedSemaphore} runs out.
-     * <p>
-     * Setting the count to {@link TimedSemaphore#UNLIMITED_PERMITS} will switch off the configured
-     * {@link #outBytesLimiter} limit.
-     *
-     * @param count Number of bytes per second for the upload speed.
-     */
-    public void uploadRate(int count) {
-        if (count <= 0)
-            outBytesLimiter.permitsPerSec(TimedSemaphore.UNLIMITED_PERMITS);
-        else
-            outBytesLimiter.permitsPerSec(count);
-
-        U.log(log, "The file upload speed has been set to: " + count + " bytes per sec.");
     }
 
     /**
@@ -265,9 +198,6 @@ public class GridFileIoManager {
 
             for (Object topic : topicHandlerMap.keySet())
                 removeTransmitSessionHandler(topic);
-
-            inBytesLimiter.shutdown();
-            outBytesLimiter.shutdown();
         }
         finally {
             busyLock.unblock();
@@ -465,8 +395,8 @@ public class GridFileIoManager {
 
                 inChunkedObj = readCtx.chunkedObj;
 
-                inChunkedObj.setup(in, chunkSize, inBytesLimiter, () -> stopped);
-                inChunkedObj.doRead(channel, DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                inChunkedObj.setup(in, chunkSize, () -> stopped);
+                inChunkedObj.doRead(channel);
                 inChunkedObj.close();
 
                 readCtx.chunkedObj = null;
@@ -480,7 +410,6 @@ public class GridFileIoManager {
                 U.log(log, "The file has been successfully downloaded " +
                     "[name=" + inChunkedObj.name() + ", transferred=" + inChunkedObj.transferred() + " bytes" +
                     ", time=" + (double)((downloadTime) / 1000) + " sec" +
-                    ", speed=" + inBytesLimiter.permitsPerSec() + " byte/sec" +
                     ", retries=" + readCtx.retries);
             }
         }
@@ -745,8 +674,8 @@ public class GridFileIoManager {
                         // Write the policy how to handle input data.
                         out.writeInt(plc.ordinal());
 
-                        outChunkedObj.setup(out, transferred, outBytesLimiter, () -> stopped);
-                        outChunkedObj.doWrite(channel, DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                        outChunkedObj.setup(out, transferred, () -> stopped);
+                        outChunkedObj.doWrite(channel);
                         outChunkedObj.close();
 
                         // Read file received acknowledge.
