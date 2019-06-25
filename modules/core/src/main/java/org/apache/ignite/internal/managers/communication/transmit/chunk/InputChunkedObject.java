@@ -67,8 +67,6 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
         if (!inited)
             throw new IgniteCheckedException("Read operation stopped. Chunked object is not initialized");
 
-        boolean acquired;
-
         // Read data from the input.
         while (hasNextChunk()) {
             if (Thread.currentThread().isInterrupted() || nodeStopped.get()) {

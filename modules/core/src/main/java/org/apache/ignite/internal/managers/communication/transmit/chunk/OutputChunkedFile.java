@@ -131,8 +131,6 @@ public class OutputChunkedFile extends AbstractChunkedObject {
             fileIo.position(startPosition());
         }
 
-        boolean acquired;
-
         while (hasNextChunk()) {
             if (Thread.currentThread().isInterrupted() || nodeStopped.get()) {
                 throw new IgniteCheckedException("Thread has been interrupted or operation has been cancelled " +
