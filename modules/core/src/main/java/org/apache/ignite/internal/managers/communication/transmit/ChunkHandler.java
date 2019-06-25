@@ -37,11 +37,9 @@ public interface ChunkHandler {
 
     /**
      * @param buff The data filled buffer.
-     * @param pos Position of given chunk in the source file.
-     * @return {@code true} if the chunk of data have been successfully accepted.
      * @throws IOException If fails.
      */
-    public boolean chunk(ByteBuffer buff, long pos) throws IOException;
+    public void chunk(ByteBuffer buff) throws IOException;
 
     /**
      * @param params The additional handling channel description params.

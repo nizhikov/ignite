@@ -77,7 +77,7 @@ public class InputChunkedFile extends InputChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override public void readChunk(ReadableByteChannel ch) throws IOException {
+    @Override protected void readChunk(ReadableByteChannel ch) throws IOException {
         long batchSize = Math.min(chunkSize(), count() - transferred());
 
         long readed = fileIo.transferFrom(ch, startPosition() + transferred(), batchSize);
@@ -104,7 +104,7 @@ public class InputChunkedFile extends InputChunkedObject {
         super.doRead(ch, timeout, unit);
 
         if (transferred() == count())
-            handler.acceptFile(file, startPosition(), count(), params());
+            handler.accept(file, startPosition(), count(), params());
 
         checkTransferLimitCount();
     }

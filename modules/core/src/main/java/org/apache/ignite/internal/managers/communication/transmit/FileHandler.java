@@ -42,5 +42,5 @@ public interface FileHandler {
      * @param cnt Number of bytes transferred from source started from given offset.
      * @param params Additional transfer file description params.
      */
-    public void acceptFile(File file, long offset, long cnt, Map<String, Serializable> params);
+    public void accept(File file, long offset, long cnt, Map<String, Serializable> params);
 }

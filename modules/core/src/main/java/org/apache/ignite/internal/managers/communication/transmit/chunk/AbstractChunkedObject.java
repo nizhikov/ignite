@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.ignite.internal.managers.communication.transmit.util.TimedSemaphore;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -43,7 +44,7 @@ abstract class AbstractChunkedObject implements Closeable {
     protected TimedSemaphore limiter;
 
     /** Node stopping checker. */
-    protected Runnable nodeStopChecker;
+    protected Supplier<Boolean> nodeStopped;
 
     /** The number of bytes successfully transferred druring iteration. */
     protected long transferred;
@@ -122,10 +123,10 @@ abstract class AbstractChunkedObject implements Closeable {
     }
 
     /**
-     * @return Additional chunekd object params.
+     * @return Additional chunked object params.
      */
     public Map<String, Serializable> params() {
-        return new HashMap<>(params);
+        return params;
     }
 
     /**

@@ -19,12 +19,11 @@ package org.apache.ignite.internal.managers.communication.transmit;
 
 import java.nio.channels.FileChannel;
 import java.util.UUID;
-import org.jetbrains.annotations.Nullable;
 
 /**
- * The {@code FileTransmitHandler} represents a single session of handling input file transmission requests.
+ * The {@code TransmissionHandler} represents a single session of handling input file transmission requests.
  */
-public interface FileTransmitHandler {
+public interface TransmissionHandler {
     /**
      * @param nodeId The remote node id receive request for transmission from.
      */

@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
@@ -77,10 +78,10 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
 
         // Read data from the input.
         while (hasNextChunk()) {
-            if (Thread.currentThread().isInterrupted())
-                throw new InterruptedException("Thread has been interrupted. Channel processing has been stopped.");
-
-            nodeStopChecker.run();
+            if (Thread.currentThread().isInterrupted() || nodeStopped.get()) {
+                throw new IgniteCheckedException("Thread has been interrupted or operation has been cancelled " +
+                    "due to node is stopping. Channel processing has been stopped.");
+            }
 
             // If the limit of permits at appropriate period of time reached,
             // the furhter invocations of the #acuqire(int) method will be blocked.
@@ -107,12 +108,12 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
         ObjectInput in,
         int chunkSize,
         TimedSemaphore limiter,
-        Runnable checker
+        Supplier<Boolean> checker
     ) throws IOException, IgniteCheckedException {
         assert checker != null;
         assert limiter != null;
 
-        this.nodeStopChecker = checker;
+        this.nodeStopped = checker;
         this.limiter = limiter;
 
         TransmitMeta meta = new TransmitMeta();

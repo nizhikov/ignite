@@ -25,6 +25,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
@@ -100,13 +101,13 @@ public class OutputChunkedFile extends AbstractChunkedObject {
         ObjectOutput oo,
         long uploadedBytes,
         TimedSemaphore limiter,
-        Runnable checker
+        Supplier<Boolean> checker
     ) throws IOException {
         assert checker != null;
         assert limiter != null;
 
         this.limiter = limiter;
-        this.nodeStopChecker = checker;
+        this.nodeStopped = checker;
 
         transferred(uploadedBytes);
 
@@ -147,10 +148,10 @@ public class OutputChunkedFile extends AbstractChunkedObject {
         boolean acquired;
 
         while (hasNextChunk()) {
-            if (Thread.currentThread().isInterrupted())
-                throw new InterruptedException("The thread has been interrupted. Stop uploading file.");
-
-            nodeStopChecker.run();
+            if (Thread.currentThread().isInterrupted() || nodeStopped.get()) {
+                throw new IgniteCheckedException("Thread has been interrupted or operation has been cancelled " +
+                    "due to node is stopping. Channel processing has been stopped.");
+            }
 
             // If the limit of permits at appropriate period of time reached,
             // the furhter invocations of the #acuqire(int) method will be blocked.

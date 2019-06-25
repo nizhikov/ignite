@@ -39,11 +39,11 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteInternalFuture;
+import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitException;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
@@ -121,7 +121,7 @@ public class GridFileIoManager {
     private final IgniteLogger log;
 
     /** Map of registered handlers per each IO topic. */
-    private final ConcurrentMap<Object, FileTransmitHandler> topicHandlerMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, TransmissionHandler> topicHandlerMap = new ConcurrentHashMap<>();
 
     /** The map of already known channel read contexts by its registered topics. */
     private final ConcurrentMap<Object, FileIoReadContext> sesCtxMap = new ConcurrentHashMap<>();
@@ -147,7 +147,7 @@ public class GridFileIoManager {
     private final IgniteTriClosure<UUID, Object, Message, IgniteInternalFuture<Channel>> openChannelClsr;
 
     /** The factory produces chunked objects to process an input data channel. */
-    private IgniteTriClosure<UUID, ReadPolicy, FileTransmitHandler, InputChunkedObject> chunkedObjFactory;
+    private IgniteTriClosure<UUID, ReadPolicy, TransmissionHandler, InputChunkedObject> chunkedObjFactory;
 
     /** Listener to handle NODE_LEFT, NODE_FAIL events while waiting for remote reconnects. */
     private DiscoveryEventListener discoLsnr;
@@ -277,9 +277,9 @@ public class GridFileIoManager {
     /**
      * Check the node is stopping.
      */
-    private void checkNotStopped() {
+    private void checkNotStopped() throws NodeStoppingException {
         if (stopped)
-            throw new IgniteException("Operation has been cancelled (node is stopping)");
+            throw new NodeStoppingException("Operation has been cancelled (node is stopping)");
     }
 
     /**
@@ -295,7 +295,7 @@ public class GridFileIoManager {
         ObjectOutputStream out = null;
 
         try {
-            FileTransmitHandler session = topicHandlerMap.get(topic);
+            TransmissionHandler session = topicHandlerMap.get(topic);
 
             if (session == null)
                 return;
@@ -407,8 +407,8 @@ public class GridFileIoManager {
      * @param topic The {@link GridTopic} to register handler to.
      * @param session The session will be created for a new channel opened.
      */
-    public void addFileTransmitHandler(Object topic, FileTransmitHandler session) {
-        FileTransmitHandler hdlr = topicHandlerMap.putIfAbsent(topic, session);
+    public void addFileTransmitHandler(Object topic, TransmissionHandler session) {
+        TransmissionHandler hdlr = topicHandlerMap.putIfAbsent(topic, session);
 
         if (hdlr != null)
             U.warn(log, "The topic already have an appropriate session handler [topic=" + topic + ']');
@@ -465,7 +465,7 @@ public class GridFileIoManager {
 
                 inChunkedObj = readCtx.chunkedObj;
 
-                inChunkedObj.setup(in, chunkSize, inBytesLimiter, this::checkNotStopped);
+                inChunkedObj.setup(in, chunkSize, inBytesLimiter, () -> stopped);
                 inChunkedObj.doRead(channel, DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
                 inChunkedObj.close();
 
@@ -510,7 +510,7 @@ public class GridFileIoManager {
     /**
      * @param factory A new factory instance to set.
      */
-    void chunkedObjectFactory(IgniteTriClosure<UUID, ReadPolicy, FileTransmitHandler, InputChunkedObject> factory) {
+    void chunkedObjectFactory(IgniteTriClosure<UUID, ReadPolicy, TransmissionHandler, InputChunkedObject> factory) {
         chunkedObjFactory = factory;
     }
 
@@ -524,7 +524,7 @@ public class GridFileIoManager {
     private InputChunkedObject createChunkedObject(
         UUID nodeId,
         ReadPolicy plc,
-        FileTransmitHandler hndlr
+        TransmissionHandler hndlr
     ) throws IgniteCheckedException {
         switch (plc) {
             case FILE:
@@ -599,7 +599,7 @@ public class GridFileIoManager {
 
         /** Current sesssion handler. */
         @GridToStringExclude
-        private final FileTransmitHandler hndlr;
+        private final TransmissionHandler hndlr;
 
         /** Flag indicates session started. */
         private final AtomicBoolean started = new AtomicBoolean();
@@ -623,7 +623,7 @@ public class GridFileIoManager {
          * @param nodeId Remote node id.
          * @param hndlr Channel handler of current topic.
          */
-        public FileIoReadContext(UUID nodeId, FileTransmitHandler hndlr) {
+        public FileIoReadContext(UUID nodeId, TransmissionHandler hndlr) {
             this.nodeId = nodeId;
             this.hndlr = hndlr;
         }
@@ -745,7 +745,7 @@ public class GridFileIoManager {
                         // Write the policy how to handle input data.
                         out.writeInt(plc.ordinal());
 
-                        outChunkedObj.setup(out, transferred, outBytesLimiter, GridFileIoManager.this::checkNotStopped);
+                        outChunkedObj.setup(out, transferred, outBytesLimiter, () -> stopped);
                         outChunkedObj.doWrite(channel, DFLT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
                         outChunkedObj.close();
 
