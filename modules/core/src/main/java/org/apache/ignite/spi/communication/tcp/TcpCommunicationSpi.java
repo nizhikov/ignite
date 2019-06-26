@@ -99,7 +99,7 @@ import org.apache.ignite.internal.util.nio.GridNioServerListener;
 import org.apache.ignite.internal.util.nio.GridNioServerListenerAdapter;
 import org.apache.ignite.internal.util.nio.GridNioSession;
 import org.apache.ignite.internal.util.nio.GridNioSessionMetaKey;
-import org.apache.ignite.internal.util.nio.GridSelectorNioSession;
+import org.apache.ignite.internal.util.nio.GridSelectorNioSessionImpl;
 import org.apache.ignite.internal.util.nio.GridShmemCommunicationClient;
 import org.apache.ignite.internal.util.nio.GridTcpNioCommunicationClient;
 import org.apache.ignite.internal.util.nio.ssl.BlockingSslHandler;
@@ -755,7 +755,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                 }
             }
 
-            private void handleChannelCreateResponse(GridSelectorNioSession ses, ConnectionKey connKey) {
+            private void handleChannelCreateResponse(GridSelectorNioSessionImpl ses, ConnectionKey connKey) {
                 GridFutureAdapter<Channel> reqFut = channelReqs.remove(connKey);
 
                 if (reqFut == null) {
@@ -785,7 +785,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
             }
 
             private void handleChannelCreateRequest(
-                GridSelectorNioSession ses,
+                GridSelectorNioSessionImpl ses,
                 ConnectionKey connKey,
                 ChannelCreateRequest msg
             ) {
@@ -927,7 +927,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                         c = NOOP;
 
                     if (msg instanceof ChannelCreateRequest) {
-                        handleChannelCreateRequest((GridSelectorNioSession)ses, connKey,
+                        handleChannelCreateRequest((GridSelectorNioSessionImpl)ses, connKey,
                             (ChannelCreateRequest)msg);
 
                         if (c != null)
@@ -935,7 +935,7 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                     }
                     else if (msg instanceof ChannelCreateResponse) {
                         // msg will be ignored.
-                        handleChannelCreateResponse((GridSelectorNioSession)ses, connKey);
+                        handleChannelCreateResponse((GridSelectorNioSessionImpl)ses, connKey);
 
                         if (c != null)
                             c.run();
@@ -4390,7 +4390,8 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
 
         ConnectionKey key = new ConnectionKey(remote.id(), sockConnPlc.connectionIndex());
 
-        GridSelectorNioSession ses = null;
+        GridNioSession ses;
+
         final GridFutureAdapter<Channel> result = new GridFutureAdapter<>();
 
         try {
@@ -4399,11 +4400,11 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                     "Connection key already in use [key=" + key + ']');
             }
 
-            ses = (GridSelectorNioSession)createNioSession(remote, key.connectionIndex());
+            ses = createNioSession(remote, key.connectionIndex());
 
             assert ses != null : "Session must be established [remoteId=" + remote.id() + ", key=" + key + ']';
 
-            final GridSelectorNioSession finalSes = ses;
+            final GridNioSession finalSes = ses;
 
             channelReqs.put(key, result);
 

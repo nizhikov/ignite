@@ -39,7 +39,7 @@ import org.jetbrains.annotations.Nullable;
  * Note that this implementation requires non-null values for local and remote
  * socket addresses.
  */
-class GridSelectorNioSessionImpl extends GridNioSessionImpl implements GridNioKeyAttachment, GridSelectorNioSession {
+public class GridSelectorNioSessionImpl extends GridNioSessionImpl implements GridNioKeyAttachment {
     /** Pending write requests. */
     private final FastSizeDeque<SessionWriteRequest> queue = new FastSizeDeque<>(new ConcurrentLinkedDeque<>());
 
@@ -148,8 +148,12 @@ class GridSelectorNioSessionImpl extends GridNioSessionImpl implements GridNioKe
         return worker;
     }
 
-    /** {@inheritDoc} */
-    @Override public void key(SelectionKey key) {
+    /**
+     * Sets selection key for this session.
+     *
+     * @param key Selection key.
+     */
+    void key(SelectionKey key) {
         assert key != null;
 
         this.key = key;
@@ -169,8 +173,10 @@ class GridSelectorNioSessionImpl extends GridNioSessionImpl implements GridNioKe
         return readBuf;
     }
 
-    /** {@inheritDoc} */
-    @Override public SelectionKey key() {
+    /**
+     * @return Registered selection key for this session.
+     */
+    public SelectionKey key() {
         return key;
     }
 
