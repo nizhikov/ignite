@@ -126,7 +126,7 @@ public final class FastCrc {
 
         buf.limit(initLimit);
 
-        return (int)crcAlgo.getValue() ^ 0xFFFFFFFF;
+        return ~(int)crcAlgo.getValue();
     }
 
     /**
