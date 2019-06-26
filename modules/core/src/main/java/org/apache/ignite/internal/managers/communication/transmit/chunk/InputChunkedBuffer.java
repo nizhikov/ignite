@@ -86,14 +86,31 @@ public class InputChunkedBuffer extends InputChunkedObject {
     @Override protected void readChunk(ReadableByteChannel ch) throws IOException {
         buff.rewind();
 
-        long readed = tryReadFully(ch, buff);
+        int readed = 0;
+        int res;
 
-        long prevReaded = transferred();
+        // Read data from input channel utill the buffer will be completely filled
+        // (buff.remaining() returns 0) or partitially filled buffer if it was the last chunk.
+        while (true) {
+            res = ch.read(buff);
 
-        if (readed > 0)
-            transferred += readed;
-        else
+            if (res < 0) {
+                if (transferred + readed != count())
+                    throw new TransmitException("Input data channel reached its end, but chunked object has not fully loaded");
+
+                break;
+            }
+
+            readed += res;
+
+            if (readed == buff.capacity() || buff.position() == buff.capacity())
+                break;
+        }
+
+        if (readed == 0)
             return;
+
+        transferred += readed;
 
         buff.flip();
 
@@ -108,36 +125,6 @@ public class InputChunkedBuffer extends InputChunkedObject {
             handler.end(params());
 
         checkTransferLimitCount();
-    }
-
-    /**
-     * Reads data from input channel utill the given buffer will be completely
-     * filled ({@code buff.remaining()} returns 0) or partitially filled buffer if it was the last chunk.
-     *
-     * @param ch Channel to read data from.
-     * @param buff Buffer to write data to.
-     * @return Number of bytes actually readed into given buffer.
-     * @throws TransmitException if the object has not been fully loaded while the stream reached its end.
-     */
-    private int tryReadFully(ReadableByteChannel ch, ByteBuffer buff) throws IOException {
-        int total = 0;
-
-        while (true) {
-            int readed = ch.read(buff);
-
-            if (readed < 0) {
-                // Return partitially filled buffer only for the last chunk
-                if (transferred + total == count())
-                    return total;
-                else
-                    throw new TransmitException("Input data channel reached its end, but chunked object has not fully loaded");
-            }
-
-            total += readed;
-
-            if (total == buff.capacity() || buff.position() == buff.capacity())
-                return total;
-        }
     }
 
     /** {@inheritDoc} */
