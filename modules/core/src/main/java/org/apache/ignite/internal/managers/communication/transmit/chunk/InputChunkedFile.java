@@ -19,8 +19,10 @@ package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
+import java.util.Map;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.FileHandler;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
@@ -50,10 +52,20 @@ public class InputChunkedFile extends InputChunkedObject {
     private FileIO fileIo;
 
     /**
+     * @param name The unique file name within transfer process.
+     * @param startPos The position from which the transfer should start to.
+     * @param cnt The number of bytes to expect of transfer.
+     * @param params Additional stream params.
      * @param handler The file handler to process download result.
      */
-    public InputChunkedFile(FileHandler handler) {
-        super(null, -1, -1, null);
+    public InputChunkedFile(
+        String name,
+        long startPos,
+        long cnt,
+        Map<String, Serializable> params,
+        FileHandler handler
+    ) {
+        super(name, startPos, cnt, params);
 
         assert handler != null;
 
@@ -67,7 +79,7 @@ public class InputChunkedFile extends InputChunkedObject {
 
         chunkSize(chunkSize);
 
-        String fileAbsPath = handler.path(name(), params());
+        String fileAbsPath = handler.path();
 
         if (fileAbsPath == null)
             throw new IOException("Requested for the chunked stream a file absolute path is incorrect: " + this);
@@ -99,7 +111,7 @@ public class InputChunkedFile extends InputChunkedObject {
         super.doRead(ch);
 
         if (transferred() == count())
-            handler.accept(file, startPosition(), count(), params());
+            handler.accept(file);
 
         checkTransferLimitCount();
     }

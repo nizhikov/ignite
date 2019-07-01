@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.ignite.internal.managers.communication.transmit.ReadPolicy;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
@@ -33,14 +34,8 @@ import org.apache.ignite.internal.util.typedef.internal.S;
  * process or to continue the previous unfinished from the last transmission point.
  */
 public class TransmitMeta implements Externalizable {
-    /** Default transmit meta. */
-    public static final TransmitMeta DFLT_TRANSMIT_META = new TransmitMeta();
-
     /** Serial version uid. */
     private static final long serialVersionUID = 0L;
-
-    /** Default name of transmittion meta instance. Can be overridden, usually used to read data from channel. */
-    private static final String UNNAMED_META = "unnamed";
 
     /**
      * The name to associate particular meta with.
@@ -60,6 +55,9 @@ public class TransmitMeta implements Externalizable {
     /** Additional file params to transfer (e.g. partition id, partition name etc.). */
     private HashMap<String, Serializable> map = new HashMap<>();
 
+    /** Read policy the way of how particular file will be handled. */
+    private ReadPolicy plc;
+
     /** Last seen error if it has been occurred, or {@code null} the otherwise. */
     private Exception err;
 
@@ -67,14 +65,7 @@ public class TransmitMeta implements Externalizable {
      * Default constructor, usually used to create meta to read channel data into.
      */
     public TransmitMeta() {
-        this(UNNAMED_META, null);
-    }
-
-    /**
-     * @param err Last seen error if it has been occurred, or {@code null} the otherwise.
-     */
-    public TransmitMeta(Exception err) {
-        this(UNNAMED_META, err);
+        this(null, null);
     }
 
     /**
@@ -82,7 +73,7 @@ public class TransmitMeta implements Externalizable {
      * @param err Last seen error if it has been occurred, or {@code null} the otherwise.
      */
     public TransmitMeta(String name, Exception err) {
-        this(name, -1, -1, true, null, err);
+        this(name, -1, -1, true, null, null, err);
     }
 
     /**
@@ -91,6 +82,7 @@ public class TransmitMeta implements Externalizable {
      * @param cnt The amount of bytes to receive by remote.
      * @param initial {@code true} if file is send first time, {@code false} means file meta for the next reconnect attempt.
      * @param params Additional transfer meta params.
+     * @param plc Policy of how file will be handled.
      * @param err Last seen error if it has been occurred, or {@code null} the otherwise.
      */
     public TransmitMeta(
@@ -99,10 +91,9 @@ public class TransmitMeta implements Externalizable {
         long cnt,
         boolean initial,
         Map<String, Serializable> params,
+        ReadPolicy plc,
         Exception err
     ) {
-        assert name != null;
-
         this.name = name;
         this.offset = offset;
         this.cnt = cnt;
@@ -113,6 +104,7 @@ public class TransmitMeta implements Externalizable {
                 map.put(key.getKey(), key.getValue());
         }
 
+        this.plc = plc;
         this.err = err;
     }
 
@@ -154,6 +146,13 @@ public class TransmitMeta implements Externalizable {
     }
 
     /**
+     * @return File read way policy {@link ReadPolicy}.
+     */
+    public ReadPolicy policy() {
+        return plc;
+    }
+
+    /**
      * @return An exception instance if it has been previously occurred.
      */
     public Exception error() {
@@ -167,6 +166,7 @@ public class TransmitMeta implements Externalizable {
         out.writeLong(cnt);
         out.writeBoolean(initial);
         out.writeObject(map);
+        out.writeObject(plc);
         out.writeObject(err);
     }
 
@@ -178,6 +178,7 @@ public class TransmitMeta implements Externalizable {
             cnt = in.readLong();
             initial = in.readBoolean();
             map = (HashMap)in.readObject();
+            plc = (ReadPolicy)in.readObject();
             err = (Exception)in.readObject();
         }
         catch (ClassNotFoundException e) {

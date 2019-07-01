@@ -18,9 +18,7 @@
 package org.apache.ignite.internal.managers.communication.transmit;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.nio.ByteBuffer;
-import java.util.Map;
 
 /**
  * The {@code ChunkHandler} represents by itself the way of input data stream processing.
@@ -28,21 +26,18 @@ import java.util.Map;
  */
 public interface ChunkHandler {
     /**
-     * @param name The file name on remote.
-     * @param params The additional transfer file description params.
      * @return The size of of {@link ByteBuffer} to read the input channel into.
-     * @throws IOException If fails.
      */
-    public int begin(String name, Map<String, Serializable> params) throws IOException;
+    public int size();
 
     /**
      * @param buff The data filled buffer.
      * @throws IOException If fails.
      */
-    public void chunk(ByteBuffer buff) throws IOException;
+    public void accept(ByteBuffer buff) throws IOException;
 
     /**
-     * @param params The additional handling channel description params.
+     * Chunked handler finishes.
      */
-    public void end(Map<String, Serializable> params);
+    public void end();
 }

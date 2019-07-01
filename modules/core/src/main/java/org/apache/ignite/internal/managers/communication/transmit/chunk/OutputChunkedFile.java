@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.internal.managers.communication.transmit.ReadPolicy;
 import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
@@ -90,12 +91,14 @@ public class OutputChunkedFile extends AbstractChunkedObject {
     /**
      * @param oo Channel to write data to.
      * @param uploadedBytes Number of bytes transferred on previous attempt.
+     * @param plc Policy of way how data will be handled on remote node.
      * @param checker Node stop checker.
      * @throws IOException If write meta input failed.
      */
     public void setup(
         ObjectOutput oo,
         long uploadedBytes,
+        ReadPolicy plc,
         Supplier<Boolean> checker
     ) throws IOException {
         assert checker != null;
@@ -109,6 +112,7 @@ public class OutputChunkedFile extends AbstractChunkedObject {
             count(),
             transferred() == 0,
             params(),
+            plc,
             null);
 
         meta.writeExternal(oo);

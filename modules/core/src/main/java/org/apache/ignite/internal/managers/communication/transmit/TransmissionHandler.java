@@ -17,8 +17,11 @@
 
 package org.apache.ignite.internal.managers.communication.transmit;
 
+import java.io.Serializable;
 import java.nio.channels.FileChannel;
+import java.util.Map;
 import java.util.UUID;
+import org.apache.ignite.IgniteCheckedException;
 
 /**
  * The {@code TransmissionHandler} represents a single session of handling input file transmission requests.
@@ -32,7 +35,7 @@ public interface TransmissionHandler {
     /**
      * @param err The err of fail handling process.
      */
-    public void onException(Throwable err);
+    public void onException(UUID nodeId, Throwable err);
 
     /**
      * The end of session transmission process.
@@ -40,12 +43,26 @@ public interface TransmissionHandler {
     public void onEnd(UUID nodeId);
 
     /**
+     * @param nodeId The remote node id receive request for transmission from.
+     * @param name File name transferred from remote.
+     * @param offset Offset pointer of downloaded file in original source.
+     * @param cnt Number of bytes transferred from source started from given offset.
+     * @param params Additional transfer file description params.
      * @return The instance of read handler to process incoming data by chunks.
+     * @throws IgniteCheckedException If fails.
      */
-    public ChunkHandler chunkHandler(UUID nodeId);
+    public ChunkHandler chunkHandler(UUID nodeId, String name, long offset, long cnt, Map<String, Serializable> params)
+        throws IgniteCheckedException;
 
     /**
+     * @param nodeId The remote node id receive request for transmission from.
+     * @param name File name transferred from remote.
+     * @param offset Offset pointer of downloaded file in original source.
+     * @param cnt Number of bytes transferred from source started from given offset.
+     * @param params Additional transfer file description params.
      * @return The intance of read handler to process incoming data like the {@link FileChannel} manner.
+     * @throws IgniteCheckedException If fails.
      */
-    public FileHandler fileHandler(UUID nodeId);
+    public FileHandler fileHandler(UUID nodeId, String name, long offset, long cnt, Map<String, Serializable> params)
+        throws IgniteCheckedException;
 }

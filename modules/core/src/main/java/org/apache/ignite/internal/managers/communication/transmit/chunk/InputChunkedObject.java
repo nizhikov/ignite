@@ -18,7 +18,6 @@
 package org.apache.ignite.internal.managers.communication.transmit.chunk;
 
 import java.io.IOException;
-import java.io.ObjectInput;
 import java.io.Serializable;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
@@ -79,14 +78,14 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
     }
 
     /**
-     * @param in Channel to read data from.
+     * @param meta Provided file meta.
      * @param chunkSize The size of chunk to read.
      * @param checker Node stopping flag.
      * @throws IOException If read meta input failed.
      * @throws IgniteCheckedException If validation failed.
      */
     public void setup(
-        ObjectInput in,
+        TransmitMeta meta,
         int chunkSize,
         Supplier<Boolean> checker
     ) throws IOException, IgniteCheckedException {
@@ -94,25 +93,14 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
 
         nodeStopped = checker;
 
-        TransmitMeta meta = new TransmitMeta();
-
-        meta.readExternal(in);
-
         if (meta.initial()) {
-            if (!inited) {
-                name = meta.name();
-                startPos = meta.offset();
-                cnt = meta.count();
-                params.putAll(meta.params());
-
-                init(chunkSize);
-
-                inited = true;
-            }
-            else {
+            if (inited)
                 throw new IgniteCheckedException("Attempt to read a new file from channel, but previous was not fully " +
                     "loaded [new=" + meta.name() + ", old=" + name() + ']');
-            }
+
+            init(chunkSize);
+
+            inited = true;
         }
         else {
             if (inited) {

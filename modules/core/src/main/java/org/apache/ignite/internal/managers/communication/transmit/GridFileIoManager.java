@@ -79,8 +79,11 @@ public class GridFileIoManager {
     /** Retry attempts count to send single file if connection dropped (value is {@code 5}). */
     public static final int DFLT_RETRY_CNT = 5;
 
-    /** Flag send to remote on file writer close. */
-    private static final int FILE_WRITER_CLOSED = -1;
+    /** Default transmit meta. */
+    private static final String DFLT_TRANSMIT_META = "default";
+
+    /** Session end meta. */
+    private static final String DFLT_SESSION_CLOSE_META = "close";
 
     /** Default timeout in milleseconds to wait an IO data on socket. See Socket#setSoTimeout(int). */
     private static final int DFLT_IO_TIMEOUT_MS = 5_000;
@@ -125,7 +128,7 @@ public class GridFileIoManager {
     private final IgniteTriClosure<UUID, Object, Message, IgniteInternalFuture<Channel>> openChannelClsr;
 
     /** The factory produces chunked objects to process an input data channel. */
-    private IgniteTriClosure<UUID, ReadPolicy, TransmissionHandler, InputChunkedObject> chunkedObjFactory;
+    private IgniteTriClosure<UUID, TransmissionHandler, TransmitMeta, InputChunkedObject> chunkedObjFactory;
 
     /** Listener to handle NODE_LEFT, NODE_FAIL events while waiting for remote reconnects. */
     private DiscoveryEventListener discoLsnr;
@@ -172,7 +175,7 @@ public class GridFileIoManager {
                     FileIoReadContext ioctx = sesEntry.getValue();
 
                     if (ioctx.nodeId.equals(leftNodeId)) {
-                        ioctx.hndlr.onException(new ClusterTopologyCheckedException("Failed to proceed download. " +
+                        ioctx.hndlr.onException(leftNodeId, new ClusterTopologyCheckedException("Failed to proceed download. " +
                             "The remote node node left the grid: " + leftNodeId));
 
                         sesCtxMap.remove(sesEntry.getKey());
@@ -248,7 +251,7 @@ public class GridFileIoManager {
                     "another thread. Channel will be closed [initMsg=" + initMsg + ", channel=" + channel +
                     ", fromNodeId=" + nodeId + ']'));
 
-                TransmitMeta exMeta = new TransmitMeta(ex);
+                TransmitMeta exMeta = new TransmitMeta(DFLT_TRANSMIT_META, ex);
 
                 exMeta.writeExternal(out);
 
@@ -266,7 +269,7 @@ public class GridFileIoManager {
                 else if (!readCtx.sesId.equals(newSesId)) {
                     // Attempt to receive file with new session id. Context must be reinited,
                     // previous session must be failed.
-                    readCtx.hndlr.onException(new IgniteCheckedException("The handler has been aborted " +
+                    readCtx.hndlr.onException(nodeId, new IgniteCheckedException("The handler has been aborted " +
                         "by transfer attempt with a new sessionId: " + newSesId));
 
                     readCtx = new FileIoReadContext(nodeId, session);
@@ -280,7 +283,7 @@ public class GridFileIoManager {
 
                 // Send previous context state to sync remote and local node (on manager connected).
                 if (readCtx.chunkedObj == null)
-                    meta = new TransmitMeta(readCtx.lastSeenErr);
+                    meta = new TransmitMeta(DFLT_TRANSMIT_META, readCtx.lastSeenErr);
                 else {
                     final InputChunkedObject obj = readCtx.chunkedObj;
 
@@ -289,6 +292,7 @@ public class GridFileIoManager {
                         obj.count(),
                         obj.transferred() == 0,
                         obj.params(),
+                        readCtx.currPlc,
                         readCtx.lastSeenErr);
                 }
 
@@ -323,7 +327,7 @@ public class GridFileIoManager {
             if (readCtx != null) {
                 readCtx.lastSeenErr = new IgniteCheckedException("Channel processing error [nodeId=" + nodeId + ']', t);
 
-                readCtx.hndlr.onException(t);
+                readCtx.hndlr.onException(nodeId, t);
             }
         }
         finally {
@@ -369,10 +373,11 @@ public class GridFileIoManager {
             while (!Thread.currentThread().isInterrupted()) {
                 checkNotStopped();
 
-                // Read current stream session policy
-                int plcInt = in.readInt();
+                TransmitMeta meta = new TransmitMeta();
 
-                if (plcInt == FILE_WRITER_CLOSED) {
+                meta.readExternal(in);
+
+                if (DFLT_SESSION_CLOSE_META.equals(meta.name())) {
                     readCtx.hndlr.onEnd(readCtx.nodeId);
 
                     sesCtxMap.remove(topic);
@@ -380,26 +385,24 @@ public class GridFileIoManager {
                     break;
                 }
 
-                if (plcInt < 0 || plcInt > ReadPolicy.values().length)
-                    throw new IOException("The policy received from channel is unknown [order=" + plcInt + ']');
+                if (readCtx.chunkedObj == null) {
+                    readCtx.chunkedObj = chunkedObjFactory.apply(readCtx.nodeId,
+                        readCtx.hndlr,
+                        meta);
 
-                readCtx.currPlc = ReadPolicy.values()[plcInt];
+                    readCtx.currPlc = meta.policy();
+                }
 
                 long startTime = U.currentTimeMillis();
 
-                if (readCtx.chunkedObj == null) {
-                    readCtx.chunkedObj = chunkedObjFactory.apply(readCtx.nodeId,
-                        readCtx.currPlc,
-                        readCtx.hndlr);
-                }
-
                 inChunkedObj = readCtx.chunkedObj;
 
-                inChunkedObj.setup(in, chunkSize, () -> stopped);
+                inChunkedObj.setup(meta, chunkSize, () -> stopped);
                 inChunkedObj.doRead(channel);
                 inChunkedObj.close();
 
                 readCtx.chunkedObj = null;
+                readCtx.currPlc = null;
 
                 // Write chunked object processing ack.
                 out.writeLong(inChunkedObj.transferred());
@@ -439,32 +442,49 @@ public class GridFileIoManager {
     /**
      * @param factory A new factory instance to set.
      */
-    void chunkedObjectFactory(IgniteTriClosure<UUID, ReadPolicy, TransmissionHandler, InputChunkedObject> factory) {
+    void chunkedObjectFactory(IgniteTriClosure<UUID, TransmissionHandler, TransmitMeta, InputChunkedObject> factory) {
         chunkedObjFactory = factory;
     }
 
     /**
      * @param nodeId Remote node id.
-     * @param plc Policy of how to read input data stream.
      * @param hndlr The current handler instance which produces file handlers.
      * @return Chunked object instance.
      * @throws IgniteCheckedException If fails.
      */
     private InputChunkedObject createChunkedObject(
         UUID nodeId,
-        ReadPolicy plc,
-        TransmissionHandler hndlr
+        TransmissionHandler hndlr,
+        TransmitMeta objMeta
     ) throws IgniteCheckedException {
-        switch (plc) {
+        switch (objMeta.policy()) {
             case FILE:
-                return new InputChunkedFile(hndlr.fileHandler(nodeId));
+                return new InputChunkedFile(
+                    objMeta.name(),
+                    objMeta.offset(),
+                    objMeta.count(),
+                    objMeta.params(),
+                    hndlr.fileHandler(nodeId,
+                        objMeta.name(),
+                        objMeta.offset(),
+                        objMeta.count(),
+                        objMeta.params()));
 
             case BUFF:
-                return new InputChunkedBuffer(hndlr.chunkHandler(nodeId));
+                return new InputChunkedBuffer(
+                    objMeta.name(),
+                    objMeta.offset(),
+                    objMeta.count(),
+                    objMeta.params(),
+                    hndlr.chunkHandler(nodeId,
+                        objMeta.name(),
+                        objMeta.offset(),
+                        objMeta.count(),
+                        objMeta.params()));
 
             default:
                 throw new IgniteCheckedException("The type of read plc is unknown. The impelentation " +
-                    "required: " + plc);
+                    "required: " + objMeta.policy());
         }
     }
 
@@ -661,7 +681,7 @@ public class GridFileIoManager {
                                 throw syncMeta.error();
 
                             // If not the initial connection for the current session.
-                            if (!TransmitMeta.DFLT_TRANSMIT_META.equals(syncMeta)) {
+                            if (!DFLT_TRANSMIT_META.equals(syncMeta.name())) {
                                 transferred = syncMeta.offset() - outChunkedObj.startPosition();
 
                                 assert transferred >= 0 : "Incorrect sync meta [offset=" + syncMeta.offset() +
@@ -671,10 +691,7 @@ public class GridFileIoManager {
                             }
                         }
 
-                        // Write the policy how to handle input data.
-                        out.writeInt(plc.ordinal());
-
-                        outChunkedObj.setup(out, transferred, () -> stopped);
+                        outChunkedObj.setup(out, transferred, plc, () -> stopped);
                         outChunkedObj.doWrite(channel);
                         outChunkedObj.close();
 
@@ -727,7 +744,7 @@ public class GridFileIoManager {
                 if (out != null) {
                     U.log(log, "Writing tombstone on close write session");
 
-                    out.writeInt(FILE_WRITER_CLOSED);
+                    new TransmitMeta(DFLT_SESSION_CLOSE_META, null).writeExternal(out);
                 }
             }
             catch (IOException e) {

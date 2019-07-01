@@ -18,9 +18,6 @@
 package org.apache.ignite.internal.managers.communication.transmit;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.Serializable;
-import java.util.Map;
 
 /**
  * The {@code FileHandler} represents by itself the way of input data stream processing. All the data will
@@ -29,18 +26,12 @@ import java.util.Map;
  */
 public interface FileHandler {
     /**
-     * @param name File name transferred from remote.
-     * @param params The additional transfer file description params.
      * @return The absolute pathname string denoting the file or {@code null} if it is no sense.
-     * @throws IOException If fails.
      */
-    public String path(String name, Map<String, Serializable> params) throws IOException;
+    public String path();
 
     /**
      * @param file File with fully downloaded data into.
-     * @param offset Offset pointer of downloaded file in original source.
-     * @param cnt Number of bytes transferred from source started from given offset.
-     * @param params Additional transfer file description params.
      */
-    public void accept(File file, long offset, long cnt, Map<String, Serializable> params);
+    public void accept(File file);
 }
