@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.managers.communication.transmit.channel;
+package org.apache.ignite.internal.managers.communication.channel;
 
 import java.io.IOException;
 import java.io.InputStream;

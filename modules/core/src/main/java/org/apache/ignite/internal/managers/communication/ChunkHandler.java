@@ -15,23 +15,25 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.managers.communication.transmit;
+package org.apache.ignite.internal.managers.communication;
 
-import java.io.File;
+import java.io.Closeable;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /**
- * The {@code FileHandler} represents by itself the way of input data stream processing. All the data will
- * be processed under the hood using zero-copy transferring algorithm and only start file processing and
- * the end of processing will be provided.
+ * The {@code ChunkHandler} represents by itself the way of input data stream processing.
+ * It accepts within each chunk a {@link ByteBuffer} with data from input for further processing.
  */
-public interface FileHandler {
+public interface ChunkHandler extends Closeable {
     /**
-     * @return The absolute pathname string denoting the file or {@code null} if it is no sense.
+     * @return The size of of {@link ByteBuffer} to read the input channel into.
      */
-    public String path();
+    public int size();
 
     /**
-     * @param file File with fully downloaded data into.
+     * @param buff The data filled buffer.
+     * @throws IOException If fails.
      */
-    public void accept(File file);
+    public void accept(ByteBuffer buff) throws IOException;
 }

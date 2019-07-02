@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.managers.communication.transmit;
+package org.apache.ignite.internal.managers.communication;
 
 import java.io.Serializable;
 import java.nio.channels.FileChannel;

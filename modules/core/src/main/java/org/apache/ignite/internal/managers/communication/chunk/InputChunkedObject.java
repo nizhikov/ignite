@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.managers.communication.transmit.chunk;
+package org.apache.ignite.internal.managers.communication.chunk;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -23,7 +23,7 @@ import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
+import org.apache.ignite.internal.managers.communication.channel.TransmitMeta;
 
 /**
  * Class represents an object which can be read from a channel by chunks of

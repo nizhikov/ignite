@@ -15,15 +15,23 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.managers.communication.transmit;
+package org.apache.ignite.internal.managers.communication;
+
+import java.io.File;
 
 /**
- * Enumeration of ways how to handle input chunked data on a receiver node.
+ * The {@code FileHandler} represents by itself the way of input data stream processing. All the data will
+ * be processed under the hood using zero-copy transferring algorithm and only start file processing and
+ * the end of processing will be provided.
  */
-public enum ReadPolicy {
-    /** Read the source direcly into a FileChannel. */
-    FILE,
+public interface FileHandler {
+    /**
+     * @return The absolute pathname string denoting the file or {@code null} if it is no sense.
+     */
+    public String path();
 
-    /** Read the source into an appropriate ByteBuffer. */
-    BUFF
+    /**
+     * @param file File with fully downloaded data into.
+     */
+    public void accept(File file);
 }

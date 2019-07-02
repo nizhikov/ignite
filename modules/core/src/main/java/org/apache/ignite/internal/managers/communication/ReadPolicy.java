@@ -15,8 +15,15 @@
  * limitations under the License.
  */
 
+package org.apache.ignite.internal.managers.communication;
+
 /**
- * <!-- Package description. -->
- * The internal file transfer processor.
+ * Enumeration of ways how to handle input chunked data on a receiver node.
  */
-package org.apache.ignite.internal.managers.communication.transmit;
+public enum ReadPolicy {
+    /** Read the source direcly into a FileChannel. */
+    FILE,
+
+    /** Read the source into an appropriate ByteBuffer. */
+    BUFF
+}

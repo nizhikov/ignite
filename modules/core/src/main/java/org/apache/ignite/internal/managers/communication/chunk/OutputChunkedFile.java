@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.managers.communication.transmit.chunk;
+package org.apache.ignite.internal.managers.communication.chunk;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,8 +27,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
-import org.apache.ignite.internal.managers.communication.transmit.ReadPolicy;
-import org.apache.ignite.internal.managers.communication.transmit.channel.TransmitMeta;
+import org.apache.ignite.internal.managers.communication.ReadPolicy;
+import org.apache.ignite.internal.managers.communication.channel.TransmitMeta;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
@@ -38,7 +38,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 
 /**
  * Class represents a writable file chunked object which supports the zero-copy streaming algorithm,
- * see {@link FileChannel#transferTo(long, long, java.nio.channels.WritableByteChannel)} for details.
+ * see {@link FileChannel#transferTo(long, long, WritableByteChannel)} for details.
  */
 public class OutputChunkedFile extends AbstractChunkedObject {
     /** The default factory to provide IO oprations over underlying file. */

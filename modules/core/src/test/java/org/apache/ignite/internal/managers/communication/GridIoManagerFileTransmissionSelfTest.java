@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.managers.communication.transmit;
+package org.apache.ignite.internal.managers.communication;
 
 import java.io.File;
 import java.io.FilenameFilter;
@@ -43,7 +43,7 @@ import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
-import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
+import org.apache.ignite.internal.managers.communication.chunk.InputChunkedFile;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
@@ -62,7 +62,7 @@ import static org.apache.ignite.internal.processors.cache.persistence.file.FileP
 /**
  * Test file transmission mamanger operations.
  */
-public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
+public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTest {
     /** Number of cache keys to generate. */
     private static final long CACHE_SIZE = 50_000L;
 
@@ -263,7 +263,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
 
         File fileToSend = createFileRandomData("testFile", fileSizeBytes);
 
-        receiver.context().io().fileIoMgr()
+        receiver.context().io()
             .chunkedObjectFactory((nodeId, hndlr, objMeta) ->
                 new InputChunkedFile(
                     objMeta.name(),
@@ -313,7 +313,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
         File fileToSend = createFileRandomData("testFile", 5 * 1024 * 1024);
         final AtomicInteger readedChunks = new AtomicInteger();
 
-        receiver.context().io().fileIoMgr()
+        receiver.context().io()
             .chunkedObjectFactory((nodeId, hndlr, objMeta) -> {
                 assertEquals(objMeta.policy(), ReadPolicy.FILE);
 
