@@ -30,6 +30,9 @@ import org.apache.ignite.internal.managers.communication.channel.TransmitMeta;
  * predefined size. Closes when a transmission of represented object ends.
  */
 public abstract class InputChunkedObject extends AbstractChunkedObject {
+    /** Initialization completion flag. */
+    private boolean inited;
+
     /**
      * @param name The unique file name within transfer process.
      * @param startPos The position from which the transfer should start to.

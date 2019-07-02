@@ -275,7 +275,7 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
                         objMeta.offset(),
                         objMeta.count(),
                         objMeta.params())) {
-                    @Override public void readChunk(ReadableByteChannel ch) throws IOException {
+                    @Override public void readChunk(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
                         // Read 5 chunks than stop the grid.
                         if (chunksCnt.incrementAndGet() == 5)
                             stopGrid(receiver.name(), true);
@@ -327,7 +327,7 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
                         objMeta.offset(),
                         objMeta.count(),
                         objMeta.params())) {
-                    @Override public void readChunk(ReadableByteChannel ch) throws IOException {
+                    @Override public void readChunk(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
                         // Read 4 chunks than throw an exception to emulate error processing.
                         if (readedChunks.incrementAndGet() == 4)
                             throw new IgniteException(chunkDownloadExMsg);

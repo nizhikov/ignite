@@ -87,19 +87,7 @@ public class InputChunkedFile extends InputChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override protected void readChunk(ReadableByteChannel ch) throws IOException {
-        long batchSize = Math.min(chunkSize(), count() - transferred());
-
-        long readed = fileIo.transferFrom(ch, startPosition() + transferred(), batchSize);
-
-        if (readed > 0)
-            transferred += readed;
-    }
-
-    /** {@inheritDoc} */
-    @Override public void doRead(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
-        assert inited;
-
+    @Override protected void readChunk(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
         try {
             if (fileIo == null) {
                 fileIo = dfltIoFactory.create(file);
@@ -111,6 +99,16 @@ public class InputChunkedFile extends InputChunkedObject {
             throw new IgniteCheckedException("Unable to open file for IO operations. File download will be stopped", e);
         }
 
+        long batchSize = Math.min(chunkSize(), count() - transferred());
+
+        long readed = fileIo.transferFrom(ch, startPosition() + transferred(), batchSize);
+
+        if (readed > 0)
+            transferred += readed;
+    }
+
+    /** {@inheritDoc} */
+    @Override public void doRead(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
         super.doRead(ch);
 
         if (transferred() == count())

@@ -57,9 +57,6 @@ abstract class AbstractChunkedObject implements Closeable {
     /** The total number of bytes to send. */
     protected long cnt;
 
-    /** Initialization completion flag. */
-    protected boolean inited;
-
     /**
      * @param name The unique file name within transfer process.
      * @param startPos The position from which the transfer should start to.

@@ -2962,7 +2962,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
          * @throws IgniteCheckedException If fails.
          * @throws IOException If fails.
          */
-        public TransmitMeta connect() throws IgniteCheckedException, IOException {
+        private TransmitMeta connect() throws IgniteCheckedException, IOException {
             writerStopFlags.putIfAbsent(sesKey, new AtomicBoolean());
 
             SocketChannel channel = (SocketChannel)openChannel(remoteId,
