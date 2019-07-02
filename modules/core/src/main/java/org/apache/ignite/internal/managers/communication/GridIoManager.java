@@ -836,6 +836,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
                     case EVT_NODE_LEFT:
                     case EVT_NODE_FAILED:
+                        busyLock.readLock().lock();
+
                         try {
                             // Stop all writer sessions.
                             for (Map.Entry<T2<UUID, IgniteUuid>, AtomicBoolean> writeSesEntry: writeSesInterruptMap.entrySet()) {
