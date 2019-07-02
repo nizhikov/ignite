@@ -353,7 +353,7 @@ public class GridFileIoManager {
      * @param topic The {@link GridTopic} to register handler to.
      * @param session The session will be created for a new channel opened.
      */
-    public void addFileTransmitHandler(Object topic, TransmissionHandler session) {
+    public void addTransmissionHandler(Object topic, TransmissionHandler session) {
         TransmissionHandler hdlr = topicHandlerMap.putIfAbsent(topic, session);
 
         if (hdlr != null)

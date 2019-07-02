@@ -2207,8 +2207,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @param topic The {@link GridTopic} to register handler to.
      * @param ses The ses will be created for a new channel opened.
      */
-    public void addFileTransmitHandler(Object topic, TransmissionHandler ses) {
-        fileIoMgr.addFileTransmitHandler(topic, ses);
+    public void addTransmissionHandler(Object topic, TransmissionHandler ses) {
+        fileIoMgr.addTransmissionHandler(topic, ses);
     }
 
     /**
