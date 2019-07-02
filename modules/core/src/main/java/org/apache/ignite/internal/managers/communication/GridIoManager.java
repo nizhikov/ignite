@@ -17,18 +17,19 @@
 
 package org.apache.ignite.internal.managers.communication;
 
-import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.ObjectInput;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
+import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.Channel;
-import java.nio.channels.ClosedChannelException;
+import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
@@ -79,7 +80,6 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.direct.DirectMessageReader;
 import org.apache.ignite.internal.direct.DirectMessageWriter;
 import org.apache.ignite.internal.managers.GridManagerAdapter;
-import org.apache.ignite.internal.managers.communication.channel.TransmitException;
 import org.apache.ignite.internal.managers.communication.channel.TransmitMeta;
 import org.apache.ignite.internal.managers.communication.chunk.InputChunkedBuffer;
 import org.apache.ignite.internal.managers.communication.chunk.InputChunkedFile;
@@ -171,7 +171,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * The default transfer chunk size in bytes. Setting the transfer chunk size
      * more than <tt>1 MB</tt> is meaningless because there is no asymptotic benefit.
      * What we're trying to achieve with larger transfer chunk sizes is fewer context
-     * switches, and every time we double the transfer size you halve the context switch cost.
+     * switches, and every time we double the transfer size you have the context switch cost.
      * <p>
      * Default value is {@code 256Kb}.
      */
@@ -189,35 +189,14 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     /** Default timeout in milleseconds to wait an IO data on socket. See Socket#setSoTimeout(int). */
     private static final int DFLT_IO_TIMEOUT_MS = 5_000;
 
-    /**
-     * A connection reset by peer message means that the node we are connected to has reset the connection.
-     * This is usually caused by a high amount of traffic on the host, but may be caused by a server error as well.
-     */
-    private static final String RESET_BY_PEER_MSG = "Connection reset by peer";
-
-    /**
-     * A message means that the remote node closed the connection by sending a TCP/IP RST packet.
-     * This is usually caused by: sending malformed data, the network link between nodes is going
-     * down for some reason, the remote node is crashed by a bug, the remote node has exhausted
-     * system resources.
-     */
-    private static final String CLOSED_BY_REMOTE_MSG = "An existing connection was forcibly closed by the remote host";
-
-    /**
-     * A message means that at some point of time remote node decides simply to drop the connection. It can
-     * happen while the local node is still sending data on the connection, and still able to do so. When the
-     * local node attempts to get the next response from remote, it fails with such error.
-     */
-    private static final String ABORTED_BY_SOFTWARE_MSG = "An established connection was aborted by the software";
-
     /** Map of registered handlers per each IO topic. */
-    private final ConcurrentMap<Object, TransmissionHandler> topicHandlerMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, TransmissionHandler> topicTransmitHndlrs = new ConcurrentHashMap<>();
 
     /** The map of already known channel read contexts by its registered topics. */
-    private final ConcurrentMap<Object, FileIoReadContext> sesCtxMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, FileIoReadContext> readSessionCtxs = new ConcurrentHashMap<>();
 
     /** The map of sessions which are currently writing files and their corresponding interruption flags. */
-    private final ConcurrentMap<T2<UUID, IgniteUuid>, AtomicBoolean> writeSesInterruptMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<T2<UUID, IgniteUuid>, AtomicBoolean> writerStopFlags = new ConcurrentHashMap<>();
 
     /** The factory produces chunked objects to process an input data channel. */
     private IgniteTriClosure<UUID, TransmissionHandler, TransmitMeta, InputChunkedObject> chunkedObjFactory;
@@ -840,13 +819,13 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
                         try {
                             // Stop all writer sessions.
-                            for (Map.Entry<T2<UUID, IgniteUuid>, AtomicBoolean> writeSesEntry: writeSesInterruptMap.entrySet()) {
+                            for (Map.Entry<T2<UUID, IgniteUuid>, AtomicBoolean> writeSesEntry: writerStopFlags.entrySet()) {
                                 if (writeSesEntry.getKey().get1().equals(nodeId))
                                     writeSesEntry.getValue().set(true);
                             }
 
                             // Clear the context on the uploader node left.
-                            for (Map.Entry<Object, FileIoReadContext> sesEntry : sesCtxMap.entrySet()) {
+                            for (Map.Entry<Object, FileIoReadContext> sesEntry : readSessionCtxs.entrySet()) {
                                 FileIoReadContext ioctx = sesEntry.getValue();
 
                                 if (ioctx.nodeId.equals(nodeId)) {
@@ -856,7 +835,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
                                     ioctx.interrupted = true;
 
-                                    sesCtxMap.remove(sesEntry.getKey());
+                                    readSessionCtxs.remove(sesEntry.getKey());
                                 }
                             }
                         }
@@ -1025,7 +1004,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
             stopping = true;
 
-            topicHandlerMap.clear();
+            topicTransmitHndlrs.clear();
         }
         finally {
             busyLock.writeLock().unlock();
@@ -1779,7 +1758,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @param session The session will be created for a new channel opened.
      */
     public void addTransmissionHandler(Object topic, TransmissionHandler session) {
-        TransmissionHandler hdlr = topicHandlerMap.putIfAbsent(topic, session);
+        TransmissionHandler hdlr = topicTransmitHndlrs.putIfAbsent(topic, session);
 
         if (hdlr != null)
             U.warn(log, "The topic already have an appropriate session handler [topic=" + topic + ']');
@@ -1789,7 +1768,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @param topic The topic to erase handler from.
      */
     public void removeTransmissionHandler(Object topic) {
-        topicHandlerMap.remove(topic);
+        topicTransmitHndlrs.remove(topic);
     }
 
     /**
@@ -2592,7 +2571,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         ObjectOutputStream out = null;
 
         try {
-            TransmissionHandler session = topicHandlerMap.get(topic);
+            TransmissionHandler session = topicTransmitHndlrs.get(topic);
 
             if (session == null)
                 return;
@@ -2600,7 +2579,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
             if (initMsg == null || initMsg.sesId() == null)
                 return;
 
-            readCtx = sesCtxMap.computeIfAbsent(topic, t -> new FileIoReadContext(nodeId, session));
+            readCtx = readSessionCtxs.computeIfAbsent(topic, t -> new FileIoReadContext(nodeId, session));
 
             configureBlocking(channel);
 
@@ -2640,7 +2619,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     readCtx.sesId = newSesId;
                     readCtx.inProgress.set(true);
 
-                    sesCtxMap.put(topic, readCtx);
+                    readSessionCtxs.put(topic, readCtx);
                 }
 
                 TransmitMeta meta;
@@ -2729,7 +2708,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 if (DFLT_SESSION_CLOSE_META.equals(meta.name())) {
                     readCtx.hndlr.onEnd(readCtx.nodeId);
 
-                    sesCtxMap.remove(topic);
+                    readSessionCtxs.remove(topic);
 
                     break;
                 }
@@ -2766,20 +2745,16 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
             }
         }
         catch (IOException e) {
-            if (transmitIOException(e)) {
-                // Waiting for re-establishing connection.
-                U.warn(log, "Сonnection from the remote node lost. Will wait for the new one to continue file " +
-                    "download " + "[nodeId=" + readCtx.nodeId + ", sesKey=" + readCtx.sesId + ']', e);
+            // Waiting for re-establishing connection.
+            U.warn(log, "Сonnection from the remote node lost. Will wait for the new one to continue file " +
+                "download " + "[nodeId=" + readCtx.nodeId + ", sesKey=" + readCtx.sesId + ']', e);
 
-                readCtx.retries++;
+            readCtx.retries++;
 
-                if (readCtx.retries == retryCnt) {
-                    throw  new IOException("Number of retry attempts to download file exceeded the limit. " +
-                        "Max attempts: " + retryCnt, e);
-                }
+            if (readCtx.retries == retryCnt) {
+                throw new IgniteCheckedException("Number of retry attempts to download file exceeded the limit. " +
+                    "Max attempts: " + retryCnt, e);
             }
-            else
-                throw e;
         }
         finally {
             readCtx.inProgress.set(false);
@@ -2848,35 +2823,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     }
 
     /**
-     * @param ex IO exception to check.
-     * @return {@code true} if an IOException related to connection problems.
-     */
-    private static boolean transmitIOException(IOException ex) {
-        // The set of local issues with connection.
-        if (ex instanceof TransmitException ||
-            ex instanceof EOFException ||
-            ex instanceof ClosedChannelException ||
-            ex instanceof SocketTimeoutException ||
-            ex instanceof AsynchronousCloseException) {
-            // Return the new one with detailed message.
-            return true;
-        }
-        else if (ex instanceof IOException) {
-            // Improve IOException connection error handling
-            String causeMsg = ex.getMessage();
-
-            if (causeMsg == null)
-                return false;
-
-            return causeMsg.startsWith(RESET_BY_PEER_MSG) ||
-                causeMsg.startsWith(CLOSED_BY_REMOTE_MSG) ||
-                causeMsg.startsWith(ABORTED_BY_SOFTWARE_MSG);
-        }
-
-        return false;
-    }
-
-    /**
      * Dumps SPI stats to diagnostic logs in case TcpCommunicationSpi is used, no-op otherwise.
      */
     public void dumpStats() {
@@ -2895,7 +2841,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         X.println(">>>  closedTopicsSize: " + closedTopics.sizex());
         X.println(">>>  discoWaitMapSize: " + waitMap.size());
     }
-
 
     /**
      * Read context holds all the information about current transfer read from channel process.
@@ -2948,8 +2893,37 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     }
 
     /**
-     * Implementation of file writer to transfer files with the zero-copy algorithm
-     * (used the {@link InputChunkedFile} under the hood).
+     * Implementation of file writer to transfer files with the zero-copy algorithm (used the {@link InputChunkedFile}
+     * under the hood). All transport level exceptions of file writer (which are not related to some not the channel
+     * handler one exceptions) are considered as an {@link IOException} and will require reconnect.
+     * For instance, case when the remote peer has closed the connection correctly, so read or write operation over
+     * given socket channel will throw an {@link IOException} or returns <tt>-1</tt>. See some details below.
+     *
+     * <p>
+     *     <h3>Channel exception handling</h3>
+     *
+     *     If the peer has closed the connection in an orderly way, the read operation:
+     *     <ul>
+     *         <li>read() returns -1</li>
+     *         <li>readLine() returns null</li>
+     *         <li>readXXX() throws EOFException for any other XXX</li>
+     *     </ul>
+     *     A write will throw an <tt>IOException</tt> 'Connection reset by peer', eventually, subject to buffering delays.
+     * </p>
+     * <p>
+     *     <h3>Channel timeout handling</h3>
+     *
+     *     <ul>
+     *         <li>For read operations over the {@link InputStream} or write operation through the {@link OutputStream}
+     *         the {@link Socket#setSoTimeout(int)} will be used and an {@link SocketTimeoutException} will be
+     *         thrown when the timeout occured.</li>
+     *         <li>To achive the file zero-copy {@link FileChannel#transferTo(long, long, java.nio.channels.WritableByteChannel)}
+     *         the {@link SocketChannel} must be used directly in the blocking mode. For reading or writing over
+     *         the SocketChannels, using the <tt>Socket#setSoTimeout(int)</tt> is not possible, because it isn't
+     *         supported for sockets originating as channels. In this case, the decicated wather thread must be
+     *         used which will close conneciton on timeout occured.</li>
+     *     </ul>
+     * </p>
      */
     private class ChunkedFileWriter implements FileWriter {
         /** Remote node id to connect to. */
@@ -2989,7 +2963,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
          * @throws IOException If fails.
          */
         public TransmitMeta connect() throws IgniteCheckedException, IOException {
-            writeSesInterruptMap.putIfAbsent(sesKey, new AtomicBoolean());
+            writerStopFlags.putIfAbsent(sesKey, new AtomicBoolean());
 
             SocketChannel channel = (SocketChannel)openChannel(remoteId,
                 topic,
@@ -3036,7 +3010,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     checkNotStopped();
 
                     if (retries > retryCnt)
-                        throw new IOException("The number of retry attempts exceeded the limit: " + retryCnt);
+                        throw new IgniteCheckedException("The number of retry attempts exceeded the limit: " + retryCnt);
 
                     try {
                         long transferred = 0;
@@ -3062,7 +3036,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                         outChunkedObj.setup(out,
                             transferred,
                             plc,
-                            () -> stopping || writeSesInterruptMap.get(sesKey).get());
+                            () -> stopping || writerStopFlags.get(sesKey).get());
 
                         outChunkedObj.doWrite(channel);
                         outChunkedObj.close();
@@ -3075,20 +3049,16 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                         break;
                     }
                     catch (IOException e) {
-                        if (transmitIOException(e)) {
-                            closeChannelQuiet();
+                        closeChannelQuiet();
 
-                            // Re-establish the new connection to continue upload.
-                            U.warn(log, "Connection lost while writing file to remote node and " +
-                                "will be re-establishing [remoteId=" + remoteId + ", file=" + file.getName() +
-                                ", sesKey=" + sesKey + ", retries=" + retries +
-                                ", transferred=" + outChunkedObj.transferred() +
-                                ", count=" + outChunkedObj.count() + ']', e);
+                        // Re-establish the new connection to continue upload.
+                        U.warn(log, "Connection lost while writing file to remote node and " +
+                            "will be re-establishing [remoteId=" + remoteId + ", file=" + file.getName() +
+                            ", sesKey=" + sesKey + ", retries=" + retries +
+                            ", transferred=" + outChunkedObj.transferred() +
+                            ", count=" + outChunkedObj.count() + ']', e);
 
-                            retries++;
-                        }
-                        else
-                            throw e;
+                        retries++;
                     }
                 }
 
@@ -3119,7 +3089,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     new TransmitMeta(DFLT_SESSION_CLOSE_META, null).writeExternal(out);
                 }
 
-                writeSesInterruptMap.remove(sesKey);
+                writerStopFlags.remove(sesKey);
             }
             catch (IOException e) {
                 U.warn(log, "The excpetion of writing 'tombstone' on channel close operation has been ignored", e);

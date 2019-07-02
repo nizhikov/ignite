@@ -18,8 +18,8 @@
 package org.apache.ignite.internal.managers.communication;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.nio.ByteBuffer;
+import org.apache.ignite.IgniteCheckedException;
 
 /**
  * The {@code ChunkHandler} represents by itself the way of input data stream processing.
@@ -33,7 +33,7 @@ public interface ChunkHandler extends Closeable {
 
     /**
      * @param buff The data filled buffer.
-     * @throws IOException If fails.
+     * @throws IgniteCheckedException If fails.
      */
-    public void accept(ByteBuffer buff) throws IOException;
+    public void accept(ByteBuffer buff) throws IgniteCheckedException;
 }

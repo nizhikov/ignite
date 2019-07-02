@@ -19,11 +19,11 @@ package org.apache.ignite.internal.managers.communication.chunk;
 
 import java.io.Closeable;
 import java.io.File;
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
+import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
@@ -148,11 +148,11 @@ abstract class AbstractChunkedObject implements Closeable {
     }
 
     /**
-     * @throws IOException If fails.
+     * @throws IgniteCheckedException If fails.
      */
-    protected void checkTransferLimitCount() throws IOException {
+    protected void checkTransferLimitCount() throws IgniteCheckedException {
         if (transferred > cnt) {
-            throw new IOException("File has been transferred with incorrect size " +
+            throw new IgniteCheckedException("File has been transferred with incorrect size " +
                 "[expect=" + cnt + ", actual=" + transferred + ']');
         }
     }

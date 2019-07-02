@@ -73,16 +73,15 @@ public class InputChunkedFile extends InputChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override protected void init(int chunkSize) throws IOException {
-        if (file != null)
-            return;
+    @Override protected void init(int chunkSize) throws IgniteCheckedException {
+        assert file == null;
 
         chunkSize(chunkSize);
 
         String fileAbsPath = handler.path();
 
         if (fileAbsPath == null)
-            throw new IOException("Requested for the chunked stream a file absolute path is incorrect: " + this);
+            throw new IgniteCheckedException("Requested for the chunked stream a file absolute path is incorrect: " + this);
 
         file = new File(fileAbsPath);
     }
@@ -99,13 +98,17 @@ public class InputChunkedFile extends InputChunkedObject {
 
     /** {@inheritDoc} */
     @Override public void doRead(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
-        if (fileIo == null) {
-            if (file == null)
-                throw new IOException("Chunked file instance is not initialized");
+        assert inited;
 
-            fileIo = dfltIoFactory.create(file);
+        try {
+            if (fileIo == null) {
+                fileIo = dfltIoFactory.create(file);
 
-            fileIo.position(startPosition());
+                fileIo.position(startPosition());
+            }
+        }
+        catch (IOException e) {
+            throw new IgniteCheckedException("Unable to open file for IO operations. File download will be stopped", e);
         }
 
         super.doRead(ch);

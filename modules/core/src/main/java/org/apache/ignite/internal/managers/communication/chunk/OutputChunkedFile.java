@@ -94,13 +94,14 @@ public class OutputChunkedFile extends AbstractChunkedObject {
      * @param plc Policy of way how data will be handled on remote node.
      * @param checker Node stop checker.
      * @throws IOException If write meta input failed.
+     * @throws IgniteCheckedException If fails.
      */
     public void setup(
         ObjectOutput oo,
         long uploadedBytes,
         ReadPolicy plc,
         Supplier<Boolean> checker
-    ) throws IOException {
+    ) throws IOException, IgniteCheckedException {
         assert checker != null;
 
         nodeStopped = checker;
@@ -117,7 +118,15 @@ public class OutputChunkedFile extends AbstractChunkedObject {
 
         meta.writeExternal(oo);
 
-        inited = true;
+        try {
+            fileIo = dfltIoFactory.create(file);
+
+            fileIo.position(startPosition());
+        }
+        catch (IOException e) {
+            // Consider this IO exeption as a user one (not the network exception) and interrupt upload process.
+            throw new IgniteCheckedException("Unable to initialize a file IO. File upload will be interrupted", e);
+        }
     }
 
     /**
@@ -126,14 +135,7 @@ public class OutputChunkedFile extends AbstractChunkedObject {
      * @throws IgniteCheckedException If fails.
      */
     public void doWrite(WritableByteChannel ch) throws IOException, IgniteCheckedException {
-        if (!inited)
-            throw new IgniteCheckedException("Write operation stopped. Chunked object is not initialized");
-
-        if (fileIo == null) {
-            fileIo = dfltIoFactory.create(file);
-
-            fileIo.position(startPosition());
-        }
+        assert fileIo != null : "Write operation stopped. Chunked object is not initialized";
 
         while (hasNextChunk()) {
             if (Thread.currentThread().isInterrupted() || nodeStopped.get()) {

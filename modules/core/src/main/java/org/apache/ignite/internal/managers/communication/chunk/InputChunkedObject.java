@@ -47,15 +47,16 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
 
     /**
      * @param chunkSize The size of chunk to read.
-     * @throws IOException If fails.
+     * @throws IgniteCheckedException If fails.
      */
-    protected abstract void init(int chunkSize) throws IOException;
+    protected abstract void init(int chunkSize) throws IgniteCheckedException;
 
     /**
      * @param ch Channel to read data from.
      * @throws IOException If fails.
+     * @throws IgniteCheckedException If fails.
      */
-    protected abstract void readChunk(ReadableByteChannel ch) throws IOException;
+    protected abstract void readChunk(ReadableByteChannel ch) throws IOException, IgniteCheckedException;
 
     /**
      * @param ch Input channel to read data from.
@@ -63,8 +64,7 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
      * @throws IgniteCheckedException If some check failed.
      */
     public void doRead(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
-        if (!inited)
-            throw new IgniteCheckedException("Read operation stopped. Chunked object is not initialized");
+        assert inited : "Read operation stopped. Chunked object is not initialized";
 
         // Read data from the input.
         while (hasNextChunk()) {
@@ -81,14 +81,13 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
      * @param meta Provided file meta.
      * @param chunkSize The size of chunk to read.
      * @param checker Node stopping flag.
-     * @throws IOException If read meta input failed.
      * @throws IgniteCheckedException If validation failed.
      */
     public void setup(
         TransmitMeta meta,
         int chunkSize,
         Supplier<Boolean> checker
-    ) throws IOException, IgniteCheckedException {
+    ) throws IgniteCheckedException {
         assert checker != null;
 
         nodeStopped = checker;

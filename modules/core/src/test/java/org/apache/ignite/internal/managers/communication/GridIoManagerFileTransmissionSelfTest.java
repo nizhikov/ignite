@@ -330,7 +330,7 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
                     @Override public void readChunk(ReadableByteChannel ch) throws IOException {
                         // Read 4 chunks than throw an exception to emulate error processing.
                         if (readedChunks.incrementAndGet() == 4)
-                            throw new IOException(chunkDownloadExMsg);
+                            throw new IgniteException(chunkDownloadExMsg);
 
                         super.readChunk(ch);
 
@@ -569,12 +569,17 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
                         return 1024; // Page size
                     }
 
-                    @Override public void accept(ByteBuffer buff) throws IOException {
-                        assertTrue(buff.order() == ByteOrder.nativeOrder());
-                        assertEquals(0, buff.position());
-                        assertEquals(buff.limit(), buff.capacity());
+                    @Override public void accept(ByteBuffer buff) throws IgniteCheckedException {
+                        try {
+                            assertTrue(buff.order() == ByteOrder.nativeOrder());
+                            assertEquals(0, buff.position());
+                            assertEquals(buff.limit(), buff.capacity());
 
-                        fileIo[0].writeFully(buff);
+                            fileIo[0].writeFully(buff);
+                        }
+                        catch (IOException e) {
+                            throw new IgniteCheckedException(e);
+                        }
                     }
 
                     @Override public void close() throws IOException {
@@ -617,7 +622,7 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
                         throw new IgniteException("Test exception. Initialization failed");
                     }
 
-                    @Override public void accept(ByteBuffer buff) throws IOException {
+                    @Override public void accept(ByteBuffer buff) throws IgniteCheckedException {
                         // No-op.
                     }
 

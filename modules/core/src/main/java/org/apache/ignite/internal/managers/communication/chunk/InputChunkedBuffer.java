@@ -25,7 +25,6 @@ import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.ChunkHandler;
-import org.apache.ignite.internal.managers.communication.channel.TransmitException;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
@@ -61,9 +60,8 @@ public class InputChunkedBuffer extends InputChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override protected void init(int chunkSize) throws IOException {
-        if (buff != null)
-            return;
+    @Override protected void init(int chunkSize) throws IgniteCheckedException {
+        assert buff == null;
 
         int buffSize = handler.size();
 
@@ -76,7 +74,7 @@ public class InputChunkedBuffer extends InputChunkedObject {
     }
 
     /** {@inheritDoc} */
-    @Override protected void readChunk(ReadableByteChannel ch) throws IOException {
+    @Override protected void readChunk(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
         buff.rewind();
 
         int readed = 0;
@@ -89,7 +87,7 @@ public class InputChunkedBuffer extends InputChunkedObject {
 
             if (res < 0) {
                 if (transferred + readed != count())
-                    throw new TransmitException("Input data channel reached its end, but chunked object has not fully loaded");
+                    throw new IOException("Input data channel reached its end, but chunked object has not fully loaded");
 
                 break;
             }
