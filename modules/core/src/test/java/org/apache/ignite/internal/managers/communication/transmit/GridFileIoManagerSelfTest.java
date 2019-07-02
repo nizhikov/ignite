@@ -43,7 +43,6 @@ import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
-import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.transmit.chunk.InputChunkedFile;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
@@ -252,7 +251,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If fails.
      */
-    @Test(expected = ClusterTopologyCheckedException.class)
+    @Test(expected = IgniteCheckedException.class)
     public void testFileHandlerOnReceiverNodeLeft() throws Exception {
         final int fileSizeBytes = 5 * 1024 * 1024;
         final AtomicInteger chunksCnt = new AtomicInteger();
@@ -279,14 +278,15 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                     @Override public void readChunk(ReadableByteChannel ch) throws IOException {
                         // Read 5 chunks than stop the grid.
                         if (chunksCnt.incrementAndGet() == 5)
-                            stopGrid(1, true);
+                            stopGrid(receiver.name(), true);
 
                         super.readChunk(ch);
                     }
                 });
 
         receiver.context().io().addFileTransmitHandler(topic, new TransmissionHandlerAdapter() {
-            @Override public FileHandler fileHandler(UUID nodeId, String name, long offset, long cnt, Map<String, Serializable> params) {
+            @Override public FileHandler fileHandler(UUID nodeId, String name, long offset, long cnt,
+                Map<String, Serializable> params) {
                 return getDefaultFileHandler(receiver, fileToSend, name);
             }
         });
@@ -295,10 +295,6 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
             .io()
             .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, ReadPolicy.FILE);
-        }
-        catch (IgniteCheckedException e) {
-            if (e.hasCause(ClusterTopologyCheckedException.class))
-                throw (ClusterTopologyCheckedException)e.getCause();
         }
     }
 
@@ -581,7 +577,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                         fileIo[0].writeFully(buff);
                     }
 
-                    @Override public void end() {
+                    @Override public void close() throws IOException {
                         assertEquals(fileToSend.length(), file.length());
                         assertCrcEquals(fileToSend, file);
                         U.closeQuiet(fileIo[0]);
@@ -625,7 +621,7 @@ public class GridFileIoManagerSelfTest extends GridCommonAbstractTest {
                         // No-op.
                     }
 
-                    @Override public void end() {
+                    @Override public void close() throws IOException {
                         // No-op.
                     }
                 };

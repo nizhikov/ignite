@@ -40,27 +40,6 @@ public class InputChunkedBuffer extends InputChunkedObject {
     private ByteBuffer buff;
 
     /**
-     * @param handler The chunk handler to process each chunk.
-     * @param name The unique file name within transfer process.
-     * @param pos The pos from which the transfer should start to.
-     * @param cnt The number of bytes to expect of transfer.
-     * @param params Additional stream params.
-     */
-    public InputChunkedBuffer(
-        ChunkHandler handler,
-        String name,
-        long pos,
-        long cnt,
-        Map<String, Serializable> params
-    ) {
-        super(name, pos, cnt, params);
-
-        assert handler != null;
-
-        this.handler = handler;
-    }
-
-    /**
      * @param name The unique file name within transfer process.
      * @param startPos The position from which the transfer should start to.
      * @param cnt The number of bytes to expect of transfer.
@@ -74,7 +53,11 @@ public class InputChunkedBuffer extends InputChunkedObject {
         Map<String, Serializable> params,
         ChunkHandler handler
     ) {
-        this(handler, name, startPos, cnt, params);
+        super(name, startPos, cnt, params);
+
+        assert handler != null;
+
+        this.handler = handler;
     }
 
     /** {@inheritDoc} */
@@ -131,15 +114,14 @@ public class InputChunkedBuffer extends InputChunkedObject {
     @Override public void doRead(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
         super.doRead(ch);
 
-        if (transferred() == count())
-            handler.end();
-
         checkTransferLimitCount();
     }
 
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
         buff = null;
+
+        handler.close();
     }
 
     /** {@inheritDoc} */

@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.managers.communication.transmit;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -24,7 +25,7 @@ import java.nio.ByteBuffer;
  * The {@code ChunkHandler} represents by itself the way of input data stream processing.
  * It accepts within each chunk a {@link ByteBuffer} with data from input for further processing.
  */
-public interface ChunkHandler {
+public interface ChunkHandler extends Closeable {
     /**
      * @return The size of of {@link ByteBuffer} to read the input channel into.
      */
@@ -35,9 +36,4 @@ public interface ChunkHandler {
      * @throws IOException If fails.
      */
     public void accept(ByteBuffer buff) throws IOException;
-
-    /**
-     * Chunked handler finishes.
-     */
-    public void end();
 }

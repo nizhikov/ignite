@@ -53,6 +53,7 @@ import org.apache.ignite.internal.managers.communication.transmit.chunk.OutputCh
 import org.apache.ignite.internal.managers.eventstorage.DiscoveryEventListener;
 import org.apache.ignite.internal.util.GridSpinBusyLock;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
+import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteTriClosure;
@@ -121,6 +122,9 @@ public class GridFileIoManager {
     /** The map of already known channel read contexts by its registered topics. */
     private final ConcurrentMap<Object, FileIoReadContext> sesCtxMap = new ConcurrentHashMap<>();
 
+    /** The map of sessions which are currently writing files and their corresponding interruption flags. */
+    private final ConcurrentMap<T2<UUID, IgniteUuid>, AtomicBoolean> writeSesInterruptMap = new ConcurrentHashMap<>();
+
     /** Managers busy lock. */
     private final GridSpinBusyLock busyLock = new GridSpinBusyLock();
 
@@ -170,6 +174,12 @@ public class GridFileIoManager {
             try {
                 UUID leftNodeId = evt.eventNode().id();
 
+                // Stop all writer sessions.
+                for (Map.Entry<T2<UUID, IgniteUuid>, AtomicBoolean> writeSesEntry: writeSesInterruptMap.entrySet()) {
+                    if (writeSesEntry.getKey().get1().equals(leftNodeId))
+                        writeSesEntry.getValue().set(true);
+                }
+
                 // Clear the context on the uploader node left.
                 for (Map.Entry<Object, FileIoReadContext> sesEntry : sesCtxMap.entrySet()) {
                     FileIoReadContext ioctx = sesEntry.getValue();
@@ -177,6 +187,8 @@ public class GridFileIoManager {
                     if (ioctx.nodeId.equals(leftNodeId)) {
                         ioctx.hndlr.onException(leftNodeId, new ClusterTopologyCheckedException("Failed to proceed download. " +
                             "The remote node node left the grid: " + leftNodeId));
+
+                        ioctx.interrupted = true;
 
                         sesCtxMap.remove(sesEntry.getKey());
                     }
@@ -322,7 +334,7 @@ public class GridFileIoManager {
         }
         catch (Throwable t) {
             U.error(log, "The download session cannot be finished due to unexpected error " +
-                "[ctx=" + readCtx + ", sesId=" + newSesId + ']', t);
+                "[ctx=" + readCtx + ", sesKey=" + newSesId + ']', t);
 
             if (readCtx != null) {
                 readCtx.lastSeenErr = new IgniteCheckedException("Channel processing error [nodeId=" + nodeId + ']', t);
@@ -397,7 +409,7 @@ public class GridFileIoManager {
 
                 inChunkedObj = readCtx.chunkedObj;
 
-                inChunkedObj.setup(meta, chunkSize, () -> stopped);
+                inChunkedObj.setup(meta, chunkSize, () -> stopped || readCtx.interrupted);
                 inChunkedObj.doRead(channel);
                 inChunkedObj.close();
 
@@ -420,7 +432,7 @@ public class GridFileIoManager {
             if (transmitIOException(e)) {
                 // Waiting for re-establishing connection.
                 U.warn(log, "Сonnection from the remote node lost. Will wait for the new one to continue file " +
-                    "download " + "[nodeId=" + readCtx.nodeId + ", sesId=" + readCtx.sesId + ']', e);
+                    "download " + "[nodeId=" + readCtx.nodeId + ", sesKey=" + readCtx.sesId + ']', e);
 
                 readCtx.retries++;
 
@@ -568,6 +580,9 @@ public class GridFileIoManager {
         /** Last error occurred while channel is processed by registered session handler. */
         private IgniteCheckedException lastSeenErr;
 
+        /** Flag indicates that current file handling process must be interrupted. */
+        private volatile boolean interrupted;
+
         /**
          * @param nodeId Remote node id.
          * @param hndlr Channel handler of current topic.
@@ -594,8 +609,8 @@ public class GridFileIoManager {
         /** Remote topic to connect to. */
         private final Object topic;
 
-        /** Current unique session id to transfer files. */
-        private IgniteUuid sesId;
+        /** Current unique session identifier to transfer files to remote node. */
+        private T2<UUID, IgniteUuid> sesKey;
 
         /** Instance of opened writable channel to work with. */
         private WritableByteChannel channel;
@@ -616,7 +631,7 @@ public class GridFileIoManager {
         ) {
             this.remoteId = remoteId;
             this.topic = topic;
-            this.sesId = IgniteUuid.randomUuid();
+            this.sesKey = new T2<>(remoteId, IgniteUuid.randomUuid());
         }
 
         /**
@@ -625,7 +640,11 @@ public class GridFileIoManager {
          * @throws IOException If fails.
          */
         public TransmitMeta connect() throws IgniteCheckedException, IOException {
-            SocketChannel channel = (SocketChannel)openChannelClsr.apply(remoteId, topic, new SessionChannelMessage(sesId))
+            writeSesInterruptMap.putIfAbsent(sesKey, new AtomicBoolean());
+
+            SocketChannel channel = (SocketChannel)openChannelClsr.apply(remoteId,
+                topic,
+                new SessionChannelMessage(sesKey.get2()))
                 .get();
 
             configureBlocking(channel);
@@ -691,7 +710,11 @@ public class GridFileIoManager {
                             }
                         }
 
-                        outChunkedObj.setup(out, transferred, plc, () -> stopped);
+                        outChunkedObj.setup(out,
+                            transferred,
+                            plc,
+                            () -> stopped || writeSesInterruptMap.get(sesKey).get());
+
                         outChunkedObj.doWrite(channel);
                         outChunkedObj.close();
 
@@ -709,7 +732,7 @@ public class GridFileIoManager {
                             // Re-establish the new connection to continue upload.
                             U.warn(log, "Connection lost while writing file to remote node and " +
                                 "will be re-establishing [remoteId=" + remoteId + ", file=" + file.getName() +
-                                ", sesId=" + sesId + ", retries=" + retries +
+                                ", sesKey=" + sesKey + ", retries=" + retries +
                                 ", transferred=" + outChunkedObj.transferred() +
                                 ", count=" + outChunkedObj.count() + ']', e);
 
@@ -731,7 +754,7 @@ public class GridFileIoManager {
                 closeChannelQuiet();
 
                 throw new IgniteCheckedException("Exception while uploading file to the remote node. The process stopped " +
-                    "[remoteId=" + remoteId + ", file=" + file.getName() + ", sesId=" + sesId + ']', e);
+                    "[remoteId=" + remoteId + ", file=" + file.getName() + ", sesKey=" + sesKey + ']', e);
             }
             finally {
                 U.closeQuiet(outChunkedObj);
@@ -746,6 +769,8 @@ public class GridFileIoManager {
 
                     new TransmitMeta(DFLT_SESSION_CLOSE_META, null).writeExternal(out);
                 }
+
+                writeSesInterruptMap.remove(sesKey);
             }
             catch (IOException e) {
                 U.warn(log, "The excpetion of writing 'tombstone' on channel close operation has been ignored", e);
