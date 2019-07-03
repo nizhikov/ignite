@@ -67,6 +67,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.cluster.ClusterNode;
+import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.events.DiscoveryEvent;
 import org.apache.ignite.events.Event;
 import org.apache.ignite.internal.GridKernalContext;
@@ -184,9 +185,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
     /** Session end meta. */
     private static final String DFLT_SESSION_CLOSE_META = "close";
-
-    /** Default timeout in milleseconds to wait an IO data on socket. See Socket#setSoTimeout(int). */
-    private static final int DFLT_IO_TIMEOUT_MS = 5_000;
 
     /** Map of registered handlers per each IO topic. */
     private final ConcurrentMap<Object, TransmissionHandler> topicTransmitHndlrs = new ConcurrentHashMap<>();
@@ -2580,7 +2578,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
             readCtx = readSessionCtxs.computeIfAbsent(topic, t -> new FileIoReadContext(nodeId, session));
 
-            configureBlocking(channel);
+            configureChannel(ctx.config(), channel);
 
             in = new ObjectInputStream(channel.socket().getInputStream());
             out = new ObjectOutputStream(channel.socket().getOutputStream());
@@ -2812,12 +2810,13 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     }
 
     /**
+     * @param cfg Ignite ocnfiguration to configure channel with.
      * @param channel Socket channel to configure blocking mode.
      * @throws IOException If fails.
      */
-    private static void configureBlocking(SocketChannel channel) throws IOException {
+    private static void configureChannel(IgniteConfiguration cfg, SocketChannel channel) throws IOException {
         // Timeout must be enabled prior to entering the blocking mode to have effect.
-        channel.socket().setSoTimeout(DFLT_IO_TIMEOUT_MS);
+        channel.socket().setSoTimeout((int)cfg.getNetworkTimeout());
         channel.configureBlocking(true);
     }
 
@@ -2969,7 +2968,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 new SessionChannelMessage(sesKey.get2()))
                 .get();
 
-            configureBlocking(channel);
+            configureChannel(ctx.config(), channel);
 
             this.channel = (WritableByteChannel)channel;
             out = new ObjectOutputStream(channel.socket().getOutputStream());
