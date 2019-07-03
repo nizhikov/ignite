@@ -190,7 +190,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     private final ConcurrentMap<Object, FileIoReadContext> readSessionCtxs = new ConcurrentHashMap<>();
 
     /** The map of sessions which are currently writing files and their corresponding interruption flags. */
-    private final ConcurrentMap<T2<UUID, IgniteUuid>, AtomicBoolean> writerStopFlags = new ConcurrentHashMap<>();
+    private final ConcurrentMap<T2<UUID, IgniteUuid>, AtomicBoolean> fileWriterStopFlags = new ConcurrentHashMap<>();
 
     /** The factory produces chunked objects to process an input data channel. */
     private IgniteTriClosure<UUID, TransmissionHandler, TransmitMeta, InputChunkedObject> chunkedObjFactory;
@@ -815,7 +815,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
                         try {
                             // Stop all writer sessions.
-                            for (Map.Entry<T2<UUID, IgniteUuid>, AtomicBoolean> writeSesEntry: writerStopFlags.entrySet()) {
+                            for (Map.Entry<T2<UUID, IgniteUuid>, AtomicBoolean> writeSesEntry: fileWriterStopFlags.entrySet()) {
                                 if (writeSesEntry.getKey().get1().equals(nodeId))
                                     writeSesEntry.getValue().set(true);
                             }
@@ -2688,8 +2688,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         ObjectOutputStream out,
         ReadableByteChannel channel
     ) throws Exception {
-        InputChunkedObject inChunkedObj = null;
-
         try {
             while (true) {
                 if (Thread.currentThread().isInterrupted())
@@ -2717,27 +2715,26 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     readCtx.currPlc = meta.policy();
                 }
 
-                long startTime = U.currentTimeMillis();
+                try (InputChunkedObject inChunkedObj = readCtx.chunkedObj) {
+                    long startTime = U.currentTimeMillis();
 
-                inChunkedObj = readCtx.chunkedObj;
+                    inChunkedObj.setup(meta, chunkSize, () -> stopping || readCtx.interrupted);
+                    inChunkedObj.doRead(channel);
 
-                inChunkedObj.setup(meta, chunkSize, () -> stopping || readCtx.interrupted);
-                inChunkedObj.doRead(channel);
-                inChunkedObj.close();
+                    readCtx.chunkedObj = null;
+                    readCtx.currPlc = null;
 
-                readCtx.chunkedObj = null;
-                readCtx.currPlc = null;
+                    // Write chunked object processing ack.
+                    out.writeLong(inChunkedObj.transferred());
+                    out.flush();
 
-                // Write chunked object processing ack.
-                out.writeLong(inChunkedObj.transferred());
-                out.flush();
+                    long downloadTime = U.currentTimeMillis() - startTime;
 
-                long downloadTime = U.currentTimeMillis() - startTime;
-
-                U.log(log, "The file has been successfully downloaded " +
-                    "[name=" + inChunkedObj.name() + ", transferred=" + inChunkedObj.transferred() + " bytes" +
-                    ", time=" + (double)((downloadTime) / 1000) + " sec" +
-                    ", retries=" + readCtx.retries);
+                    U.log(log, "The file has been successfully downloaded " +
+                        "[name=" + inChunkedObj.name() + ", transferred=" + inChunkedObj.transferred() + " bytes" +
+                        ", time=" + (double)((downloadTime) / 1000) + " sec" +
+                        ", retries=" + readCtx.retries);
+                }
             }
         }
         catch (IOException e) {
@@ -2754,8 +2751,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         }
         finally {
             readCtx.inProgress.set(false);
-
-            U.closeQuiet(inChunkedObj);
         }
     }
 
@@ -2960,7 +2955,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
          * @throws IOException If fails.
          */
         private TransmitMeta connect() throws IgniteCheckedException, IOException {
-            writerStopFlags.putIfAbsent(sesKey, new AtomicBoolean());
+            fileWriterStopFlags.putIfAbsent(sesKey, new AtomicBoolean());
 
             SocketChannel channel = (SocketChannel)openChannel(remoteId,
                 topic,
@@ -2991,9 +2986,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         ) throws IgniteCheckedException {
             int retries = 0;
 
-            OutputChunkedFile outChunkedObj = new OutputChunkedFile(file, offset, count, params, chunkSize);
-
-            try {
+            try (OutputChunkedFile outChunkedObj = new OutputChunkedFile(file, offset, count, params, chunkSize)) {
                 if (log.isDebugEnabled())
                     log.debug("Start writing file to remote node [file=" + file.getName() +
                         ", rmtNodeId=" + remoteId + ", topic=" + topic + ']');
@@ -3033,7 +3026,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                         outChunkedObj.setup(out,
                             transferred,
                             plc,
-                            () -> stopping || writerStopFlags.get(sesKey).get());
+                            () -> stopping || fileWriterStopFlags.get(sesKey).get());
 
                         outChunkedObj.doWrite(channel);
                         outChunkedObj.close();
@@ -3072,9 +3065,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 throw new IgniteCheckedException("Exception while uploading file to the remote node. The process stopped " +
                     "[remoteId=" + remoteId + ", file=" + file.getName() + ", sesKey=" + sesKey + ']', e);
             }
-            finally {
-                U.closeQuiet(outChunkedObj);
-            }
         }
 
         /** {@inheritDoc} */
@@ -3086,7 +3076,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     new TransmitMeta(DFLT_SESSION_CLOSE_META, null).writeExternal(out);
                 }
 
-                writerStopFlags.remove(sesKey);
+                fileWriterStopFlags.remove(sesKey);
             }
             catch (IOException e) {
                 U.warn(log, "The excpetion of writing 'tombstone' on channel close operation has been ignored", e);
