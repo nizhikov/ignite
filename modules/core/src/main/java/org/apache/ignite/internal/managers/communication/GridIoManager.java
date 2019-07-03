@@ -177,9 +177,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      */
     private static final int DFLT_CHUNK_SIZE_BYTES = 256 * 1024;
 
-    /** Retry attempts count to send single file if connection dropped (value is {@code 5}). */
-    private static final int DFLT_RETRY_CNT = 5;
-
     /** Default transmit meta. */
     private static final String DFLT_TRANSMIT_META = "default";
 
@@ -199,7 +196,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     private IgniteTriClosure<UUID, TransmissionHandler, TransmitMeta, InputChunkedObject> chunkedObjFactory;
 
     /** The maximum number of retry attempts (read or write attempts). */
-    private volatile int retryCnt = DFLT_RETRY_CNT;
+    private volatile int retryCnt;
 
     /** The size of each chunks of chunked objects. */
     private int chunkSize = DFLT_CHUNK_SIZE_BYTES;
@@ -291,6 +288,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         synchronized (sysLsnrsMux) {
             sysLsnrs = new GridMessageListener[GridTopic.values().length];
         }
+
+        retryCnt = ctx.config().getNetworkSendRetryCount();
     }
 
     /**
