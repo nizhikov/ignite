@@ -23,7 +23,7 @@ import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.managers.communication.channel.TransmitMeta;
+import org.apache.ignite.internal.managers.communication.TransmitMeta;
 
 /**
  * Class represents an object which can be read from a channel by chunks of

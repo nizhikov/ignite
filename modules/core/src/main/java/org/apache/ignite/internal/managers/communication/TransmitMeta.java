@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.managers.communication.channel;
+package org.apache.ignite.internal.managers.communication;
 
 import java.io.Externalizable;
 import java.io.IOException;
@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import org.apache.ignite.internal.managers.communication.ReadPolicy;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**

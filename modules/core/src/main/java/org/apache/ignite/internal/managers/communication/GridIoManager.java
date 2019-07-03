@@ -80,7 +80,6 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.direct.DirectMessageReader;
 import org.apache.ignite.internal.direct.DirectMessageWriter;
 import org.apache.ignite.internal.managers.GridManagerAdapter;
-import org.apache.ignite.internal.managers.communication.channel.TransmitMeta;
 import org.apache.ignite.internal.managers.communication.chunk.InputChunkedBuffer;
 import org.apache.ignite.internal.managers.communication.chunk.InputChunkedFile;
 import org.apache.ignite.internal.managers.communication.chunk.InputChunkedObject;

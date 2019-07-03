@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.managers.communication.ReadPolicy;
-import org.apache.ignite.internal.managers.communication.channel.TransmitMeta;
+import org.apache.ignite.internal.managers.communication.TransmitMeta;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
