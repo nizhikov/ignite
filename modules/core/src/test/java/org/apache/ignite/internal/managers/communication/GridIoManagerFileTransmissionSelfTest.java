@@ -457,6 +457,24 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
             .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, ReadPolicy.FILE);
         }
+
+        // Remove topic handler and fail
+        receiver.context().io().removeTransmissionHandler(topic);
+
+        IgniteCheckedException err = null;
+
+        // Open next writer on removed topic.
+        try (FileWriter writer = sender.context()
+            .io()
+            .openFileWriter(receiver.localNode().id(), topic)) {
+            writer.write(fileToSend, ReadPolicy.FILE);
+        }
+        catch (IgniteCheckedException e) {
+            // Must catch execption here.
+            err = e;
+        }
+
+        assertNotNull(err);
     }
 
     /**
