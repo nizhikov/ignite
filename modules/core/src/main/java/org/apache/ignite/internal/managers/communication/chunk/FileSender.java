@@ -26,7 +26,6 @@ import java.nio.channels.WritableByteChannel;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.managers.communication.ReadPolicy;
 import org.apache.ignite.internal.managers.communication.TransmitMeta;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
@@ -78,19 +77,6 @@ public class FileSender extends AbstractTransmission {
         chunkSize(chunkSize);
     }
 
-    /** {@inheritDoc} */
-    @Override public void transferred(long cnt) {
-        try {
-            if (fileIo != null)
-                fileIo.position(startPosition() + cnt);
-
-            super.transferred(cnt);
-        }
-        catch (IOException e) {
-            throw new IgniteException("Unable to set new start file channel position [pos=" + (startPosition() + cnt) + ']');
-        }
-    }
-
     /**
      * @param ch Output channel to write data to.
      * @throws IOException If an io exception occurred.
@@ -101,7 +87,7 @@ public class FileSender extends AbstractTransmission {
         long uploadedBytes,
         ReadPolicy plc)
         throws IOException, IgniteCheckedException {
-        transferred(uploadedBytes);
+        transferred = uploadedBytes;
 
         TransmitMeta meta = new TransmitMeta(name(),
             startPosition() + transferred(),

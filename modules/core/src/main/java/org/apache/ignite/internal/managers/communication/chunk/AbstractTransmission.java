@@ -139,15 +139,6 @@ public abstract class AbstractTransmission implements Closeable {
     }
 
     /**
-     * @param cnt The number of bytes which has been already transferred.
-     */
-    protected void transferred(long cnt) {
-        assert cnt >= 0;
-
-        transferred = cnt;
-    }
-
-    /**
      * @return {@code true} if and only if a chunked object has received all the data it expects.
      */
     protected boolean hasNextChunk() {
