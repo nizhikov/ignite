@@ -3025,7 +3025,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         ) throws IgniteCheckedException {
             int retries = 0;
 
-            try (FileSender chunkSender = new FileSender(file,
+            try (FileSender sender = new FileSender(file,
                 offset,
                 count,
                 params,
@@ -3051,29 +3051,29 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                         long uploaded = 0;
 
                         if (out == null && in == null) {
-                            TransmitMeta syncMeta = connect();
+                            TransmitMeta meta = connect();
 
                             // Stop in case of any error occurred on remote node during file processing.
-                            if (syncMeta.error() != null)
-                                throw syncMeta.error();
+                            if (meta.error() != null)
+                                throw meta.error();
 
                             // If not the initial connection for the current session.
-                            if (!syncMeta.initial()) {
-                                uploaded = syncMeta.offset() - chunkSender.startPosition();
+                            if (!meta.initial()) {
+                                uploaded = meta.offset() - sender.startPosition();
 
-                                assert uploaded >= 0 : "Incorrect sync meta [offset=" + syncMeta.offset() +
-                                    ", startPos=" + chunkSender.startPosition() + ']';
-                                assert chunkSender.name().equals(syncMeta.name()) : "Attempt to transfer different file " +
-                                    "while previous is not completed [curr=" + chunkSender.name() + ", meta=" + syncMeta + ']';
+                                assert uploaded >= 0 : "Incorrect sync meta [offset=" + meta.offset() +
+                                    ", startPos=" + sender.startPosition() + ']';
+                                assert sender.name().equals(meta.name()) : "Attempt to transfer different file " +
+                                    "while previous is not completed [curr=" + sender.name() + ", meta=" + meta + ']';
                             }
                         }
 
-                        chunkSender.send(channel, out, uploaded, plc);
+                        sender.send(channel, out, uploaded, plc);
 
                         // Read file received acknowledge.
                         long total = in.readLong();
 
-                        assert total == chunkSender.transferred();
+                        assert total == sender.transferred();
 
                         break;
                     }
@@ -3084,8 +3084,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                         U.warn(log, "Connection lost while writing file to remote node and " +
                             "will be re-establishing [remoteId=" + remoteId + ", file=" + file.getName() +
                             ", sesKey=" + sesKey + ", retries=" + retries +
-                            ", transferred=" + chunkSender.transferred() +
-                            ", count=" + chunkSender.count() + ']', e);
+                            ", transferred=" + sender.transferred() +
+                            ", count=" + sender.count() + ']', e);
 
                         retries++;
                     }

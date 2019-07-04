@@ -67,12 +67,18 @@ public class FileSender extends AbstractTransmission {
         Map<String, Serializable> params,
         Supplier<Boolean> stopChecker,
         int chunkSize
-    ) {
+    ) throws IOException {
         super(file.getName(), pos, cnt, params, stopChecker);
 
         assert file != null;
 
         this.file = file;
+
+        fileIo = dfltIoFactory.create(file);
+
+        assert fileIo != null : "Write operation stopped. Chunked object is not initialized";
+
+        fileIo.position(startPosition());
 
         chunkSize(chunkSize);
     }
@@ -99,18 +105,6 @@ public class FileSender extends AbstractTransmission {
             null);
 
         meta.writeExternal(oo);
-
-        try {
-            fileIo = dfltIoFactory.create(file);
-
-            assert fileIo != null : "Write operation stopped. Chunked object is not initialized";
-
-            fileIo.position(startPosition());
-        }
-        catch (IOException e) {
-            // Consider this IO exeption as a user one (not the network exception) and interrupt upload process.
-            throw new IgniteCheckedException("Unable to initialize a file IO. File upload will be interrupted", e);
-        }
 
         while (hasNextChunk()) {
             if (Thread.currentThread().isInterrupted() || stopped()) {
