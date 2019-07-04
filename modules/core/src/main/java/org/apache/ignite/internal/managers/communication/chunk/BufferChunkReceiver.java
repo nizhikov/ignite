@@ -112,8 +112,8 @@ public class BufferChunkReceiver extends AbstractChunkReceiver {
     }
 
     /** {@inheritDoc} */
-    @Override public void doRead(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
-        super.doRead(ch);
+    @Override public void receive(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
+        super.receive(ch);
 
         checkTransferLimitCount();
     }

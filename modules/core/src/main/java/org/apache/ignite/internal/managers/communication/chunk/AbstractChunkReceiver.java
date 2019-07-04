@@ -51,24 +51,11 @@ public abstract class AbstractChunkReceiver extends AbstractChunkProcess {
     }
 
     /**
-     * @param chunkSize The size of chunk to read.
-     * @throws IgniteCheckedException If fails.
-     */
-    protected abstract void init(int chunkSize) throws IgniteCheckedException;
-
-    /**
-     * @param ch Channel to read data from.
-     * @throws IOException If fails.
-     * @throws IgniteCheckedException If fails.
-     */
-    protected abstract void readChunk(ReadableByteChannel ch) throws IOException, IgniteCheckedException;
-
-    /**
      * @param ch Input channel to read data from.
      * @throws IOException If an io exception occurred.
      * @throws IgniteCheckedException If some check failed.
      */
-    public void doRead(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
+    public void receive(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
         assert inited : "Read operation stopped. Chunked object is not initialized";
 
         // Read data from the input.
@@ -92,9 +79,10 @@ public abstract class AbstractChunkReceiver extends AbstractChunkProcess {
         assert chunkSize > 0;
 
         if (meta.initial()) {
-            if (inited)
+            if (inited) {
                 throw new IgniteCheckedException("Attempt to read a new file from channel, but previous was not fully " +
                     "loaded [new=" + meta.name() + ", old=" + name() + ']');
+            }
 
             init(chunkSize);
 
@@ -102,16 +90,21 @@ public abstract class AbstractChunkReceiver extends AbstractChunkProcess {
         }
         else {
             if (inited) {
-                if (!name().equals(meta.name()))
+                if (!name().equals(meta.name())) {
                     throw new IgniteCheckedException("Attempt to load different file name [name=" + name() +
                         ", meta=" + meta + ']');
-                else if (startPosition() + transferred() != meta.offset())
+                }
+
+                if (startPosition() + transferred() != meta.offset()) {
                     throw new IgniteCheckedException("The next chunk input is incorrect " +
                         "[postition=" + startPosition() + ", transferred=" + transferred() + ", meta=" + meta + ']');
-                else if (count() != meta.count())
+                }
+
+                if (count() != meta.count()) {
                     throw new IgniteCheckedException(" The count of bytes to transfer for the next chunk is incorrect " +
                         "[count=" + count() + ", transferred=" + transferred() +
                         ", startPos=" + startPosition() + ", meta=" + meta + ']');
+                }
             }
             else {
                 throw new IgniteCheckedException("The setup of previous stream read failed [new=" + meta.name() +
@@ -119,4 +112,17 @@ public abstract class AbstractChunkReceiver extends AbstractChunkProcess {
             }
         }
     }
+
+    /**
+     * @param chunkSize The size of chunk to read.
+     * @throws IgniteCheckedException If fails.
+     */
+    protected abstract void init(int chunkSize) throws IgniteCheckedException;
+
+    /**
+     * @param ch Channel to read data from.
+     * @throws IOException If fails.
+     * @throws IgniteCheckedException If fails.
+     */
+    protected abstract void readChunk(ReadableByteChannel ch) throws IOException, IgniteCheckedException;
 }

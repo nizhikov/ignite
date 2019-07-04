@@ -264,7 +264,7 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
         File fileToSend = createFileRandomData("testFile", fileSizeBytes);
 
         receiver.context().io()
-            .chunkedObjectFactory((nodeId, hndlr, meta, checker) ->
+            .chunkReceiverFactory((nodeId, hndlr, meta, checker) ->
                 new FileChunkReceiver(
                     meta.name(),
                     meta.offset(),
@@ -315,7 +315,7 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
         final AtomicInteger readedChunks = new AtomicInteger();
 
         receiver.context().io()
-            .chunkedObjectFactory((nodeId, hndlr, meta, checker) -> {
+            .chunkReceiverFactory((nodeId, hndlr, meta, checker) -> {
                 assertEquals(meta.policy(), ReadPolicy.FILE);
 
                 return new FileChunkReceiver(
@@ -414,7 +414,7 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
 
         sender.cluster().active(true);
 
-        File fileToSend = createFileRandomData("File5MB", fileSizeBytes);
+        File fileToSend = createFileRandomData("File_5MB", fileSizeBytes);
 
         receiver.context().io().addTransmissionHandler(topic, new TransmissionHandlerAdapter() {
             @Override public void onException(UUID nodeId, Throwable err) {
@@ -446,7 +446,7 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
             .openFileWriter(receiver.localNode().id(), topic)) {
             writer.write(fileToSend, ReadPolicy.FILE);
         }
-        catch (Exception e) {
+        catch (IgniteCheckedException e) {
             // Expected exception.
             assertTrue(e.toString(), e.getCause().getMessage().startsWith("Channel processing error"));
         }

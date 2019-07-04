@@ -4380,19 +4380,14 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
     ) throws IgniteSpiException {
         assert !remote.isLocal() : remote;
         assert initMsg != null;
-
-        if (!nodeSupports(remote, CHANNEL_COMMUNICATION)) {
-            throw new IgniteSpiException("The remote node doesn't support communication via socket channels " +
-                "[nodeId=" + remote.id() + ']');
-        }
-
-        connectGate.enter();
+        assert nodeSupports(remote, CHANNEL_COMMUNICATION) : "Node doesn't support direct connection over socket channel " +
+                "[nodeId=" + remote.id() + ']';
 
         ConnectionKey key = new ConnectionKey(remote.id(), sockConnPlc.connectionIndex());
 
-        GridNioSession ses;
+        GridFutureAdapter<Channel> result;
 
-        final GridFutureAdapter<Channel> result = new GridFutureAdapter<>();
+        connectGate.enter();
 
         try {
             if (channelReqs.get(key) != null) {
@@ -4400,20 +4395,18 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                     "Connection key already in use [key=" + key + ']');
             }
 
-            ses = createNioSession(remote, key.connectionIndex());
+            GridNioSession ses = createNioSession(remote, key.connectionIndex());
 
             assert ses != null : "Session must be established [remoteId=" + remote.id() + ", key=" + key + ']';
 
             final GridNioSession finalSes = ses;
 
-            channelReqs.put(key, result);
+            channelReqs.put(key, result = new GridFutureAdapter<>());
 
             // Send configuration message over the created session.
             ses.send(new ChannelCreateRequest(initMsg))
                 .listen(f -> {
-                    try {
-                        f.get(); // Check exception not thrown.
-
+                    if (f.error() == null) {
                         addTimeoutObject(new IgniteSpiTimeoutObject() {
                             @Override public IgniteUuid id() {
                                 return IgniteUuid.randomUuid();
@@ -4430,9 +4423,8 @@ public class TcpCommunicationSpi extends IgniteSpiAdapter implements Communicati
                             }
                         });
                     }
-                    catch (IgniteCheckedException e) {
-                        result.onDone(e);
-                    }
+                    else
+                        result.onDone(f.error());
                 });
 
             return result;

@@ -76,6 +76,23 @@ public class FileChunkReceiver extends AbstractChunkReceiver {
     }
 
     /** {@inheritDoc} */
+    @Override public void receive(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
+        super.receive(ch);
+
+        if (transferred() == count())
+            handler.accept(file);
+
+        checkTransferLimitCount();
+    }
+
+    /** {@inheritDoc} */
+    @Override public void close() throws IOException {
+        U.closeQuiet(fileIo);
+
+        fileIo = null;
+    }
+
+    /** {@inheritDoc} */
     @Override protected void init(int chunkSize) throws IgniteCheckedException {
         assert file == null;
 
@@ -108,23 +125,6 @@ public class FileChunkReceiver extends AbstractChunkReceiver {
 
         if (readed > 0)
             transferred += readed;
-    }
-
-    /** {@inheritDoc} */
-    @Override public void doRead(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
-        super.doRead(ch);
-
-        if (transferred() == count())
-            handler.accept(file);
-
-        checkTransferLimitCount();
-    }
-
-    /** {@inheritDoc} */
-    @Override public void close() throws IOException {
-        U.closeQuiet(fileIo);
-
-        fileIo = null;
     }
 
     /** {@inheritDoc} */

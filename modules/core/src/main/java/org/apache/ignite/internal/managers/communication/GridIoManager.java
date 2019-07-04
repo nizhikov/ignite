@@ -133,6 +133,8 @@ import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.internal.GridTopic.TOPIC_CACHE_COORDINATOR;
 import static org.apache.ignite.internal.GridTopic.TOPIC_COMM_USER;
 import static org.apache.ignite.internal.GridTopic.TOPIC_IO_TEST;
+import static org.apache.ignite.internal.IgniteFeatures.CHANNEL_COMMUNICATION;
+import static org.apache.ignite.internal.IgniteFeatures.nodeSupports;
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.AFFINITY_POOL;
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.DATA_STREAMER_POOL;
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.IDX_POOL;
@@ -188,7 +190,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     private final ConcurrentMap<Object, TransmissionHandler> topicTransmitHndlrs = new ConcurrentHashMap<>();
 
     /** The map of already known channel read contexts by its registered topics. */
-    private final ConcurrentMap<Object, FileIoReadContext> readSessionCtxs = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, FileIoReadContext> readSesCtxs = new ConcurrentHashMap<>();
 
     /** The map of sessions which are currently writing files and their corresponding interruption flags. */
     private final ConcurrentMap<T2<UUID, IgniteUuid>, AtomicBoolean> fileWriterStopFlags = new ConcurrentHashMap<>();
@@ -199,7 +201,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     /** The maximum number of retry attempts (read or write attempts). */
     private volatile int retryCnt;
 
-    /** The size of each chunks of chunked objects. */
+    /** Default size of each chunk of data recevier or sender. */
     private int chunkSize = DFLT_CHUNK_SIZE_BYTES;
 
     /** Listeners by topic. */
@@ -284,7 +286,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
         marsh = ctx.config().getMarshaller();
 
-        chunkReceiverFactory = this::createChunkedObject;
+        chunkReceiverFactory = this::createChunkReceiver;
 
         synchronized (sysLsnrsMux) {
             sysLsnrs = new GridMessageListener[GridTopic.values().length];
@@ -822,7 +824,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                             }
 
                             // Clear the context on the uploader node left.
-                            for (Map.Entry<Object, FileIoReadContext> sesEntry : readSessionCtxs.entrySet()) {
+                            for (Map.Entry<Object, FileIoReadContext> sesEntry : readSesCtxs.entrySet()) {
                                 FileIoReadContext ioctx = sesEntry.getValue();
 
                                 if (ioctx.nodeId.equals(nodeId)) {
@@ -832,7 +834,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
                                     ioctx.interrupted = true;
 
-                                    readSessionCtxs.remove(sesEntry.getKey());
+                                    readSesCtxs.remove(sesEntry.getKey());
                                 }
                             }
                         }
@@ -1027,9 +1029,10 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
         try {
             if (stopping) {
-                if (log.isDebugEnabled())
+                if (log.isDebugEnabled()) {
                     log.debug("Received communication channel create event while node stopping (will ignore) " +
                         "[nodeId=" + nodeId + ", msg=" + initMsg + ']');
+                }
 
                 return;
             }
@@ -1747,15 +1750,15 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @return The channel instance to communicate with remote.
      */
     public FileWriter openFileWriter(UUID remoteId, Object topic) {
-        return new ChunkedFileWriter(remoteId, topic);
+        return new ChunkFileWriter(remoteId, topic);
     }
 
     /**
      * @param topic The {@link GridTopic} to register handler to.
-     * @param session The session will be created for a new channel opened.
+     * @param ses The session will be created for a new channel opened.
      */
-    public void addTransmissionHandler(Object topic, TransmissionHandler session) {
-        TransmissionHandler hdlr = topicTransmitHndlrs.putIfAbsent(topic, session);
+    public void addTransmissionHandler(Object topic, TransmissionHandler ses) {
+        TransmissionHandler hdlr = topicTransmitHndlrs.putIfAbsent(topic, ses);
 
         if (hdlr != null)
             U.warn(log, "The topic already have an appropriate session handler [topic=" + topic + ']');
@@ -1766,6 +1769,15 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      */
     public void removeTransmissionHandler(Object topic) {
         topicTransmitHndlrs.remove(topic);
+    }
+
+    /**
+     * @param node Remote node to check.
+     * @return {@code true} if file can be send over socket channel directly.
+     */
+    public boolean fileTransmissionSupported(ClusterNode node) {
+        return ((CommunicationSpi)getSpi() instanceof TcpCommunicationSpi) &&
+            nodeSupports(node, CHANNEL_COMMUNICATION);
     }
 
     /**
@@ -1782,16 +1794,14 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     ) throws IgniteCheckedException {
         assert nodeId != null;
         assert topic != null;
+        assert !locNodeId.equals(nodeId) : "Channel cannot be opened to the local node itself:" + nodeId;
+        assert (CommunicationSpi)getSpi() instanceof TcpCommunicationSpi : "Only TcpCommunicationSpi supports direct " +
+            "connections between nodes: " + getSpi().getClass();
 
         ClusterNode node = ctx.discovery().node(nodeId);
 
         if (node == null)
             throw new ClusterTopologyCheckedException("Failed to open a new channel to remote node (node left): " + nodeId);
-
-        if (locNodeId.equals(node.id())) {
-            throw new IgniteCheckedException("Channel cannot be opened to the local node itself " +
-                "[nodeId=" + node.id() + ", topic=" + topic + ']');
-        }
 
         int topicOrd = topic instanceof GridTopic ? ((Enum<GridTopic>)topic).ordinal() : -1;
 
@@ -1804,12 +1814,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
             false);
 
         try {
-            if (!((CommunicationSpi)getSpi() instanceof TcpCommunicationSpi)) {
-                throw new IgniteCheckedException("The channel cannot be opened to remote. Only default build-in " +
-                    "impelemntation of Communication SPI supports communication between nodes over the SocketChannel." +
-                    "[spi=" + getSpi().getClass() + ']');
-            }
-
             if (topicOrd < 0)
                 ioMsg.topicBytes(U.marshal(marsh, topic));
 
@@ -1820,7 +1824,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 throw (ClusterTopologyCheckedException)e.getCause();
 
             if (!ctx.discovery().alive(node))
-                throw new ClusterTopologyCheckedException("Failed to create channel, node left: " + node.id(), e);
+                throw new ClusterTopologyCheckedException("Failed to create channel (node left): " + node.id(), e);
 
             throw new IgniteCheckedException("Failed to create channel (node may have left the grid or " +
                 "TCP connection cannot be established due to unknown issues) " +
@@ -2568,15 +2572,15 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         ObjectOutputStream out = null;
 
         try {
-            TransmissionHandler session = topicTransmitHndlrs.get(topic);
+            TransmissionHandler ses = topicTransmitHndlrs.get(topic);
 
-            if (session == null)
+            if (ses == null)
                 return;
 
             if (initMsg == null || initMsg.sesId() == null)
                 return;
 
-            readCtx = readSessionCtxs.computeIfAbsent(topic, t -> new FileIoReadContext(nodeId, session));
+            readCtx = readSesCtxs.computeIfAbsent(topic, t -> new FileIoReadContext(nodeId, ses));
 
             configureChannel(ctx.config(), channel);
 
@@ -2612,26 +2616,26 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     readCtx.hndlr.onException(nodeId, new IgniteCheckedException("The handler has been aborted " +
                         "by transfer attempt with a new sessionId: " + newSesId));
 
-                    readCtx = new FileIoReadContext(nodeId, session);
+                    readCtx = new FileIoReadContext(nodeId, ses);
                     readCtx.sesId = newSesId;
                     readCtx.inProgress.set(true);
 
-                    readSessionCtxs.put(topic, readCtx);
+                    readSesCtxs.put(topic, readCtx);
                 }
 
                 TransmitMeta meta;
 
                 // Send previous context state to sync remote and local node (on manager connected).
-                if (readCtx.chunkedObj == null)
+                if (readCtx.receiver == null)
                     meta = new TransmitMeta(DFLT_TRANSMIT_META, readCtx.lastSeenErr);
                 else {
-                    final AbstractChunkReceiver obj = readCtx.chunkedObj;
+                    final AbstractChunkReceiver receiver = readCtx.receiver;
 
-                    meta = new TransmitMeta(obj.name(),
-                        obj.startPosition() + obj.transferred(),
-                        obj.count(),
-                        obj.transferred() == 0,
-                        obj.params(),
+                    meta = new TransmitMeta(receiver.name(),
+                        receiver.startPosition() + receiver.transferred(),
+                        receiver.count(),
+                        receiver.transferred() == 0,
+                        receiver.params(),
                         readCtx.currPlc,
                         readCtx.lastSeenErr);
                 }
@@ -2703,13 +2707,13 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 if (DFLT_SESSION_CLOSE_META.equals(meta.name())) {
                     readCtx.hndlr.onEnd(readCtx.nodeId);
 
-                    readSessionCtxs.remove(topic);
+                    readSesCtxs.remove(topic);
 
                     break;
                 }
 
-                if (readCtx.chunkedObj == null) {
-                    readCtx.chunkedObj = chunkReceiverFactory.create(readCtx.nodeId,
+                if (readCtx.receiver == null) {
+                    readCtx.receiver = chunkReceiverFactory.create(readCtx.nodeId,
                         readCtx.hndlr,
                         meta,
                         () -> stopping || readCtx.interrupted);
@@ -2717,23 +2721,23 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     readCtx.currPlc = meta.policy();
                 }
 
-                try (AbstractChunkReceiver inChunkedObj = readCtx.chunkedObj) {
+                try (AbstractChunkReceiver chunkReceiver = readCtx.receiver) {
                     long startTime = U.currentTimeMillis();
 
-                    inChunkedObj.setup(meta, chunkSize);
-                    inChunkedObj.doRead(channel);
+                    chunkReceiver.setup(meta, chunkSize);
+                    chunkReceiver.receive(channel);
 
-                    readCtx.chunkedObj = null;
+                    readCtx.receiver = null;
                     readCtx.currPlc = null;
 
-                    // Write chunked object processing ack.
-                    out.writeLong(inChunkedObj.transferred());
+                    // Write processing ack.
+                    out.writeLong(chunkReceiver.transferred());
                     out.flush();
 
                     long downloadTime = U.currentTimeMillis() - startTime;
 
                     U.log(log, "The file has been successfully downloaded " +
-                        "[name=" + inChunkedObj.name() + ", transferred=" + inChunkedObj.transferred() + " bytes" +
+                        "[name=" + chunkReceiver.name() + ", transferred=" + chunkReceiver.transferred() + " bytes" +
                         ", time=" + (double)((downloadTime) / 1000) + " sec" +
                         ", retries=" + readCtx.retries);
                 }
@@ -2759,17 +2763,17 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     /**
      * @param factory A new factory instance to set.
      */
-    void chunkedObjectFactory(ChunkReceiverFactory factory) {
+    void chunkReceiverFactory(ChunkReceiverFactory factory) {
         chunkReceiverFactory = factory;
     }
 
     /**
      * @param nodeId Remote node id.
      * @param hndlr The current handler instance which produces file handlers.
-     * @return Chunked object instance.
+     * @return Chunk data recevier.
      * @throws IgniteCheckedException If fails.
      */
-    private AbstractChunkReceiver createChunkedObject(
+    private AbstractChunkReceiver createChunkReceiver(
         UUID nodeId,
         TransmissionHandler hndlr,
         TransmitMeta objMeta,
@@ -2866,7 +2870,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         private ReadPolicy currPlc;
 
         /** Last infinished downloading object. */
-        private AbstractChunkReceiver chunkedObj;
+        private AbstractChunkReceiver receiver;
 
         /** Last error occurred while channel is processed by registered session handler. */
         private IgniteCheckedException lastSeenErr;
@@ -2922,7 +2926,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      *     </ul>
      * </p>
      */
-    private class ChunkedFileWriter implements FileWriter {
+    private class ChunkFileWriter implements FileWriter {
         /** Remote node id to connect to. */
         private final UUID remoteId;
 
@@ -2945,7 +2949,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
          * @param remoteId The remote note to connect to.
          * @param topic The remote topic to connect to.
          */
-        public ChunkedFileWriter(
+        public ChunkFileWriter(
             UUID remoteId,
             Object topic
         ) {
@@ -2991,7 +2995,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         ) throws IgniteCheckedException {
             int retries = 0;
 
-            try (FileChunkSender outChunkedObj = new FileChunkSender(file,
+            try (FileChunkSender chunkSender = new FileChunkSender(file,
                 offset,
                 count,
                 params,
@@ -3025,23 +3029,22 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
                             // If not the initial connection for the current session.
                             if (!DFLT_TRANSMIT_META.equals(syncMeta.name())) {
-                                uploaded = syncMeta.offset() - outChunkedObj.startPosition();
+                                uploaded = syncMeta.offset() - chunkSender.startPosition();
 
                                 assert uploaded >= 0 : "Incorrect sync meta [offset=" + syncMeta.offset() +
-                                    ", startPos=" + outChunkedObj.startPosition() + ']';
-                                assert outChunkedObj.name().equals(syncMeta.name()) : "Attempt to transfer different file " +
-                                    "while previous is not completed [curr=" + outChunkedObj.name() + ", meta=" + syncMeta + ']';
+                                    ", startPos=" + chunkSender.startPosition() + ']';
+                                assert chunkSender.name().equals(syncMeta.name()) : "Attempt to transfer different file " +
+                                    "while previous is not completed [curr=" + chunkSender.name() + ", meta=" + syncMeta + ']';
                             }
                         }
 
-                        outChunkedObj.setup(out, uploaded, plc);
-
-                        outChunkedObj.doWrite(channel);
+                        chunkSender.setup(out, uploaded, plc);
+                        chunkSender.send(channel);
 
                         // Read file received acknowledge.
                         long total = in.readLong();
 
-                        assert total == outChunkedObj.transferred();
+                        assert total == chunkSender.transferred();
 
                         break;
                     }
@@ -3052,8 +3055,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                         U.warn(log, "Connection lost while writing file to remote node and " +
                             "will be re-establishing [remoteId=" + remoteId + ", file=" + file.getName() +
                             ", sesKey=" + sesKey + ", retries=" + retries +
-                            ", transferred=" + outChunkedObj.transferred() +
-                            ", count=" + outChunkedObj.count() + ']', e);
+                            ", transferred=" + chunkSender.transferred() +
+                            ", count=" + chunkSender.count() + ']', e);
 
                         retries++;
                     }
@@ -3078,7 +3081,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         @Override public void close() throws IOException {
             try {
                 if (out != null) {
-                    U.log(log, "Writing tombstone on close write session");
+                    U.log(log, "File writer session will be closed.");
 
                     new TransmitMeta(DFLT_SESSION_CLOSE_META, null).writeExternal(out);
                 }
@@ -3086,7 +3089,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 fileWriterStopFlags.remove(sesKey);
             }
             catch (IOException e) {
-                U.warn(log, "The excpetion of writing 'tombstone' on channel close operation has been ignored", e);
+                U.warn(log, "An excpetion while writing close session flag occured. " +
+                    " Session close operation has been ignored", e);
             }
             finally {
                 closeChannelQuiet();

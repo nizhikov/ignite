@@ -131,7 +131,7 @@ public class FileChunkSender extends AbstractChunkProcess {
      * @throws IOException If an io exception occurred.
      * @throws IgniteCheckedException If fails.
      */
-    public void doWrite(WritableByteChannel ch) throws IOException, IgniteCheckedException {
+    public void send(WritableByteChannel ch) throws IOException, IgniteCheckedException {
         assert fileIo != null : "Write operation stopped. Chunked object is not initialized";
 
         while (hasNextChunk()) {
