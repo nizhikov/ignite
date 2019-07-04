@@ -43,7 +43,7 @@ import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
-import org.apache.ignite.internal.managers.communication.chunk.FileChunkReceiver;
+import org.apache.ignite.internal.managers.communication.chunk.FileReceiver;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
@@ -265,7 +265,7 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
 
         receiver.context().io()
             .chunkReceiverFactory((nodeId, hndlr, meta, checker) ->
-                new FileChunkReceiver(
+                new FileReceiver(
                     meta.name(),
                     meta.offset(),
                     meta.count(),
@@ -318,7 +318,7 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
             .chunkReceiverFactory((nodeId, hndlr, meta, checker) -> {
                 assertEquals(meta.policy(), ReadPolicy.FILE);
 
-                return new FileChunkReceiver(
+                return new FileReceiver(
                     meta.name(),
                     meta.offset(),
                     meta.count(),

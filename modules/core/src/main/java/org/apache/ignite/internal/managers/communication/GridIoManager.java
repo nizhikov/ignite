@@ -85,8 +85,8 @@ import org.apache.ignite.internal.managers.GridManagerAdapter;
 import org.apache.ignite.internal.managers.communication.chunk.AbstractChunkReceiver;
 import org.apache.ignite.internal.managers.communication.chunk.BufferChunkReceiver;
 import org.apache.ignite.internal.managers.communication.chunk.ChunkReceiverFactory;
-import org.apache.ignite.internal.managers.communication.chunk.FileChunkReceiver;
-import org.apache.ignite.internal.managers.communication.chunk.FileChunkSender;
+import org.apache.ignite.internal.managers.communication.chunk.FileReceiver;
+import org.apache.ignite.internal.managers.communication.chunk.FileSender;
 import org.apache.ignite.internal.managers.deployment.GridDeployment;
 import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
 import org.apache.ignite.internal.managers.eventstorage.GridLocalEventListener;
@@ -2776,7 +2776,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     ) throws IgniteCheckedException {
         switch (objMeta.policy()) {
             case FILE:
-                return new FileChunkReceiver(
+                return new FileReceiver(
                     objMeta.name(),
                     objMeta.offset(),
                     objMeta.count(),
@@ -2889,7 +2889,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     }
 
     /**
-     * Implementation of file writer to transfer files with the zero-copy algorithm (used the {@link FileChunkReceiver}
+     * Implementation of file writer to transfer files with the zero-copy algorithm (used the {@link FileReceiver}
      * under the hood). All transport level exceptions of file writer (which are not related to some not the channel
      * handler one exceptions) are considered as an {@link IOException} and will require reconnect.
      * For instance, case when the remote peer has closed the connection correctly, so read or write operation over
@@ -2990,7 +2990,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         ) throws IgniteCheckedException {
             int retries = 0;
 
-            try (FileChunkSender chunkSender = new FileChunkSender(file,
+            try (FileSender chunkSender = new FileSender(file,
                 offset,
                 count,
                 params,

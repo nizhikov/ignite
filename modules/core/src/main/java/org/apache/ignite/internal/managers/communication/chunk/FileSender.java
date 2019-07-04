@@ -41,7 +41,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
  * Supports the zero-copy streaming algorithm,  see {@link FileChannel#transferTo(long, long, WritableByteChannel)}
  * for details.
  */
-public class FileChunkSender extends AbstractChunkProcess {
+public class FileSender extends AbstractChunkProcess {
     /** The default factory to provide IO oprations over underlying file. */
     @GridToStringExclude
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
@@ -61,7 +61,7 @@ public class FileChunkSender extends AbstractChunkProcess {
      * @param stopChecker Node stop or prcoess interrupt checker.
      * @param chunkSize The size of chunk to read.
      */
-    public FileChunkSender(
+    public FileSender(
         File file,
         long pos,
         long cnt,
@@ -169,6 +169,6 @@ public class FileChunkSender extends AbstractChunkProcess {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(FileChunkSender.class, this, "super", super.toString());
+        return S.toString(FileSender.class, this, "super", super.toString());
     }
 }
