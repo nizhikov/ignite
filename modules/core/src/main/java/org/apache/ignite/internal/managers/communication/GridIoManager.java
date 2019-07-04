@@ -193,7 +193,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     private ChunkReceiverFactory chunkReceiverFactory;
 
     /** The maximum number of retry attempts (read or write attempts). */
-    private volatile int retryCnt;
+    private int retryCnt;
 
     /** Default size of each chunk of data recevier or sender. */
     private int chunkSize = DFLT_CHUNK_SIZE_BYTES;
@@ -2764,46 +2764,48 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
     /**
      * @param nodeId Remote node id.
-     * @param hndlr The current handler instance which produces file handlers.
+     * @param handler The current handler instance which produces file handlers.
+     * @param meta Meta information about file pending to receive to create appropriate receiver.
+     * @param stopChecker Process interrupt checker.
      * @return Chunk data recevier.
      * @throws IgniteCheckedException If fails.
      */
     private AbstractChunkReceiver createChunkReceiver(
         UUID nodeId,
-        TransmissionHandler hndlr,
-        TransmitMeta objMeta,
+        TransmissionHandler handler,
+        TransmitMeta meta,
         Supplier<Boolean> stopChecker
     ) throws IgniteCheckedException {
-        switch (objMeta.policy()) {
+        switch (meta.policy()) {
             case FILE:
                 return new FileReceiver(
-                    objMeta.name(),
-                    objMeta.offset(),
-                    objMeta.count(),
-                    objMeta.params(),
+                    meta.name(),
+                    meta.offset(),
+                    meta.count(),
+                    meta.params(),
                     stopChecker,
-                    hndlr.fileHandler(nodeId,
-                        objMeta.name(),
-                        objMeta.offset(),
-                        objMeta.count(),
-                        objMeta.params()));
+                    handler.fileHandler(nodeId,
+                        meta.name(),
+                        meta.offset(),
+                        meta.count(),
+                        meta.params()));
 
             case BUFF:
                 return new BufferChunkReceiver(
-                    objMeta.name(),
-                    objMeta.offset(),
-                    objMeta.count(),
-                    objMeta.params(),
+                    meta.name(),
+                    meta.offset(),
+                    meta.count(),
+                    meta.params(),
                     stopChecker,
-                    hndlr.chunkHandler(nodeId,
-                        objMeta.name(),
-                        objMeta.offset(),
-                        objMeta.count(),
-                        objMeta.params()));
+                    handler.chunkHandler(nodeId,
+                        meta.name(),
+                        meta.offset(),
+                        meta.count(),
+                        meta.params()));
 
             default:
                 throw new IgniteCheckedException("The type of read plc is unknown. The impelentation " +
-                    "required: " + objMeta.policy());
+                    "required: " + meta.policy());
         }
     }
 
