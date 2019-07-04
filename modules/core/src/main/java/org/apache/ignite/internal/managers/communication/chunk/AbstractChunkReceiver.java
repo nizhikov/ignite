@@ -26,10 +26,10 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.TransmitMeta;
 
 /**
- * Class represents an object which can be read from a channel by chunks of
+ * Class represents a receiver of data which can be pulled from a channel by chunks of
  * predefined size. Closes when a transmission of represented object ends.
  */
-public abstract class InputChunkedObject extends AbstractChunkedObject {
+public abstract class AbstractChunkReceiver extends AbstractChunkProcess {
     /** Initialization completion flag. */
     private boolean inited;
 
@@ -38,14 +38,16 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
      * @param startPos The position from which the transfer should start to.
      * @param cnt The number of bytes to expect of transfer.
      * @param params Additional stream params.
+     * @param stopChecker Node stop or prcoess interrupt checker.
      */
-    protected InputChunkedObject(
+    protected AbstractChunkReceiver(
         String name,
         long startPos,
         long cnt,
-        Map<String, Serializable> params
+        Map<String, Serializable> params,
+        Supplier<Boolean> stopChecker
     ) {
-        super(name, startPos, cnt, params);
+        super(name, startPos, cnt, params, stopChecker);
     }
 
     /**
@@ -71,7 +73,7 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
 
         // Read data from the input.
         while (hasNextChunk()) {
-            if (Thread.currentThread().isInterrupted() || nodeStopped.get()) {
+            if (Thread.currentThread().isInterrupted() || stopped()) {
                 throw new IgniteCheckedException("Thread has been interrupted or operation has been cancelled " +
                     "due to node is stopping. Channel processing has been stopped.");
             }
@@ -83,17 +85,11 @@ public abstract class InputChunkedObject extends AbstractChunkedObject {
     /**
      * @param meta Provided file meta.
      * @param chunkSize The size of chunk to read.
-     * @param checker Node stopping flag.
      * @throws IgniteCheckedException If validation failed.
      */
-    public void setup(
-        TransmitMeta meta,
-        int chunkSize,
-        Supplier<Boolean> checker
-    ) throws IgniteCheckedException {
-        assert checker != null;
-
-        nodeStopped = checker;
+    public void setup(TransmitMeta meta, int chunkSize) throws IgniteCheckedException {
+        assert meta != null;
+        assert chunkSize > 0;
 
         if (meta.initial()) {
             if (inited)

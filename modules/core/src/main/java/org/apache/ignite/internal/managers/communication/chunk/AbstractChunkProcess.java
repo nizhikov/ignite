@@ -28,50 +28,53 @@ import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
- * Class represents base object which can we transferred (written or read) by chunks of
+ * Class represents base object which can we transferred (written or readed) by chunks of
  * predefined size over a socket channel.
  */
-abstract class AbstractChunkedObject implements Closeable {
+abstract class AbstractChunkProcess implements Closeable {
     /** Additional stream params. */
     @GridToStringInclude
-    protected final Map<String, Serializable> params = new HashMap<>();
-
-    /** Node stopping checker. */
-    protected Supplier<Boolean> nodeStopped;
-
-    /** The number of bytes successfully transferred druring iteration. */
-    protected long transferred;
+    private final Map<String, Serializable> params = new HashMap<>();
 
     /** The size of segment for the read. */
     private int chunkSize;
 
     /** The unique input name to identify particular transfer part. */
-    protected String name;
+    private String name;
 
     /**
      * The position from which the transfer will start. For the {@link File} it will be offset
      * where the transfer begin data transfer.
      */
-    protected long startPos;
+    private long startPos;
 
     /** The total number of bytes to send. */
-    protected long cnt;
+    private long cnt;
+
+    /** Node stopping checker. */
+    private Supplier<Boolean> stopChecker;
+
+    /** The number of bytes successfully transferred druring iteration. */
+    protected long transferred;
 
     /**
      * @param name The unique file name within transfer process.
      * @param startPos The position from which the transfer should start to.
      * @param cnt The number of bytes to expect of transfer.
      * @param params Additional stream params.
+     * @param stopChecker Node stop or prcoess interrupt checker.
      */
-    protected AbstractChunkedObject(
+    protected AbstractChunkProcess(
         String name,
         long startPos,
         long cnt,
-        Map<String, Serializable> params
+        Map<String, Serializable> params,
+        Supplier<Boolean> stopChecker
     ) {
         this.name = name;
         this.startPos = startPos;
         this.cnt = cnt;
+        this.stopChecker = stopChecker;
 
         if (params != null)
             this.params.putAll(params);
@@ -120,6 +123,13 @@ abstract class AbstractChunkedObject implements Closeable {
     }
 
     /**
+     * @return {@code true} if the process of data sending\receiving must be interrupt.
+     */
+    public boolean stopped() {
+        return stopChecker.get();
+    }
+
+    /**
      * @param chunkSize The size of chunk in bytes.
      */
     protected void chunkSize(int chunkSize) {
@@ -156,6 +166,6 @@ abstract class AbstractChunkedObject implements Closeable {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(AbstractChunkedObject.class, this);
+        return S.toString(AbstractChunkProcess.class, this);
     }
 }

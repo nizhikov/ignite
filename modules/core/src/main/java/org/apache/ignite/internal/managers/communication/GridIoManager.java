@@ -64,6 +64,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.cluster.ClusterNode;
@@ -81,10 +82,11 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.direct.DirectMessageReader;
 import org.apache.ignite.internal.direct.DirectMessageWriter;
 import org.apache.ignite.internal.managers.GridManagerAdapter;
-import org.apache.ignite.internal.managers.communication.chunk.InputChunkedBuffer;
-import org.apache.ignite.internal.managers.communication.chunk.InputChunkedFile;
-import org.apache.ignite.internal.managers.communication.chunk.InputChunkedObject;
-import org.apache.ignite.internal.managers.communication.chunk.OutputChunkedFile;
+import org.apache.ignite.internal.managers.communication.chunk.AbstractChunkReceiver;
+import org.apache.ignite.internal.managers.communication.chunk.BufferChunkReceiver;
+import org.apache.ignite.internal.managers.communication.chunk.ChunkReceiverFactory;
+import org.apache.ignite.internal.managers.communication.chunk.FileChunkReceiver;
+import org.apache.ignite.internal.managers.communication.chunk.FileChunkSender;
 import org.apache.ignite.internal.managers.deployment.GridDeployment;
 import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
 import org.apache.ignite.internal.managers.eventstorage.GridLocalEventListener;
@@ -110,7 +112,6 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiPredicate;
 import org.apache.ignite.lang.IgniteInClosure;
 import org.apache.ignite.lang.IgniteRunnable;
-import org.apache.ignite.lang.IgniteTriClosure;
 import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.marshaller.Marshaller;
 import org.apache.ignite.plugin.extensions.communication.Message;
@@ -192,8 +193,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     /** The map of sessions which are currently writing files and their corresponding interruption flags. */
     private final ConcurrentMap<T2<UUID, IgniteUuid>, AtomicBoolean> fileWriterStopFlags = new ConcurrentHashMap<>();
 
-    /** The factory produces chunked objects to process an input data channel. */
-    private IgniteTriClosure<UUID, TransmissionHandler, TransmitMeta, InputChunkedObject> chunkedObjFactory;
+    /** The factory produces chunk data receivers to process a channel with data. */
+    private ChunkReceiverFactory chunkReceiverFactory;
 
     /** The maximum number of retry attempts (read or write attempts). */
     private volatile int retryCnt;
@@ -283,7 +284,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
         marsh = ctx.config().getMarshaller();
 
-        chunkedObjFactory = this::createChunkedObject;
+        chunkReceiverFactory = this::createChunkedObject;
 
         synchronized (sysLsnrsMux) {
             sysLsnrs = new GridMessageListener[GridTopic.values().length];
@@ -2624,7 +2625,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 if (readCtx.chunkedObj == null)
                     meta = new TransmitMeta(DFLT_TRANSMIT_META, readCtx.lastSeenErr);
                 else {
-                    final InputChunkedObject obj = readCtx.chunkedObj;
+                    final AbstractChunkReceiver obj = readCtx.chunkedObj;
 
                     meta = new TransmitMeta(obj.name(),
                         obj.startPosition() + obj.transferred(),
@@ -2708,17 +2709,18 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 }
 
                 if (readCtx.chunkedObj == null) {
-                    readCtx.chunkedObj = chunkedObjFactory.apply(readCtx.nodeId,
+                    readCtx.chunkedObj = chunkReceiverFactory.create(readCtx.nodeId,
                         readCtx.hndlr,
-                        meta);
+                        meta,
+                        () -> stopping || readCtx.interrupted);
 
                     readCtx.currPlc = meta.policy();
                 }
 
-                try (InputChunkedObject inChunkedObj = readCtx.chunkedObj) {
+                try (AbstractChunkReceiver inChunkedObj = readCtx.chunkedObj) {
                     long startTime = U.currentTimeMillis();
 
-                    inChunkedObj.setup(meta, chunkSize, () -> stopping || readCtx.interrupted);
+                    inChunkedObj.setup(meta, chunkSize);
                     inChunkedObj.doRead(channel);
 
                     readCtx.chunkedObj = null;
@@ -2757,8 +2759,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     /**
      * @param factory A new factory instance to set.
      */
-    void chunkedObjectFactory(IgniteTriClosure<UUID, TransmissionHandler, TransmitMeta, InputChunkedObject> factory) {
-        chunkedObjFactory = factory;
+    void chunkedObjectFactory(ChunkReceiverFactory factory) {
+        chunkReceiverFactory = factory;
     }
 
     /**
@@ -2767,18 +2769,20 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @return Chunked object instance.
      * @throws IgniteCheckedException If fails.
      */
-    private InputChunkedObject createChunkedObject(
+    private AbstractChunkReceiver createChunkedObject(
         UUID nodeId,
         TransmissionHandler hndlr,
-        TransmitMeta objMeta
+        TransmitMeta objMeta,
+        Supplier<Boolean> stopChecker
     ) throws IgniteCheckedException {
         switch (objMeta.policy()) {
             case FILE:
-                return new InputChunkedFile(
+                return new FileChunkReceiver(
                     objMeta.name(),
                     objMeta.offset(),
                     objMeta.count(),
                     objMeta.params(),
+                    stopChecker,
                     hndlr.fileHandler(nodeId,
                         objMeta.name(),
                         objMeta.offset(),
@@ -2786,11 +2790,12 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                         objMeta.params()));
 
             case BUFF:
-                return new InputChunkedBuffer(
+                return new BufferChunkReceiver(
                     objMeta.name(),
                     objMeta.offset(),
                     objMeta.count(),
                     objMeta.params(),
+                    stopChecker,
                     hndlr.chunkHandler(nodeId,
                         objMeta.name(),
                         objMeta.offset(),
@@ -2861,7 +2866,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         private ReadPolicy currPlc;
 
         /** Last infinished downloading object. */
-        private InputChunkedObject chunkedObj;
+        private AbstractChunkReceiver chunkedObj;
 
         /** Last error occurred while channel is processed by registered session handler. */
         private IgniteCheckedException lastSeenErr;
@@ -2885,7 +2890,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     }
 
     /**
-     * Implementation of file writer to transfer files with the zero-copy algorithm (used the {@link InputChunkedFile}
+     * Implementation of file writer to transfer files with the zero-copy algorithm (used the {@link FileChunkReceiver}
      * under the hood). All transport level exceptions of file writer (which are not related to some not the channel
      * handler one exceptions) are considered as an {@link IOException} and will require reconnect.
      * For instance, case when the remote peer has closed the connection correctly, so read or write operation over
@@ -2986,7 +2991,13 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         ) throws IgniteCheckedException {
             int retries = 0;
 
-            try (OutputChunkedFile outChunkedObj = new OutputChunkedFile(file, offset, count, params, chunkSize)) {
+            try (FileChunkSender outChunkedObj = new FileChunkSender(file,
+                offset,
+                count,
+                params,
+                () -> stopping || fileWriterStopFlags.get(sesKey).get(),
+                chunkSize)
+            ) {
                 if (log.isDebugEnabled())
                     log.debug("Start writing file to remote node [file=" + file.getName() +
                         ", rmtNodeId=" + remoteId + ", topic=" + topic + ']');
@@ -3003,7 +3014,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                         throw new IgniteCheckedException("The number of retry attempts exceeded the limit: " + retryCnt);
 
                     try {
-                        long transferred = 0;
+                        long uploaded = 0;
 
                         if (out == null && in == null) {
                             TransmitMeta syncMeta = connect();
@@ -3014,22 +3025,18 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
                             // If not the initial connection for the current session.
                             if (!DFLT_TRANSMIT_META.equals(syncMeta.name())) {
-                                transferred = syncMeta.offset() - outChunkedObj.startPosition();
+                                uploaded = syncMeta.offset() - outChunkedObj.startPosition();
 
-                                assert transferred >= 0 : "Incorrect sync meta [offset=" + syncMeta.offset() +
+                                assert uploaded >= 0 : "Incorrect sync meta [offset=" + syncMeta.offset() +
                                     ", startPos=" + outChunkedObj.startPosition() + ']';
                                 assert outChunkedObj.name().equals(syncMeta.name()) : "Attempt to transfer different file " +
                                     "while previous is not completed [curr=" + outChunkedObj.name() + ", meta=" + syncMeta + ']';
                             }
                         }
 
-                        outChunkedObj.setup(out,
-                            transferred,
-                            plc,
-                            () -> stopping || fileWriterStopFlags.get(sesKey).get());
+                        outChunkedObj.setup(out, uploaded, plc);
 
                         outChunkedObj.doWrite(channel);
-                        outChunkedObj.close();
 
                         // Read file received acknowledge.
                         long total = in.readLong();

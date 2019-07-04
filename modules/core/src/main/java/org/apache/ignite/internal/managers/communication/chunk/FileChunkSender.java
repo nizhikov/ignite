@@ -37,10 +37,11 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 
 /**
- * Class represents a writable file chunked object which supports the zero-copy streaming algorithm,
- * see {@link FileChannel#transferTo(long, long, WritableByteChannel)} for details.
+ * Class represents a sender of chunked data which can be pushed to channel.
+ * Supports the zero-copy streaming algorithm,  see {@link FileChannel#transferTo(long, long, WritableByteChannel)}
+ * for details.
  */
-public class OutputChunkedFile extends AbstractChunkedObject {
+public class FileChunkSender extends AbstractChunkProcess {
     /** The default factory to provide IO oprations over underlying file. */
     @GridToStringExclude
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
@@ -57,16 +58,18 @@ public class OutputChunkedFile extends AbstractChunkedObject {
      * @param pos File offset.
      * @param cnt Number of bytes to transfer.
      * @param params Additional file params.
+     * @param stopChecker Node stop or prcoess interrupt checker.
      * @param chunkSize The size of chunk to read.
      */
-    public OutputChunkedFile(
+    public FileChunkSender(
         File file,
         long pos,
         long cnt,
         Map<String, Serializable> params,
+        Supplier<Boolean> stopChecker,
         int chunkSize
     ) {
-        super(file.getName(), pos, cnt, params);
+        super(file.getName(), pos, cnt, params, stopChecker);
 
         assert file != null;
 
@@ -92,20 +95,14 @@ public class OutputChunkedFile extends AbstractChunkedObject {
      * @param oo Channel to write data to.
      * @param uploadedBytes Number of bytes transferred on previous attempt.
      * @param plc Policy of way how data will be handled on remote node.
-     * @param checker Node stop checker.
      * @throws IOException If write meta input failed.
      * @throws IgniteCheckedException If fails.
      */
     public void setup(
         ObjectOutput oo,
         long uploadedBytes,
-        ReadPolicy plc,
-        Supplier<Boolean> checker
+        ReadPolicy plc
     ) throws IOException, IgniteCheckedException {
-        assert checker != null;
-
-        nodeStopped = checker;
-
         transferred(uploadedBytes);
 
         TransmitMeta meta = new TransmitMeta(name(),
@@ -138,7 +135,7 @@ public class OutputChunkedFile extends AbstractChunkedObject {
         assert fileIo != null : "Write operation stopped. Chunked object is not initialized";
 
         while (hasNextChunk()) {
-            if (Thread.currentThread().isInterrupted() || nodeStopped.get()) {
+            if (Thread.currentThread().isInterrupted() || stopped()) {
                 throw new IgniteCheckedException("Thread has been interrupted or operation has been cancelled " +
                     "due to node is stopping. Channel processing has been stopped.");
             }
@@ -171,6 +168,6 @@ public class OutputChunkedFile extends AbstractChunkedObject {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(OutputChunkedFile.class, this, "super", super.toString());
+        return S.toString(FileChunkSender.class, this, "super", super.toString());
     }
 }

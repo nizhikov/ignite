@@ -43,7 +43,7 @@ import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
-import org.apache.ignite.internal.managers.communication.chunk.InputChunkedFile;
+import org.apache.ignite.internal.managers.communication.chunk.FileChunkReceiver;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
@@ -264,17 +264,18 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
         File fileToSend = createFileRandomData("testFile", fileSizeBytes);
 
         receiver.context().io()
-            .chunkedObjectFactory((nodeId, hndlr, objMeta) ->
-                new InputChunkedFile(
-                    objMeta.name(),
-                    objMeta.offset(),
-                    objMeta.count(),
-                    objMeta.params(),
+            .chunkedObjectFactory((nodeId, hndlr, meta, checker) ->
+                new FileChunkReceiver(
+                    meta.name(),
+                    meta.offset(),
+                    meta.count(),
+                    meta.params(),
+                    checker,
                     hndlr.fileHandler(nodeId,
-                        objMeta.name(),
-                        objMeta.offset(),
-                        objMeta.count(),
-                        objMeta.params())) {
+                        meta.name(),
+                        meta.offset(),
+                        meta.count(),
+                        meta.params())) {
                     @Override public void readChunk(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
                         // Read 5 chunks than stop the grid.
                         if (chunksCnt.incrementAndGet() == 5)
@@ -314,19 +315,20 @@ public class GridIoManagerFileTransmissionSelfTest extends GridCommonAbstractTes
         final AtomicInteger readedChunks = new AtomicInteger();
 
         receiver.context().io()
-            .chunkedObjectFactory((nodeId, hndlr, objMeta) -> {
-                assertEquals(objMeta.policy(), ReadPolicy.FILE);
+            .chunkedObjectFactory((nodeId, hndlr, meta, checker) -> {
+                assertEquals(meta.policy(), ReadPolicy.FILE);
 
-                return new InputChunkedFile(
-                    objMeta.name(),
-                    objMeta.offset(),
-                    objMeta.count(),
-                    objMeta.params(),
+                return new FileChunkReceiver(
+                    meta.name(),
+                    meta.offset(),
+                    meta.count(),
+                    meta.params(),
+                    checker,
                     hndlr.fileHandler(nodeId,
-                        objMeta.name(),
-                        objMeta.offset(),
-                        objMeta.count(),
-                        objMeta.params())) {
+                        meta.name(),
+                        meta.offset(),
+                        meta.count(),
+                        meta.params())) {
                     @Override public void readChunk(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
                         // Read 4 chunks than throw an exception to emulate error processing.
                         if (readedChunks.incrementAndGet() == 4)

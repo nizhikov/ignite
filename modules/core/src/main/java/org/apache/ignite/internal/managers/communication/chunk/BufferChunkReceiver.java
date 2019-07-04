@@ -23,15 +23,16 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.ChunkHandler;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
- * Buffered chunked object is handle input socket channel by chunks of data and
+ * Buffered chunked receiver can handle input socket channel by chunks of data and
  * deliver it to an allocated {@link ByteBuffer}.
  */
-public class InputChunkedBuffer extends InputChunkedObject {
+public class BufferChunkReceiver extends AbstractChunkReceiver {
     /** Chunked channel handler to process data with chunks. */
     private final ChunkHandler handler;
 
@@ -43,16 +44,18 @@ public class InputChunkedBuffer extends InputChunkedObject {
      * @param startPos The position from which the transfer should start to.
      * @param cnt The number of bytes to expect of transfer.
      * @param params Additional stream params.
+     * @param stopChecker Node stop or prcoess interrupt checker.
      * @param handler The chunk handler to process each chunk.
      */
-    public InputChunkedBuffer(
+    public BufferChunkReceiver(
         String name,
         long startPos,
         long cnt,
         Map<String, Serializable> params,
+        Supplier<Boolean> stopChecker,
         ChunkHandler handler
     ) {
-        super(name, startPos, cnt, params);
+        super(name, startPos, cnt, params, stopChecker);
 
         assert handler != null;
 
@@ -124,6 +127,6 @@ public class InputChunkedBuffer extends InputChunkedObject {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(InputChunkedBuffer.class, this, "super", super.toString());
+        return S.toString(BufferChunkReceiver.class, this, "super", super.toString());
     }
 }

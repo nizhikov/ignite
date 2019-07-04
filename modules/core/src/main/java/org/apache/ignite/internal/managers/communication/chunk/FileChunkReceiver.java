@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.FileHandler;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
@@ -33,10 +34,10 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 
 /**
- * Class represents a readable file chunked object which supports the zero-copy streaming algorithm,
- * see {@link FileChannel#transferFrom(ReadableByteChannel, long, long)} for details.
+ * Class represents a chunk data receiver which is pulling data from channel vi
+ * {@link FileChannel#transferFrom(ReadableByteChannel, long, long)}.
  */
-public class InputChunkedFile extends InputChunkedObject {
+public class FileChunkReceiver extends AbstractChunkReceiver {
     /** The default factory to provide IO oprations over underlying file. */
     @GridToStringExclude
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
@@ -56,16 +57,18 @@ public class InputChunkedFile extends InputChunkedObject {
      * @param startPos The position from which the transfer should start to.
      * @param cnt The number of bytes to expect of transfer.
      * @param params Additional stream params.
+     * @param stopChecker Node stop or prcoess interrupt checker.
      * @param handler The file handler to process download result.
      */
-    public InputChunkedFile(
+    public FileChunkReceiver(
         String name,
         long startPos,
         long cnt,
         Map<String, Serializable> params,
+        Supplier<Boolean> stopChecker,
         FileHandler handler
     ) {
-        super(name, startPos, cnt, params);
+        super(name, startPos, cnt, params, stopChecker);
 
         assert handler != null;
 
@@ -126,6 +129,6 @@ public class InputChunkedFile extends InputChunkedObject {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(InputChunkedFile.class, this, "super", super.toString());
+        return S.toString(FileChunkReceiver.class, this, "super", super.toString());
     }
 }
