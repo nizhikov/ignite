@@ -28,11 +28,16 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * Class represents a file meta information to send to a remote node. Used to initiate a new file transfer
  * process or to continue the previous unfinished from the last transmission point.
  */
 public class TransmitMeta implements Externalizable {
+    /** Default close session instance. The transmit session will be closed if such object received. */
+    public static final TransmitMeta CLOSED = new TransmitMeta("", -1, -1, true, null, null, null, true);
+
     /** Serial version uid. */
     private static final long serialVersionUID = 0L;
 
@@ -60,19 +65,21 @@ public class TransmitMeta implements Externalizable {
     /** Last seen error if it has been occurred, or {@code null} the otherwise. */
     private Exception err;
 
+    /** Session close state. If not {@code null} that session must be closed. */
+    private Boolean closed;
+
     /**
      * Default constructor, usually used to create meta to read channel data into.
      */
     public TransmitMeta() {
-        this(null, null);
+        this(null);
     }
 
     /**
-     * @param name The name to associate particular meta with.
      * @param err Last seen error if it has been occurred, or {@code null} the otherwise.
      */
-    public TransmitMeta(String name, Exception err) {
-        this(name, -1, -1, true, null, null, err);
+    public TransmitMeta(Exception err) {
+        this("", -1, -1, true, null, null, err, null);
     }
 
     /**
@@ -83,6 +90,7 @@ public class TransmitMeta implements Externalizable {
      * @param params Additional transfer meta params.
      * @param plc Policy of how file will be handled.
      * @param err Last seen error if it has been occurred, or {@code null} the otherwise.
+     * @param closed {@code true} if session must be closed.
      */
     public TransmitMeta(
         String name,
@@ -91,7 +99,8 @@ public class TransmitMeta implements Externalizable {
         boolean initial,
         Map<String, Serializable> params,
         ReadPolicy plc,
-        Exception err
+        Exception err,
+        Boolean closed
     ) {
         this.name = name;
         this.offset = offset;
@@ -105,6 +114,7 @@ public class TransmitMeta implements Externalizable {
 
         this.plc = plc;
         this.err = err;
+        this.closed = closed;
     }
 
     /**
@@ -158,6 +168,13 @@ public class TransmitMeta implements Externalizable {
         return err;
     }
 
+    /**
+     * @return {@code true} if session must be closed.
+     */
+    public boolean closed() {
+        return ofNullable(closed).orElse(Boolean.FALSE);
+    }
+
     /** {@inheritDoc} */
     @Override public void writeExternal(ObjectOutput out) throws IOException {
         out.writeUTF(name());
@@ -167,6 +184,7 @@ public class TransmitMeta implements Externalizable {
         out.writeObject(map);
         out.writeObject(plc);
         out.writeObject(err);
+        out.writeObject(closed);
     }
 
     /** {@inheritDoc} */
@@ -179,6 +197,7 @@ public class TransmitMeta implements Externalizable {
             map = (HashMap)in.readObject();
             plc = (ReadPolicy)in.readObject();
             err = (Exception)in.readObject();
+            closed = (Boolean)in.readObject();
         }
         catch (ClassNotFoundException e) {
             throw new IOException("Required class information for deserializing meta not found", e);

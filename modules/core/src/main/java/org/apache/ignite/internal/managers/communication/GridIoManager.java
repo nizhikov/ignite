@@ -180,12 +180,6 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      */
     private static final int DFLT_CHUNK_SIZE_BYTES = 256 * 1024;
 
-    /** Default transmit meta. */
-    private static final String DFLT_TRANSMIT_META = "default";
-
-    /** Session end meta. */
-    private static final String DFLT_SESSION_CLOSE_META = "close";
-
     /** Map of registered handlers per each IO topic. */
     private final ConcurrentMap<Object, TransmissionHandler> topicTransmitHndlrs = new ConcurrentHashMap<>();
 
@@ -2595,7 +2589,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     "another thread. Channel will be closed [initMsg=" + initMsg + ", channel=" + channel +
                     ", fromNodeId=" + nodeId + ']'));
 
-                TransmitMeta exMeta = new TransmitMeta(DFLT_TRANSMIT_META, ex);
+                TransmitMeta exMeta = new TransmitMeta(ex);
 
                 exMeta.writeExternal(out);
 
@@ -2627,7 +2621,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
                 // Send previous context state to sync remote and local node (on manager connected).
                 if (readCtx.receiver == null)
-                    meta = new TransmitMeta(DFLT_TRANSMIT_META, readCtx.lastSeenErr);
+                    meta = new TransmitMeta(readCtx.lastSeenErr);
                 else {
                     final AbstractChunkReceiver receiver = readCtx.receiver;
 
@@ -2637,7 +2631,8 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                         receiver.transferred() == 0,
                         receiver.params(),
                         readCtx.currPlc,
-                        readCtx.lastSeenErr);
+                        readCtx.lastSeenErr,
+                        null);
                 }
 
                 meta.writeExternal(out);
@@ -2704,7 +2699,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
                 meta.readExternal(in);
 
-                if (DFLT_SESSION_CLOSE_META.equals(meta.name())) {
+                if (meta.closed()) {
                     readCtx.hndlr.onEnd(readCtx.nodeId);
 
                     readSesCtxs.remove(topic);
@@ -3028,7 +3023,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                                 throw syncMeta.error();
 
                             // If not the initial connection for the current session.
-                            if (!DFLT_TRANSMIT_META.equals(syncMeta.name())) {
+                            if (!syncMeta.initial()) {
                                 uploaded = syncMeta.offset() - chunkSender.startPosition();
 
                                 assert uploaded >= 0 : "Incorrect sync meta [offset=" + syncMeta.offset() +
@@ -3083,7 +3078,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 if (out != null) {
                     U.log(log, "File writer session will be closed.");
 
-                    new TransmitMeta(DFLT_SESSION_CLOSE_META, null).writeExternal(out);
+                    TransmitMeta.CLOSED.writeExternal(out);
                 }
 
                 fileWriterStopFlags.remove(sesKey);
