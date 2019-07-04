@@ -41,7 +41,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
  * Supports the zero-copy streaming algorithm,  see {@link FileChannel#transferTo(long, long, WritableByteChannel)}
  * for details.
  */
-public class FileSender extends AbstractChunkProcess {
+public class FileSender extends AbstractTransmission {
     /** The default factory to provide IO oprations over underlying file. */
     @GridToStringExclude
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
@@ -92,17 +92,15 @@ public class FileSender extends AbstractChunkProcess {
     }
 
     /**
-     * @param oo Channel to write data to.
-     * @param uploadedBytes Number of bytes transferred on previous attempt.
-     * @param plc Policy of way how data will be handled on remote node.
-     * @throws IOException If write meta input failed.
+     * @param ch Output channel to write data to.
+     * @throws IOException If an io exception occurred.
      * @throws IgniteCheckedException If fails.
      */
-    public void setup(
+    public void send(WritableByteChannel ch,
         ObjectOutput oo,
         long uploadedBytes,
-        ReadPolicy plc
-    ) throws IOException, IgniteCheckedException {
+        ReadPolicy plc)
+        throws IOException, IgniteCheckedException {
         transferred(uploadedBytes);
 
         TransmitMeta meta = new TransmitMeta(name(),
@@ -119,21 +117,14 @@ public class FileSender extends AbstractChunkProcess {
         try {
             fileIo = dfltIoFactory.create(file);
 
+            assert fileIo != null : "Write operation stopped. Chunked object is not initialized";
+
             fileIo.position(startPosition());
         }
         catch (IOException e) {
             // Consider this IO exeption as a user one (not the network exception) and interrupt upload process.
             throw new IgniteCheckedException("Unable to initialize a file IO. File upload will be interrupted", e);
         }
-    }
-
-    /**
-     * @param ch Output channel to write data to.
-     * @throws IOException If an io exception occurred.
-     * @throws IgniteCheckedException If fails.
-     */
-    public void send(WritableByteChannel ch) throws IOException, IgniteCheckedException {
-        assert fileIo != null : "Write operation stopped. Chunked object is not initialized";
 
         while (hasNextChunk()) {
             if (Thread.currentThread().isInterrupted() || stopped()) {
@@ -141,23 +132,15 @@ public class FileSender extends AbstractChunkProcess {
                     "due to node is stopping. Channel processing has been stopped.");
             }
 
-            writeChunk(ch);
+            long batchSize = Math.min(chunkSize(), count() - transferred());
+
+            long sent = fileIo.transferTo(startPosition() + transferred(), batchSize, ch);
+
+            if (sent > 0)
+                transferred += sent;
         }
 
         checkTransferLimitCount();
-    }
-
-    /**
-     * @param ch Channel to write data into.
-     * @throws IOException If fails.
-     */
-    private void writeChunk(WritableByteChannel ch) throws IOException {
-        long batchSize = Math.min(chunkSize(), count() - transferred());
-
-        long sent = fileIo.transferTo(startPosition() + transferred(), batchSize, ch);
-
-        if (sent > 0)
-            transferred += sent;
     }
 
     /** {@inheritDoc} */

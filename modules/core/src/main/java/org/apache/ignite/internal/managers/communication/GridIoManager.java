@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.managers.communication;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -82,8 +83,8 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.direct.DirectMessageReader;
 import org.apache.ignite.internal.direct.DirectMessageWriter;
 import org.apache.ignite.internal.managers.GridManagerAdapter;
-import org.apache.ignite.internal.managers.communication.chunk.AbstractChunkReceiver;
-import org.apache.ignite.internal.managers.communication.chunk.BufferChunkReceiver;
+import org.apache.ignite.internal.managers.communication.chunk.AbstractReceiver;
+import org.apache.ignite.internal.managers.communication.chunk.ChunkReceiver;
 import org.apache.ignite.internal.managers.communication.chunk.ChunkReceiverFactory;
 import org.apache.ignite.internal.managers.communication.chunk.FileReceiver;
 import org.apache.ignite.internal.managers.communication.chunk.FileSender;
@@ -1744,7 +1745,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @return The channel instance to communicate with remote.
      */
     public FileWriter openFileWriter(UUID remoteId, Object topic) {
-        return new ChunkFileWriter(remoteId, topic);
+        return new FileWriter(remoteId, topic);
     }
 
     /**
@@ -2623,7 +2624,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                 if (readCtx.receiver == null)
                     meta = new TransmitMeta(readCtx.lastSeenErr);
                 else {
-                    final AbstractChunkReceiver receiver = readCtx.receiver;
+                    final AbstractReceiver receiver = readCtx.receiver;
 
                     meta = new TransmitMeta(receiver.name(),
                         receiver.startPosition() + receiver.transferred(),
@@ -2716,23 +2717,22 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                     readCtx.currPlc = meta.policy();
                 }
 
-                try (AbstractChunkReceiver chunkReceiver = readCtx.receiver) {
+                try (AbstractReceiver receiver = readCtx.receiver) {
                     long startTime = U.currentTimeMillis();
 
-                    chunkReceiver.setup(meta, chunkSize);
-                    chunkReceiver.receive(channel);
+                    receiver.receive(channel, meta, chunkSize);
 
                     readCtx.receiver = null;
                     readCtx.currPlc = null;
 
                     // Write processing ack.
-                    out.writeLong(chunkReceiver.transferred());
+                    out.writeLong(receiver.transferred());
                     out.flush();
 
                     long downloadTime = U.currentTimeMillis() - startTime;
 
                     U.log(log, "The file has been successfully downloaded " +
-                        "[name=" + chunkReceiver.name() + ", transferred=" + chunkReceiver.transferred() + " bytes" +
+                        "[name=" + receiver.name() + ", transferred=" + receiver.transferred() + " bytes" +
                         ", time=" + (double)((downloadTime) / 1000) + " sec" +
                         ", retries=" + readCtx.retries);
                 }
@@ -2770,7 +2770,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @return Chunk data recevier.
      * @throws IgniteCheckedException If fails.
      */
-    private AbstractChunkReceiver createChunkReceiver(
+    private AbstractReceiver createChunkReceiver(
         UUID nodeId,
         TransmissionHandler handler,
         TransmitMeta meta,
@@ -2791,7 +2791,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                         meta.params()));
 
             case BUFF:
-                return new BufferChunkReceiver(
+                return new ChunkReceiver(
                     meta.name(),
                     meta.offset(),
                     meta.count(),
@@ -2867,7 +2867,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         private ReadPolicy currPlc;
 
         /** Last infinished downloading object. */
-        private AbstractChunkReceiver receiver;
+        private AbstractReceiver receiver;
 
         /** Last error occurred while channel is processed by registered session handler. */
         private IgniteCheckedException lastSeenErr;
@@ -2923,7 +2923,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      *     </ul>
      * </p>
      */
-    private class ChunkFileWriter implements FileWriter {
+     public class FileWriter implements Closeable {
         /** Remote node id to connect to. */
         private final UUID remoteId;
 
@@ -2946,7 +2946,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
          * @param remoteId The remote note to connect to.
          * @param topic The remote topic to connect to.
          */
-        public ChunkFileWriter(
+        public FileWriter(
             UUID remoteId,
             Object topic
         ) {
@@ -2982,8 +2982,41 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
             return syncMeta;
         }
 
-        /** {@inheritDoc} */
-        @Override public void write(
+        /**
+         * @param file Source file to send to remote.
+         * @param params Additional transfer file description keys.
+         * @param plc The policy of handling data on remote.
+         * @throws IgniteCheckedException If fails.
+         */
+        public void write(
+            File file,
+            Map<String, Serializable> params,
+            ReadPolicy plc
+        ) throws IgniteCheckedException {
+            write(file, 0, file.length(), params, plc);
+        }
+
+        /**
+         * @param file Source file to send to remote.
+         * @param plc The policy of handling data on remote.
+         * @throws IgniteCheckedException If fails.
+         */
+        public void write(
+            File file,
+            ReadPolicy plc
+        ) throws IgniteCheckedException {
+            write(file, 0, file.length(), new HashMap<>(), plc);
+        }
+
+        /**
+         * @param file Source file to send to remote.
+         * @param offset Position to start trasfer at.
+         * @param count Number of bytes to transfer.
+         * @param params Additional transfer file description keys.
+         * @param plc The policy of handling data on remote.
+         * @throws IgniteCheckedException If fails.
+         */
+        public void write(
             File file,
             long offset,
             long count,
@@ -3035,8 +3068,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
                             }
                         }
 
-                        chunkSender.setup(out, uploaded, plc);
-                        chunkSender.send(channel);
+                        chunkSender.send(channel, out, uploaded, plc);
 
                         // Read file received acknowledge.
                         long total = in.readLong();

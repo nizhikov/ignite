@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.managers.communication.FileHandler;
+import org.apache.ignite.internal.managers.communication.TransmitMeta;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
@@ -37,7 +38,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
  * Class represents a chunk data receiver which is pulling data from channel vi
  * {@link FileChannel#transferFrom(ReadableByteChannel, long, long)}.
  */
-public class FileReceiver extends AbstractChunkReceiver {
+public class FileReceiver extends AbstractReceiver {
     /** The default factory to provide IO oprations over underlying file. */
     @GridToStringExclude
     private static final FileIOFactory dfltIoFactory = new RandomAccessFileIOFactory();
@@ -76,8 +77,9 @@ public class FileReceiver extends AbstractChunkReceiver {
     }
 
     /** {@inheritDoc} */
-    @Override public void receive(ReadableByteChannel ch) throws IOException, IgniteCheckedException {
-        super.receive(ch);
+    @Override public void receive(ReadableByteChannel ch, TransmitMeta meta, int chunkSize)
+        throws IOException, IgniteCheckedException {
+        super.receive(ch, meta, chunkSize);
 
         if (transferred() == count())
             handler.accept(file);
