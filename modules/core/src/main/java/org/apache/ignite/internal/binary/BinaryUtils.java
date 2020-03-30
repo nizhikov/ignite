@@ -2000,6 +2000,7 @@ public class BinaryUtils {
      * @param ctx Binary context.
      * @param ldr Class loader.
      * @param handles Holder for handles.
+     * @param detach Detach flag.
      * @param deserialize Deep flag.
      * @return Value.
      * @throws BinaryObjectException In case of error.

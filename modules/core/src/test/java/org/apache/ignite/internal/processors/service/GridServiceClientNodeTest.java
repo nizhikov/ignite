@@ -33,6 +33,9 @@ import org.junit.Test;
  *
  */
 public class GridServiceClientNodeTest extends GridCommonAbstractTest {
+    /** */
+    public static final int CNT = 800;
+
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
         IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
@@ -82,16 +85,14 @@ public class GridServiceClientNodeTest extends GridCommonAbstractTest {
 
         assertNotNull(svc);
 
-        int cnt = 800;
+        Param[] params = new Param[CNT];
 
-        Param[] params = new Param[cnt];
-
-        for (int i = 0; i < cnt; i++) {
+        for (int i = 0; i < CNT; i++) {
             params[i] = new Param(i);
-            params[i].setVals(new ParamVal[cnt]);
+            params[i].setVals(new ParamVal[CNT]);
 
-            for (int j = 0; j < cnt; j++)
-                params[i].getVals()[j] = new ParamVal(j, j* 42.0);
+            for (int j = 0; j < CNT; j++)
+                params[i].getVals()[j] = new ParamVal(j, j * 42.0);
         }
 
         svc.method(params);
@@ -179,6 +180,16 @@ public class GridServiceClientNodeTest extends GridCommonAbstractTest {
         /** {@inheritDoc} */
         @Override public void method(Param[] params) {
             assertNotNull(params);
+
+            assertEquals(CNT, params.length);
+
+            for (Param param : params) {
+                assertNotNull(param);
+
+                assertNotNull(param.getVals());
+
+                assertEquals(CNT, param.getVals().length);
+            }
         }
 
         /** {@inheritDoc} */
