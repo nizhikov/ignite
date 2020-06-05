@@ -40,7 +40,7 @@ import static org.apache.ignite.plugin.security.SecurityPermissionSetBuilder.ALL
  * Test that an event's local listener and an event's remote filter get correct subjectId
  * when a server (client) node create or destroy a cache.
  */
-@SuppressWarnings({"rawtypes", "unchecked", "ZeroLengthArrayAllocation"})
+@SuppressWarnings({"rawtypes", "unchecked"})
 @RunWith(Parameterized.class)
 public class CacheCreateDestroyEventsTest extends AbstractSecurityCacheEventTest {
     /** */
@@ -95,16 +95,6 @@ public class CacheCreateDestroyEventsTest extends AbstractSecurityCacheEventTest
         stopGrid("new_server_node");
     }
 
-    /** */
-    @Test
-    public void testDynamicCreateDestroyCache() throws Exception {
-        int expTimes = cacheCnt*2 +
-            ((!login.equals(SRV) && !login.equals("thin") && evtType == EVT_CACHE_STARTED) ? cacheCnt : 0);
-
-        testCacheEvents(expTimes, login, evtType, cacheConfigurations(cacheCnt, evtType == EVT_CACHE_STOPPED),
-            operations().get(opNum));
-    }
-
     private List<Consumer<Collection<CacheConfiguration>>> operations() {
         return Arrays.asList(
             ccfgs -> grid(login).getOrCreateCache(ccfgs.iterator().next()),
@@ -120,7 +110,7 @@ public class CacheCreateDestroyEventsTest extends AbstractSecurityCacheEventTest
                     startGrid(getConfiguration(login,
                         new TestSecurityPluginProvider(login, "", ALLOW_ALL, false))
                         .setClientMode(login.contains("client"))
-                        .setCacheConfiguration(ccfgs.toArray(new CacheConfiguration[] {}))
+                        .setCacheConfiguration(ccfgs.toArray(new CacheConfiguration[0]))
                     );
                 }
                 catch (Exception e) {
@@ -130,13 +120,23 @@ public class CacheCreateDestroyEventsTest extends AbstractSecurityCacheEventTest
         );
     }
 
+    /** */
+    @Test
+    public void testDynamicCreateDestroyCache() throws Exception {
+        int expTimes = cacheCnt*2 +
+            ((!login.equals(SRV) && !"thin".equals(login) && evtType == EVT_CACHE_STARTED) ? cacheCnt : 0);
+
+        testCacheEvents(expTimes, login, evtType, cacheConfigurations(cacheCnt, evtType == EVT_CACHE_STOPPED),
+            operations().get(opNum));
+    }
+
     /**
      * @return Thin client for specified user.
      */
     private IgniteClient startClient() {
         return Ignition.startClient(
             new ClientConfiguration().setAddresses(Config.SERVER)
-                .setUserName("thin")
+                .setUserName(login)
                 .setUserPassword("")
         );
     }
