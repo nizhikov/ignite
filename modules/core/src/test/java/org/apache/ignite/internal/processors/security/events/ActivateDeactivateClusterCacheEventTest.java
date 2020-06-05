@@ -50,14 +50,7 @@ public class ActivateDeactivateClusterCacheEventTest extends AbstractSecurityCac
         super.beforeTestsStarted();
 
         startClientAllowAll(CLNT);
-
-        startGridAllowAll(SRV).cluster().state(ClusterState.ACTIVE);
-    }
-
-    /** {@inheritDoc} */
-    @Override protected void beforeTest() throws Exception {
-        if (grid(SRV).cluster().state() != ClusterState.ACTIVE)
-            grid(SRV).cluster().state(ClusterState.ACTIVE);
+        startGridAllowAll(SRV);
     }
 
     /** */
@@ -65,10 +58,12 @@ public class ActivateDeactivateClusterCacheEventTest extends AbstractSecurityCac
     public void testActivateCluster() throws Exception {
         Collection<CacheConfiguration> configurations = cacheConfigurations(2, true, CLNT);
 
-        grid(SRV).cluster().state(ClusterState.INACTIVE);
-
         testCacheEvents(6, node, EVT_CACHE_STARTED, configurations,
-            ccfgs -> grid(node).cluster().state(ClusterState.ACTIVE));
+            ccfgs -> {
+                grid(SRV).cluster().state(ClusterState.INACTIVE);
+
+                grid(node).cluster().state(ClusterState.ACTIVE);
+            });
     }
 
     /** */
@@ -78,6 +73,8 @@ public class ActivateDeactivateClusterCacheEventTest extends AbstractSecurityCac
             ccfgs.forEach(c -> grid(CLNT).cache(c.getName()));
 
             grid(node).cluster().state(ClusterState.INACTIVE);
+
+            grid(SRV).cluster().state(ClusterState.ACTIVE);
         });
     }
 }
