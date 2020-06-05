@@ -35,12 +35,6 @@ import static org.apache.ignite.events.EventType.EVT_CACHE_STOPPED;
 @RunWith(Parameterized.class)
 @SuppressWarnings({"rawtypes"})
 public class ActivateDeactivateClusterCacheEventTest extends AbstractSecurityCacheEventTest {
-    /** Server. */
-    private static final String SRV = "server";
-
-    /** Client. */
-    private static final String CLNT = "client";
-
     /** Parameters. */
     @Parameterized.Parameters(name = "node={0}")
     public static Iterable<String[]> data() {
@@ -60,14 +54,16 @@ public class ActivateDeactivateClusterCacheEventTest extends AbstractSecurityCac
         startGridAllowAll(SRV).cluster().state(ClusterState.ACTIVE);
     }
 
+    /** {@inheritDoc} */
+    @Override protected void beforeTest() throws Exception {
+        if (grid(SRV).cluster().state() != ClusterState.ACTIVE)
+            grid(SRV).cluster().state(ClusterState.ACTIVE);
+    }
+
     /** */
     @Test
     public void testActivateCluster() throws Exception {
-        clusterShouldBeActive();
-
-        Collection<CacheConfiguration> configurations = cacheConfigurations(2, false);
-
-        configurations.forEach(c -> grid(CLNT).createCache(c.getName()));
+        Collection<CacheConfiguration> configurations = cacheConfigurations(2, true, CLNT);
 
         grid(SRV).cluster().state(ClusterState.INACTIVE);
 
@@ -78,18 +74,10 @@ public class ActivateDeactivateClusterCacheEventTest extends AbstractSecurityCac
     /** */
     @Test
     public void testDeactivateCluster() throws Exception {
-        clusterShouldBeActive();
-
         testCacheEvents(6, node, EVT_CACHE_STOPPED, cacheConfigurations(2, true), ccfgs -> {
             ccfgs.forEach(c -> grid(CLNT).cache(c.getName()));
 
             grid(node).cluster().state(ClusterState.INACTIVE);
         });
-    }
-
-    /** */
-    private void clusterShouldBeActive() {
-        if (grid(SRV).cluster().state() != ClusterState.ACTIVE)
-            grid(SRV).cluster().state(ClusterState.ACTIVE);
     }
 }
