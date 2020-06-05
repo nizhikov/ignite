@@ -117,7 +117,7 @@ public abstract class AbstractSecurityCacheEventTest extends AbstractSecurityTes
                 assertEquals("Local listener.", expTimes, locLoginCnt.get());
         }
         finally {
-            grid(LISTENER_NODE).events().stopRemoteListen(lsnrId);
+            grid(LISTENER_NODE).events().stopRemoteListenAsync(lsnrId).get();
         }
     }
 
