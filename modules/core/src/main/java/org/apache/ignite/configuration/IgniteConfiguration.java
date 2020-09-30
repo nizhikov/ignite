@@ -84,6 +84,7 @@ import org.apache.ignite.spi.loadbalancing.LoadBalancingSpi;
 import org.apache.ignite.spi.loadbalancing.roundrobin.RoundRobinLoadBalancingSpi;
 import org.apache.ignite.spi.metric.MetricExporterSpi;
 import org.apache.ignite.spi.systemview.SystemViewExporterSpi;
+import org.apache.ignite.spi.tracing.TracingSpi;
 import org.apache.ignite.ssl.SslContextFactory;
 import org.jetbrains.annotations.Nullable;
 
@@ -163,7 +164,7 @@ public class IgniteConfiguration {
     public static final int DFLT_DATA_STREAMER_POOL_SIZE = DFLT_PUBLIC_THREAD_CNT;
 
     /** Default limit of threads used for rebalance. */
-    public static final int DFLT_REBALANCE_THREAD_POOL_SIZE = 4;
+    public static final int DFLT_REBALANCE_THREAD_POOL_SIZE = min(4, max(1, AVAILABLE_PROC_CNT / 4));
 
     /** Default rebalance message timeout in milliseconds (value is {@code 10000}). */
     public static final long DFLT_REBALANCE_TIMEOUT = 10000;
@@ -303,9 +304,6 @@ public class IgniteConfiguration {
     /** Management pool size. */
     private int mgmtPoolSize = DFLT_MGMT_THREAD_CNT;
 
-    /** IGFS pool size. */
-    private int igfsPoolSize = AVAILABLE_PROC_CNT;
-
     /** Data stream pool size. */
     private int dataStreamerPoolSize = DFLT_DATA_STREAMER_POOL_SIZE;
 
@@ -435,6 +433,9 @@ public class IgniteConfiguration {
     /** System view exporter SPI. */
     private SystemViewExporterSpi[] sysViewExporterSpi;
 
+    /** Tracing SPI. */
+    private TracingSpi tracingSpi;
+
     /** Cache configurations. */
     private CacheConfiguration[] cacheCfg;
 
@@ -503,14 +504,8 @@ public class IgniteConfiguration {
     /** Local event listeners. */
     private Map<IgnitePredicate<? extends Event>, int[]> lsnrs;
 
-    /** IGFS configuration. */
-    private FileSystemConfiguration[] igfsCfg;
-
     /** Service configuration. */
     private ServiceConfiguration[] svcCfgs;
-
-    /** Hadoop configuration. */
-    private HadoopConfiguration hadoopCfg;
 
     /** Client access configuration. */
     private ConnectorConfiguration connectorCfg = new ConnectorConfiguration();
@@ -644,6 +639,7 @@ public class IgniteConfiguration {
         encryptionSpi = cfg.getEncryptionSpi();
         metricExporterSpi = cfg.getMetricExporterSpi();
         sysViewExporterSpi = cfg.getSystemViewExporterSpi();
+        tracingSpi = cfg.getTracingSpi();
 
         commFailureRslvr = cfg.getCommunicationFailureResolver();
 
@@ -679,9 +675,6 @@ public class IgniteConfiguration {
         discoStartupDelay = cfg.getDiscoveryStartupDelay();
         execCfgs = cfg.getExecutorConfiguration();
         failureDetectionTimeout = cfg.getFailureDetectionTimeout();
-        hadoopCfg = cfg.getHadoopConfiguration();
-        igfsCfg = cfg.getFileSystemConfiguration();
-        igfsPoolSize = cfg.getIgfsThreadPoolSize();
         failureHnd = cfg.getFailureHandler();
         igniteHome = cfg.getIgniteHome();
         igniteInstanceName = cfg.getIgniteInstanceName();
@@ -1050,17 +1043,6 @@ public class IgniteConfiguration {
     }
 
     /**
-     * Size of thread pool that is in charge of processing outgoing IGFS messages.
-     * <p>
-     * If not provided, executor service will have size equals number of processors available in system.
-     *
-     * @return Thread pool size to be used for IGFS outgoing message sending.
-     */
-    public int getIgfsThreadPoolSize() {
-        return igfsPoolSize;
-    }
-
-    /**
      * Size of thread pool that is in charge of processing data stream messages.
      * <p>
      * If not provided, executor service will have size {@link #DFLT_DATA_STREAMER_POOL_SIZE}.
@@ -1290,19 +1272,6 @@ public class IgniteConfiguration {
      */
     public IgniteConfiguration setPeerClassLoadingThreadPoolSize(int poolSize) {
         p2pPoolSize = poolSize;
-
-        return this;
-    }
-
-    /**
-     * Set thread pool size that will be used to process outgoing IGFS messages.
-     *
-     * @param poolSize Executor service to use for outgoing IGFS messages.
-     * @see IgniteConfiguration#getIgfsThreadPoolSize()
-     * @return {@code this} for chaining.
-     */
-    public IgniteConfiguration setIgfsThreadPoolSize(int poolSize) {
-        igfsPoolSize = poolSize;
 
         return this;
     }
@@ -2523,6 +2492,27 @@ public class IgniteConfiguration {
     }
 
     /**
+     * Set fully configured instance of {@link TracingSpi}.
+     *
+     * @param tracingSpi Fully configured instance of {@link TracingSpi}.
+     * @return {@code this} for chaining.
+     */
+    public IgniteConfiguration setTracingSpi(TracingSpi tracingSpi) {
+        this.tracingSpi = tracingSpi;
+
+        return this;
+    }
+
+    /**
+     * Gets fully configured tracing SPI implementation.
+     *
+     * @return Tracing SPI implementation.
+     */
+    public TracingSpi getTracingSpi() {
+        return tracingSpi;
+    }
+
+    /**
      * Gets address resolver for addresses mapping determination.
      *
      * @return Address resolver.
@@ -3067,48 +3057,6 @@ public class IgniteConfiguration {
      */
     public IgniteConfiguration setMetricsLogFrequency(long metricsLogFreq) {
         this.metricsLogFreq = metricsLogFreq;
-
-        return this;
-    }
-
-    /**
-     * Gets IGFS (Ignite In-Memory File System) configurations.
-     *
-     * @return IGFS configurations.
-     */
-    public FileSystemConfiguration[] getFileSystemConfiguration() {
-        return igfsCfg;
-    }
-
-    /**
-     * Sets IGFS (Ignite In-Memory File System) configurations.
-     *
-     * @param igfsCfg IGFS configurations.
-     * @return {@code this} for chaining.
-     */
-    public IgniteConfiguration setFileSystemConfiguration(FileSystemConfiguration... igfsCfg) {
-        this.igfsCfg = igfsCfg;
-
-        return this;
-    }
-
-    /**
-     * Gets hadoop configuration.
-     *
-     * @return Hadoop configuration.
-     */
-    public HadoopConfiguration getHadoopConfiguration() {
-        return hadoopCfg;
-    }
-
-    /**
-     * Sets hadoop configuration.
-     *
-     * @param hadoopCfg Hadoop configuration.
-     * @return {@code this} for chaining.
-     */
-    public IgniteConfiguration setHadoopConfiguration(HadoopConfiguration hadoopCfg) {
-        this.hadoopCfg = hadoopCfg;
 
         return this;
     }

@@ -35,6 +35,7 @@ import org.apache.ignite.internal.metric.SystemViewSelfTest;
 import org.apache.ignite.internal.processors.cache.CachePutIfAbsentTest;
 import org.apache.ignite.internal.processors.cache.GridCacheDataTypesCoverageTest;
 import org.apache.ignite.internal.processors.cache.GridCacheLongRunningTransactionDiagnosticsTest;
+import org.apache.ignite.internal.processors.cache.GridCacheVersionGenerationWithCacheStorageTest;
 import org.apache.ignite.internal.processors.cache.IgniteCacheGetCustomCollectionsSelfTest;
 import org.apache.ignite.internal.processors.cache.IgniteCacheLoadRebalanceEvictionSelfTest;
 import org.apache.ignite.internal.processors.cache.distributed.CacheAtomicPrimarySyncBackPressureTest;
@@ -44,6 +45,7 @@ import org.apache.ignite.internal.processors.cache.distributed.IgniteCachePrimar
 import org.apache.ignite.internal.processors.cache.distributed.IgniteTxCachePrimarySyncTest;
 import org.apache.ignite.internal.processors.cache.distributed.IgniteTxCacheWriteSynchronizationModesMultithreadedTest;
 import org.apache.ignite.internal.processors.cache.distributed.IgniteTxConcurrentRemoveObjectsTest;
+import org.apache.ignite.internal.processors.cache.distributed.rebalancing.RebalanceStatisticsTest;
 import org.apache.ignite.internal.processors.cache.transactions.PartitionUpdateCounterTest;
 import org.apache.ignite.internal.processors.cache.transactions.TxCrossCachePartitionConsistencyTest;
 import org.apache.ignite.internal.processors.cache.transactions.TxDataConsistencyOnCommitFailureTest;
@@ -131,8 +133,13 @@ public class IgniteCacheTestSuite9 {
 
         GridTestUtils.addTestIfNeeded(suite, FailBackupOnAtomicOperationTest.class, ignoredTests);
 
+        // Grid Cache Version generation coverage.
+        GridTestUtils.addTestIfNeeded(suite, GridCacheVersionGenerationWithCacheStorageTest.class, ignoredTests);
+
         // Data Types coverage
         GridTestUtils.addTestIfNeeded(suite, GridCacheDataTypesCoverageTest.class, ignoredTests);
+
+        GridTestUtils.addTestIfNeeded(suite, RebalanceStatisticsTest.class, ignoredTests);
 
         return suite;
     }

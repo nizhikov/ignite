@@ -69,7 +69,6 @@ import org.apache.ignite.configuration.DataRegionConfiguration;
 import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.DeploymentMode;
 import org.apache.ignite.configuration.ExecutorConfiguration;
-import org.apache.ignite.configuration.FileSystemConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.configuration.MemoryConfiguration;
 import org.apache.ignite.configuration.MemoryPolicyConfiguration;
@@ -86,10 +85,9 @@ import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.Gri
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPreloader;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionState;
 import org.apache.ignite.internal.processors.datastructures.DataStructuresProcessor;
-import org.apache.ignite.internal.processors.igfs.IgfsThreadFactory;
-import org.apache.ignite.internal.processors.igfs.IgfsUtils;
 import org.apache.ignite.internal.processors.metastorage.DistributedMetaStorage;
 import org.apache.ignite.internal.processors.metastorage.persistence.DistributedMetaStorageImpl;
+import org.apache.ignite.internal.processors.resource.DependencyResolver;
 import org.apache.ignite.internal.processors.resource.GridSpringResourceContext;
 import org.apache.ignite.internal.util.GridConcurrentHashSet;
 import org.apache.ignite.internal.util.IgniteUtils;
@@ -134,7 +132,7 @@ import org.apache.ignite.spi.indexing.noop.NoopIndexingSpi;
 import org.apache.ignite.spi.loadbalancing.LoadBalancingSpi;
 import org.apache.ignite.spi.loadbalancing.roundrobin.RoundRobinLoadBalancingSpi;
 import org.apache.ignite.spi.metric.noop.NoopMetricExporterSpi;
-import org.apache.ignite.spi.systemview.jmx.JmxSystemViewExporterSpi;
+import org.apache.ignite.spi.tracing.NoopTracingSpi;
 import org.apache.ignite.thread.IgniteStripedThreadPoolExecutor;
 import org.apache.ignite.thread.IgniteThread;
 import org.apache.ignite.thread.IgniteThreadPoolExecutor;
@@ -197,9 +195,6 @@ public class IgnitionEx {
     private static final String GRACEFUL_SHUTDOWN_METASTORE_KEY =
         DistributedMetaStorageImpl.IGNITE_INTERNAL_KEY_PREFIX + "graceful.shutdown";
 
-    /** Class name for a SQL view exporter of system views. */
-    public static final String SYSTEM_VIEW_SQL_SPI = "org.apache.ignite.spi.systemview.SqlViewExporterSpi";
-
     /** Map of named Ignite instances. */
     private static final ConcurrentMap<Object, IgniteNamedInstance> grids = new ConcurrentHashMap<>();
 
@@ -227,6 +222,9 @@ public class IgnitionEx {
 
     /** */
     private static ThreadLocal<Boolean> clientMode = new ThreadLocal<>();
+
+    /** Dependency container. */
+    private static ThreadLocal<DependencyResolver> dependencyResolver = new ThreadLocal<>();
 
     /**
      * Enforces singleton.
@@ -1461,6 +1459,24 @@ public class IgnitionEx {
     }
 
     /**
+     * Sets custom dependency resolver which provides overridden dependencies
+     *
+     * @param rslvr Dependency resolver.
+     */
+    public static void dependencyResolver(DependencyResolver rslvr) {
+        dependencyResolver.set(rslvr);
+    }
+
+    /**
+     * Custom dependency resolver.
+     *
+     * @return Returns {@code null} if resolver wasn't added.
+     */
+    public static DependencyResolver dependencyResolver() {
+        return dependencyResolver.get();
+    }
+
+    /**
      * Start context encapsulates all starting parameters.
      */
     private static final class GridStartContext {
@@ -1574,9 +1590,6 @@ public class IgnitionEx {
 
         /** P2P executor service. */
         private ThreadPoolExecutor p2pExecSvc;
-
-        /** IGFS executor service. */
-        private ThreadPoolExecutor igfsExecSvc;
 
         /** Data streamer executor service. */
         private StripedExecutor dataStreamerExecSvc;
@@ -1913,18 +1926,6 @@ public class IgnitionEx {
                 workerRegistry,
                 cfg.getFailureDetectionTimeout());
 
-            // Note that we do not pre-start threads here as igfs pool may not be needed.
-            validateThreadPoolSize(cfg.getIgfsThreadPoolSize(), "IGFS");
-
-            igfsExecSvc = new IgniteThreadPoolExecutor(
-                cfg.getIgfsThreadPoolSize(),
-                cfg.getIgfsThreadPoolSize(),
-                DFLT_THREAD_KEEP_ALIVE_TIME,
-                new LinkedBlockingQueue<>(),
-                new IgfsThreadFactory(cfg.getIgniteInstanceName(), "igfs"));
-
-            igfsExecSvc.allowCoreThreadTimeOut(true);
-
             // Note that we do not pre-start threads here as this pool may not be needed.
             validateThreadPoolSize(cfg.getAsyncCallbackPoolSize(), "async callback");
 
@@ -2101,7 +2102,6 @@ public class IgnitionEx {
                     stripedExecSvc,
                     p2pExecSvc,
                     mgmtExecSvc,
-                    igfsExecSvc,
                     dataStreamerExecSvc,
                     restExecSvc,
                     affExecSvc,
@@ -2153,7 +2153,7 @@ public class IgnitionEx {
             // Do NOT set it up only if IGNITE_NO_SHUTDOWN_HOOK=TRUE is provided.
             if (!IgniteSystemProperties.getBoolean(IGNITE_NO_SHUTDOWN_HOOK, false)) {
                 try {
-                    Runtime.getRuntime().addShutdownHook(shutdownHook = new Thread() {
+                    Runtime.getRuntime().addShutdownHook(shutdownHook = new Thread("shutdown-hook") {
                         @Override public void run() {
                             if (log.isInfoEnabled())
                                 log.info("Invoking shutdown hook...");
@@ -2367,17 +2367,6 @@ public class IgnitionEx {
             if (myCfg.getPeerClassLoadingLocalClassPathExclude() == null)
                 myCfg.setPeerClassLoadingLocalClassPathExclude(EMPTY_STR_ARR);
 
-            FileSystemConfiguration[] igfsCfgs = myCfg.getFileSystemConfiguration();
-
-            if (igfsCfgs != null) {
-                FileSystemConfiguration[] clone = igfsCfgs.clone();
-
-                for (int i = 0; i < igfsCfgs.length; i++)
-                    clone[i] = new FileSystemConfiguration(igfsCfgs[i]);
-
-                myCfg.setFileSystemConfiguration(clone);
-            }
-
             initializeDefaultSpi(myCfg);
 
             GridDiscoveryManager.initCommunicationErrorResolveConfiguration(myCfg);
@@ -2429,9 +2418,6 @@ public class IgnitionEx {
 
             cacheCfgs.add(utilitySystemCache());
 
-            if (IgniteComponentType.HADOOP.inClassPath())
-                cacheCfgs.add(CU.hadoopSystemCache());
-
             CacheConfiguration[] userCaches = cfg.getCacheConfiguration();
 
             if (userCaches != null && userCaches.length > 0) {
@@ -2445,11 +2431,6 @@ public class IgnitionEx {
                         throw new IgniteCheckedException("Cache name cannot be \"" + ccfg.getName() +
                             "\" because it is reserved for internal purposes.");
 
-                    if (IgfsUtils.matchIgfsCacheName(ccfg.getName()))
-                        throw new IgniteCheckedException(
-                            "Cache name cannot start with \"" + IgfsUtils.IGFS_CACHE_PREFIX
-                                + "\" because it is reserved for IGFS internal purposes.");
-
                     if (DataStructuresProcessor.isDataStructureCache(ccfg.getName()))
                         throw new IgniteCheckedException("Cache name cannot be \"" + ccfg.getName() +
                             "\" because it is reserved for data structures.");
@@ -2461,8 +2442,6 @@ public class IgnitionEx {
             cfg.setCacheConfiguration(cacheCfgs.toArray(new CacheConfiguration[cacheCfgs.size()]));
 
             assert cfg.getCacheConfiguration() != null;
-
-            IgfsUtils.prepareCacheConfigurations(cfg);
         }
 
         /**
@@ -2529,20 +2508,8 @@ public class IgnitionEx {
             if (F.isEmpty(cfg.getMetricExporterSpi()))
                 cfg.setMetricExporterSpi(new NoopMetricExporterSpi());
 
-            if (F.isEmpty(cfg.getSystemViewExporterSpi())) {
-                if (IgniteComponentType.INDEXING.inClassPath()) {
-                    try {
-                        cfg.setSystemViewExporterSpi(new JmxSystemViewExporterSpi(),
-                            U.newInstance(SYSTEM_VIEW_SQL_SPI));
-                    }
-                    catch (IgniteCheckedException e) {
-                        throw new IgniteException(e);
-                    }
-
-                }
-                else
-                    cfg.setSystemViewExporterSpi(new JmxSystemViewExporterSpi());
-            }
+            if (cfg.getTracingSpi() == null)
+                cfg.setTracingSpi(new NoopTracingSpi());
         }
 
         /**
@@ -3027,10 +2994,6 @@ public class IgnitionEx {
             U.shutdownNow(getClass(), dataStreamerExecSvc, log);
 
             dataStreamerExecSvc = null;
-
-            U.shutdownNow(getClass(), igfsExecSvc, log);
-
-            igfsExecSvc = null;
 
             if (restExecSvc != null)
                 U.shutdownNow(getClass(), restExecSvc, log);

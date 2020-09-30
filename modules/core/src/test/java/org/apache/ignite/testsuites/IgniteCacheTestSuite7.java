@@ -43,9 +43,14 @@ import org.apache.ignite.internal.processors.cache.distributed.CachePartitionLos
 import org.apache.ignite.internal.processors.cache.distributed.CachePartitionLostAfterSupplierHasLeftTest;
 import org.apache.ignite.internal.processors.cache.distributed.CacheRentingStateRepairTest;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GracefulShutdownTest;
+import org.apache.ignite.internal.processors.cache.distributed.dht.GridCacheDhtPreloadDelayedWithPersistenceSelfTest;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridCacheDhtPreloadWaitForBackupsWithPersistenceTest;
-import org.apache.ignite.internal.processors.cache.distributed.dht.GridCacheScheduleResendPartitionsAfterEvictionTest;
 import org.apache.ignite.internal.processors.cache.distributed.dht.IgniteCacheStartWithLoadTest;
+import org.apache.ignite.internal.processors.cache.distributed.dht.topology.BlockedEvictionsTest;
+import org.apache.ignite.internal.processors.cache.distributed.dht.topology.EvictionWhilePartitionGroupIsReservedTest;
+import org.apache.ignite.internal.processors.cache.distributed.dht.topology.MovingPartitionIsEvictedDuringClearingTest;
+import org.apache.ignite.internal.processors.cache.distributed.dht.topology.PreloadingRestartWhileClearingPartitionTest;
+import org.apache.ignite.internal.processors.cache.distributed.dht.topology.RentingPartitionIsOwnedDuringEvictionTest;
 import org.apache.ignite.internal.processors.cache.distributed.rebalancing.GridCacheRebalancingPartitionCountersTest;
 import org.apache.ignite.internal.processors.cache.distributed.rebalancing.GridCacheRebalancingWithAsyncClearingTest;
 import org.apache.ignite.internal.processors.cache.eviction.paged.PageEvictionMultinodeMixedRegionsTest;
@@ -54,6 +59,7 @@ import org.apache.ignite.internal.processors.cache.persistence.IgnitePdsCacheAss
 import org.apache.ignite.internal.processors.cache.persistence.db.CheckpointBufferDeadlockTest;
 import org.apache.ignite.internal.processors.cache.transactions.AtomicPartitionCounterStateConsistencyHistoryRebalanceTest;
 import org.apache.ignite.internal.processors.cache.transactions.AtomicPartitionCounterStateConsistencyTest;
+import org.apache.ignite.internal.processors.cache.transactions.AtomicVolatilePartitionCounterStateConsistencyTest;
 import org.apache.ignite.internal.processors.cache.transactions.TransactionIntegrityWithPrimaryIndexCorruptionTest;
 import org.apache.ignite.internal.processors.cache.transactions.TxCrossCacheMapOnInvalidTopologyTest;
 import org.apache.ignite.internal.processors.cache.transactions.TxCrossCacheRemoteMultiplePartitionReservationTest;
@@ -103,7 +109,6 @@ public class IgniteCacheTestSuite7 {
         GridTestUtils.addTestIfNeeded(suite, Cache64kPartitionsTest.class, ignoredTests);
         GridTestUtils.addTestIfNeeded(suite, GridCacheRebalancingPartitionCountersTest.class, ignoredTests);
         GridTestUtils.addTestIfNeeded(suite, GridCacheRebalancingWithAsyncClearingTest.class, ignoredTests);
-        GridTestUtils.addTestIfNeeded(suite, GridCacheScheduleResendPartitionsAfterEvictionTest.class, ignoredTests);
 
         GridTestUtils.addTestIfNeeded(suite, IgnitePdsCacheAssignmentNodeRestartsTest.class, ignoredTests);
         GridTestUtils.addTestIfNeeded(suite, TxRollbackAsyncWithPersistenceTest.class, ignoredTests);
@@ -139,10 +144,19 @@ public class IgniteCacheTestSuite7 {
 
         GridTestUtils.addTestIfNeeded(suite, AtomicPartitionCounterStateConsistencyTest.class, ignoredTests);
         GridTestUtils.addTestIfNeeded(suite, AtomicPartitionCounterStateConsistencyHistoryRebalanceTest.class, ignoredTests);
+        GridTestUtils.addTestIfNeeded(suite, AtomicVolatilePartitionCounterStateConsistencyTest.class, ignoredTests);
 
         GridTestUtils.addTestIfNeeded(suite, GridCacheDhtPreloadWaitForBackupsWithPersistenceTest.class, ignoredTests);
         GridTestUtils.addTestIfNeeded(suite, GracefulShutdownTest.class, ignoredTests);
         GridTestUtils.addTestIfNeeded(suite, TxWithKeyContentionSelfTest.class, ignoredTests);
+
+        GridTestUtils.addTestIfNeeded(suite, GridCacheDhtPreloadDelayedWithPersistenceSelfTest.class, ignoredTests);
+
+        GridTestUtils.addTestIfNeeded(suite, RentingPartitionIsOwnedDuringEvictionTest.class, ignoredTests);
+        GridTestUtils.addTestIfNeeded(suite, BlockedEvictionsTest.class, ignoredTests);
+        GridTestUtils.addTestIfNeeded(suite, PreloadingRestartWhileClearingPartitionTest.class, ignoredTests);
+        GridTestUtils.addTestIfNeeded(suite, MovingPartitionIsEvictedDuringClearingTest.class, ignoredTests);
+        GridTestUtils.addTestIfNeeded(suite, EvictionWhilePartitionGroupIsReservedTest.class, ignoredTests);
 
         return suite;
     }
