@@ -42,6 +42,7 @@ import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridClosureCallMode;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.IgniteEx;
+import org.apache.ignite.internal.binary.BinaryUtils;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.internal.processors.platform.PlatformNativeException;
@@ -461,10 +462,24 @@ public class GridServiceProxy<T> implements Serializable {
 
             Method mtd = ctx.method(key);
 
-            if (ctx.service() instanceof PlatformService && mtd == null)
-                return callPlatformService((PlatformService)ctx.service());
-            else
-                return callService(ctx.service(), mtd);
+            boolean useArrWrapper = false;
+
+            if (ctx.service() instanceof PlatformService) {
+                useArrWrapper = BinaryUtils.USE_ARRAY_WRAPPER.get();
+
+                BinaryUtils.USE_ARRAY_WRAPPER.set(true);
+            }
+
+            try {
+                if (ctx.service() instanceof PlatformService && mtd == null)
+                    return callPlatformService((PlatformService)ctx.service());
+                else
+                    return callService(ctx.service(), mtd);
+            }
+            finally {
+                if (ctx.service() instanceof PlatformService)
+                    BinaryUtils.USE_ARRAY_WRAPPER.set(useArrWrapper);
+            }
         }
 
         /** */
