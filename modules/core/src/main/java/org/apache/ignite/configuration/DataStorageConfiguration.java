@@ -283,7 +283,9 @@ public class DataStorageConfiguration implements Serializable {
     /** Time interval (in milliseconds) for rate-based metrics. */
     private long metricsRateTimeInterval = DFLT_RATE_TIME_INTERVAL_MILLIS;
 
-    /** Time interval (in milliseconds) for running auto archiving for incompletely WAL segment. */
+    /**
+     * Time interval (in milliseconds) for running auto archiving for incompletely WAL segment
+     */
     private long walAutoArchiveAfterInactivity = -1;
 
     /** Time interval (in milliseconds) for force archiving of incompletely WAL segment. */
