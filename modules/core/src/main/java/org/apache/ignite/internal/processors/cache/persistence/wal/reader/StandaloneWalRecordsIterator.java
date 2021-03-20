@@ -84,14 +84,13 @@ class StandaloneWalRecordsIterator extends AbstractWalRecordsIterator {
      * File descriptors remained to scan.
      * <code>null</code> value means directory scan mode
      */
-    @Nullable
     private final List<FileDescriptor> walFileDescriptors;
 
     /** */
     private int curIdx = -1;
 
     /** Keep binary. This flag disables converting of non primitive types (BinaryObjects) */
-    private boolean keepBinary;
+    private final boolean keepBinary;
 
     /** Replay from bound include. */
     private final WALPointer lowBound;
@@ -354,7 +353,9 @@ class StandaloneWalRecordsIterator extends AbstractWalRecordsIterator {
         GridKernalContext kernalCtx = sharedCtx.kernalContext();
         IgniteCacheObjectProcessor processor = kernalCtx.cacheObjects();
 
-        if (processor != null && (rec.type() == RecordType.DATA_RECORD || rec.type() == RecordType.MVCC_DATA_RECORD)) {
+        if (processor != null && (rec.type() == RecordType.DATA_RECORD
+            || rec.type() == RecordType.DATA_RECORD_V2
+            || rec.type() == RecordType.MVCC_DATA_RECORD)) {
             try {
                 return postProcessDataRecord((DataRecord)rec, kernalCtx, processor);
             }
@@ -498,7 +499,8 @@ class StandaloneWalRecordsIterator extends AbstractWalRecordsIterator {
                 dataEntry.partitionId(),
                 dataEntry.partitionCounter(),
                 coCtx,
-                keepBinary);
+                keepBinary,
+                dataEntry.primary());
     }
 
     /** {@inheritDoc} */
