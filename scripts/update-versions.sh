@@ -28,11 +28,6 @@ if [ $# -eq 0 ]
     exit 1
 fi
 
-if [ ! -f ./parent/pom.xml ]; then
-  echo "Should be run in Ignite source root"
-  exit 1
-fi
-
 echo Updating Java versions to $1 with Maven...
 sed -i '' -e "s/<revision>.*<\/revision>/<revision>$1<\/revision>/" ./parent/pom.xml;
 
