@@ -28,8 +28,13 @@ if [ $# -eq 0 ]
     exit 1
 fi
 
+if [ ! -f ./parent/pom.xml ]; then
+  echo "Should be run in Ignite source root"
+  exit 1
+fi
+
 echo Updating Java versions to $1 with Maven...
-mvn versions:set -DnewVersion=$1 -Pall-java,all-scala,all-other -DgenerateBackupPoms=false -DgroupId=* -DartifactId=* -DoldVersion=* -DprocessDependencies=false
+sed -i '' -e "s/<revision>.*<\/revision>/<revision>$1<\/revision>/" ./parent/pom.xml;
 
 echo Updating .NET, C++ and other resources versions to $1 with Maven...
 mvn validate -P update-versions -D new.ignite.version=$1
