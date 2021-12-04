@@ -46,6 +46,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteBinary;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteCheckedException;
@@ -57,6 +58,7 @@ import org.apache.ignite.configuration.BinaryConfiguration;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.MarshallerPlatformIds;
+import org.apache.ignite.internal.binary.BinaryMarshallerSelfTest.TestClass1;
 import org.apache.ignite.internal.binary.builder.BinaryBuilderEnum;
 import org.apache.ignite.internal.binary.builder.BinaryObjectBuilderImpl;
 import org.apache.ignite.internal.binary.mutabletest.GridBinaryMarshalerAwareTestClass;
@@ -73,6 +75,7 @@ import org.junit.Test;
 
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheMode.REPLICATED;
+import static org.apache.ignite.internal.processors.platform.utils.PlatformUtils.unwrapBinariesInArray;
 
 /**
  *
@@ -1824,6 +1827,27 @@ public class BinaryObjectBuilderAdditionalSelfTest extends GridCommonAbstractTes
         }
     }
 
+    /** */
+    @Test
+    public void testArrayFieldSeveralRead() throws Exception {
+        try (Ignite ignite = startGrid(1)) {
+            TestClass1[] expArr = new TestClass1[] {new TestClass1(), new TestClass1()};
+
+            BinaryObject arrObj = ignite.binary().toBinary(new TestClsWithArray(expArr));
+
+            for (int i = 0; i < 10; i++)
+                Assert.assertArrayEquals(i + " iteration", expArr, unwrapBinariesInArray(arrObj.field("arr")));
+
+            arrObj = ignite.binary().builder(TestClsWithArray.class.getName()).setField("arr", expArr).build();
+
+            for (int i = 0; i < 10; i++)
+                Assert.assertArrayEquals(i + " iteration", expArr, unwrapBinariesInArray(arrObj.field("arr")));
+        }
+        finally {
+            clearBinaryMeta();
+        }
+    }
+
     /**
      * Test {@link BinaryObjectBuilder#build()} adds type mapping to the binary marshaller's cache.
      */
@@ -2047,6 +2071,17 @@ public class BinaryObjectBuilderAdditionalSelfTest extends GridCommonAbstractTes
             this.testEnumA = testEnumA;
             this.testEnumB = testEnumB;
             this.testEnumArr = testEnumArr;
+        }
+    }
+
+    /** Test class with array. */
+    public static class TestClsWithArray {
+        /** */
+        private final Object[] arr;
+
+        /** */
+        public TestClsWithArray(TestClass1[] arr) {
+            this.arr = arr;
         }
     }
 

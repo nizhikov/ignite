@@ -5752,7 +5752,7 @@ public class BinaryMarshallerSelfTest extends GridCommonAbstractTest {
     /**
      *
      */
-    private static class TestClass1 {
+    public static class TestClass1 {
         /** */
         private int intVal = 33;
 
@@ -5761,6 +5761,19 @@ public class BinaryMarshallerSelfTest extends GridCommonAbstractTest {
 
         /** */
         private SimpleObject obj = TestClass0.constSimpleObject();
+
+        @Override public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            TestClass1 class1 = (TestClass1)o;
+            return intVal == class1.intVal && Objects.equals(strVal, class1.strVal) && Objects.equals(obj, class1.obj);
+        }
+
+        @Override public int hashCode() {
+            return Objects.hash(intVal, strVal, obj);
+        }
     }
 
     /**
