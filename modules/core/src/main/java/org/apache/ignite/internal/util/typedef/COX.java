@@ -29,7 +29,5 @@ import org.apache.ignite.internal.util.lang.IgniteOutClosureX;
  * @see GridFunc
  * @see org.apache.ignite.internal.util.lang.IgniteOutClosureX
  */
-public abstract class COX<T> extends IgniteOutClosureX<T> {
-    /** */
-    private static final long serialVersionUID = 0L;
+public interface COX<T> extends IgniteOutClosureX<T> {
 }

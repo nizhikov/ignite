@@ -739,52 +739,50 @@ public final class DataStructuresProcessor extends GridProcessorAdapter implemen
         if (dataStructure != null)
             return dataStructure;
 
-        return retryTopologySafe(new IgniteOutClosureX<T>() {
-            @Override public T applyx() throws IgniteCheckedException {
-                cache.context().gate().enter();
+        return retryTopologySafe(() -> {
+            cache.context().gate().enter();
 
-                try (GridNearTxLocal tx = cache.txStartEx(PESSIMISTIC, REPEATABLE_READ)) {
-                    AtomicDataStructureValue val = cache.get(key);
+            try (GridNearTxLocal tx = cache.txStartEx(PESSIMISTIC, REPEATABLE_READ)) {
+                AtomicDataStructureValue val = cache.get(key);
 
-                    if (isObsolete(val))
-                        val = null;
+                if (isObsolete(val))
+                    val = null;
 
-                    if (val == null && !create)
-                        return null;
+                if (val == null && !create)
+                    return null;
 
-                    if (val != null) {
-                        if (val.type() != type)
-                            throw new IgniteCheckedException("Another data structure with the same name already created " +
-                                "[name=" + name +
-                                ", newType=" + type +
-                                ", existingType=" + val.type() + ']');
-                    }
-
-                    T2<T, ? extends AtomicDataStructureValue> ret;
-
-                    try {
-                        ret = c.get(key, val, cache);
-
-                        dsMap.put(key, ret.get1());
-
-                        if (ret.get2() != null)
-                            cache.put(key, ret.get2());
-
-                        tx.commit();
-                    }
-                    catch (Error | Exception e) {
-                        dsMap.remove(key);
-
-                        U.error(log, "Failed to make datastructure: " + name, e);
-
-                        throw e;
-                    }
-
-                    return ret.get1();
+                if (val != null) {
+                    if (val.type() != type)
+                        throw new IgniteCheckedException("Another data structure with the same name already created " +
+                            "[name=" + name +
+                            ", newType=" + type +
+                            ", existingType=" + val.type() + ']');
                 }
-                finally {
-                    cache.context().gate().leave();
+
+                T2<T, ? extends AtomicDataStructureValue> ret;
+
+                try {
+                    ret = c.get(key, val, cache);
+
+                    dsMap.put(key, ret.get1());
+
+                    if (ret.get2() != null)
+                        cache.put(key, ret.get2());
+
+                    tx.commit();
                 }
+                catch (Error | Exception e) {
+                    dsMap.remove(key);
+
+                    U.error(log, "Failed to make datastructure: " + name, e);
+
+                    throw e;
+                }
+
+                return ret.get1();
+            }
+            finally {
+                cache.context().gate().leave();
             }
         });
     }
@@ -835,58 +833,56 @@ public final class DataStructuresProcessor extends GridProcessorAdapter implemen
 
         final GridCacheInternalKey key = new GridCacheInternalKeyImpl(name, grpName);
 
-        retryTopologySafe(new IgniteOutClosureX<Object>() {
-            @Override public Object applyx() throws IgniteCheckedException {
-                IgniteInternalCache<GridCacheInternalKey, AtomicDataStructureValue> cache = ctx.cache().cache(cacheName);
+        retryTopologySafe(() -> {
+            IgniteInternalCache<GridCacheInternalKey, AtomicDataStructureValue> cache = ctx.cache().cache(cacheName);
 
-                if (cache != null && cache.context().gate().enterIfNotStopped()) {
-                    boolean isInterrupted = Thread.interrupted();
+            if (cache != null && cache.context().gate().enterIfNotStopped()) {
+                boolean isInterrupted = Thread.interrupted();
 
-                    try {
-                        while (true) {
-                            try {
-                                try (GridNearTxLocal tx = cache.txStartEx(PESSIMISTIC, REPEATABLE_READ)) {
-                                    AtomicDataStructureValue val = cache.get(key);
+                try {
+                    while (true) {
+                        try {
+                            try (GridNearTxLocal tx = cache.txStartEx(PESSIMISTIC, REPEATABLE_READ)) {
+                                AtomicDataStructureValue val = cache.get(key);
 
-                                    if (val == null)
-                                        return null;
+                                if (val == null)
+                                    return null;
 
-                                    if (val.type() != type)
-                                        throw new IgniteCheckedException("Data structure has different type " +
-                                            "[name=" + name +
-                                            ", expectedType=" + type +
-                                            ", actualType=" + val.type() + ']');
+                                if (val.type() != type)
+                                    throw new IgniteCheckedException("Data structure has different type " +
+                                        "[name=" + name +
+                                        ", expectedType=" + type +
+                                        ", actualType=" + val.type() + ']');
 
-                                    if (pred == null || pred.applyx(val)) {
-                                        cache.remove(key);
+                                if (pred == null || pred.applyx(val)) {
+                                    cache.remove(key);
 
-                                        tx.commit();
+                                    tx.commit();
 
-                                        if (afterRmv != null)
-                                            afterRmv.applyx(null);
-                                    }
+                                    if (afterRmv != null)
+                                        afterRmv.applyx(null);
                                 }
+                            }
 
-                                break;
-                            }
-                            catch (IgniteCheckedException e) {
-                                if (X.hasCause(e, IgniteInterruptedCheckedException.class, InterruptedException.class))
-                                    isInterrupted = Thread.interrupted();
-                                else
-                                    throw e;
-                            }
+                            break;
+                        }
+                        catch (IgniteCheckedException e) {
+                            if (X.hasCause(e, IgniteInterruptedCheckedException.class, InterruptedException.class))
+                                isInterrupted = Thread.interrupted();
+                            else
+                                throw e;
                         }
                     }
-                    finally {
-                        cache.context().gate().leave();
-
-                        if (isInterrupted)
-                            Thread.currentThread().interrupt();
-                    }
                 }
+                finally {
+                    cache.context().gate().leave();
 
-                return null;
+                    if (isInterrupted)
+                        Thread.currentThread().interrupt();
+                }
             }
+
+            return null;
         });
     }
 
@@ -1059,11 +1055,15 @@ public final class DataStructuresProcessor extends GridProcessorAdapter implemen
 
         final boolean create = cfg != null;
 
-        return getCollection(new IgniteClosureX<GridCacheContext, IgniteQueue<T>>() {
-            @Override public IgniteQueue<T> applyx(GridCacheContext ctx) throws IgniteCheckedException {
-                return ctx.dataStructures().queue(name, cap0, isCollocated(cfg), create);
-            }
-        }, cfg, name, grpName, QUEUE, create, false);
+        return getCollection(
+            ctx -> ctx.dataStructures().queue(name, cap0, isCollocated(cfg), create),
+            cfg,
+            name,
+            grpName,
+            QUEUE,
+            create,
+            false
+        );
     }
 
     /**
@@ -1337,11 +1337,7 @@ public final class DataStructuresProcessor extends GridProcessorAdapter implemen
             }
         }
 
-        return retryTopologySafe(new IgniteOutClosureX<T>() {
-            @Override public T applyx() throws IgniteCheckedException {
-                return c.applyx(cache.context());
-            }
-        });
+        return retryTopologySafe(() -> c.applyx(cache.context()));
     }
 
     /**

@@ -2985,50 +2985,47 @@ public class GridQueryProcessor extends GridProcessorAdapter {
 
             final String schemaName = qry.getSchema() == null ? schemaName(cctx) : qry.getSchema();
 
-            IgniteOutClosureX<List<FieldsQueryCursor<List<?>>>> clo =
-                new IgniteOutClosureX<List<FieldsQueryCursor<List<?>>>>() {
-                    @Override public List<FieldsQueryCursor<List<?>>> applyx() {
-                        GridQueryCancel cancel0 = cancel != null ? cancel : new GridQueryCancel();
+            IgniteOutClosureX<List<FieldsQueryCursor<List<?>>>> clo = () -> {
+                GridQueryCancel cancel0 = cancel != null ? cancel : new GridQueryCancel();
 
-                        List<FieldsQueryCursor<List<?>>> res;
+                List<FieldsQueryCursor<List<?>>> res;
 
-                        QueryEngine qryEngine = engineForQuery(cliCtx, qry);
+                QueryEngine qryEngine = engineForQuery(cliCtx, qry);
 
-                        if (qryEngine != null) {
-                            if (qry instanceof SqlFieldsQueryEx && ((SqlFieldsQueryEx)qry).isBatched()) {
-                                res = qryEngine.queryBatched(
-                                    QueryContext.of(qry, cliCtx, cancel),
-                                    schemaName,
-                                    qry.getSql(),
-                                    ((SqlFieldsQueryEx)qry).batchedArguments()
-                                );
-                            }
-                            else {
-                                res = qryEngine.query(
-                                    QueryContext.of(qry, cliCtx, cancel),
-                                    schemaName,
-                                    qry.getSql(),
-                                    qry.getArgs() != null ? qry.getArgs() : X.EMPTY_OBJECT_ARRAY
-                                );
-                            }
-                        }
-                        else {
-                            res = idx.querySqlFields(
-                                schemaName,
-                                qry,
-                                cliCtx,
-                                keepBinary,
-                                failOnMultipleStmts,
-                                cancel0
-                            );
-                        }
-
-                        if (cctx != null)
-                            sendQueryExecutedEvent(qry.getSql(), qry.getArgs(), cctx, qryType);
-
-                        return res;
+                if (qryEngine != null) {
+                    if (qry instanceof SqlFieldsQueryEx && ((SqlFieldsQueryEx)qry).isBatched()) {
+                        res = qryEngine.queryBatched(
+                            QueryContext.of(qry, cliCtx, cancel),
+                            schemaName,
+                            qry.getSql(),
+                            ((SqlFieldsQueryEx)qry).batchedArguments()
+                        );
                     }
-                };
+                    else {
+                        res = qryEngine.query(
+                            QueryContext.of(qry, cliCtx, cancel),
+                            schemaName,
+                            qry.getSql(),
+                            qry.getArgs() != null ? qry.getArgs() : X.EMPTY_OBJECT_ARRAY
+                        );
+                    }
+                }
+                else {
+                    res = idx.querySqlFields(
+                        schemaName,
+                        qry,
+                        cliCtx,
+                        keepBinary,
+                        failOnMultipleStmts,
+                        cancel0
+                    );
+                }
+
+                if (cctx != null)
+                    sendQueryExecutedEvent(qry.getSql(), qry.getArgs(), cctx, qryType);
+
+                return res;
+            };
 
             return executeQuery(qryType, qry.getSql(), cctx, clo, true);
         });
@@ -3132,11 +3129,13 @@ public class GridQueryProcessor extends GridProcessorAdapter {
         try {
             GridCacheContext cctx = ctx.cache().cache(cacheName).context();
 
-            return executeQuery(GridCacheQueryType.SQL_FIELDS, qry, cctx, new IgniteOutClosureX<Long>() {
-                @Override public Long applyx() throws IgniteCheckedException {
-                    return idx.streamUpdateQuery(schemaName, qry, args, streamer, qryInitiatorId);
-                }
-            }, true);
+            return executeQuery(
+                GridCacheQueryType.SQL_FIELDS,
+                qry,
+                cctx,
+                () -> idx.streamUpdateQuery(schemaName, qry, args, streamer, qryInitiatorId),
+                true
+            );
         }
         catch (IgniteCheckedException e) {
             throw new CacheException(e);
@@ -3161,11 +3160,13 @@ public class GridQueryProcessor extends GridProcessorAdapter {
             throw new IllegalStateException("Failed to execute query (grid is stopping).");
 
         try {
-            return executeQuery(GridCacheQueryType.SQL_FIELDS, qry, null, new IgniteOutClosureX<List<Long>>() {
-                @Override public List<Long> applyx() throws IgniteCheckedException {
-                    return idx.streamBatchedUpdateQuery(schemaName, qry, args, cliCtx, qryInitiatorId);
-                }
-            }, true);
+            return executeQuery(
+                GridCacheQueryType.SQL_FIELDS,
+                qry,
+                null,
+                () -> idx.streamBatchedUpdateQuery(schemaName, qry, args, cliCtx, qryInitiatorId),
+                true
+            );
         }
         catch (IgniteCheckedException e) {
             throw new CacheException(e);
@@ -3530,15 +3531,18 @@ public class GridQueryProcessor extends GridProcessorAdapter {
         try {
             final GridCacheContext<?, ?> cctx = ctx.cache().internalCache(cacheName).context();
 
-            return executeQuery(GridCacheQueryType.TEXT, clause, cctx,
-                new IgniteOutClosureX<GridCloseableIterator<IgniteBiTuple<K, V>>>() {
-                    @Override public GridCloseableIterator<IgniteBiTuple<K, V>> applyx() throws IgniteCheckedException {
-                        String typeName = typeName(cacheName, resType);
-                        String schemaName = idx.schema(cacheName);
+            return executeQuery(
+                GridCacheQueryType.TEXT,
+                clause,
+                cctx,
+                () -> {
+                    String typeName = typeName(cacheName, resType);
+                    String schemaName = idx.schema(cacheName);
 
-                        return idx.queryLocalText(schemaName, cacheName, clause, typeName, filters, limit);
-                    }
-                }, true);
+                    return idx.queryLocalText(schemaName, cacheName, clause, typeName, filters, limit);
+                },
+                true
+            );
         }
         finally {
             busyLock.leaveBusy();
@@ -3571,12 +3575,12 @@ public class GridQueryProcessor extends GridProcessorAdapter {
         try {
             final GridCacheContext<K, V> cctx = (GridCacheContext<K, V>)ctx.cache().internalCache(cacheName).context();
 
-            return executeQuery(GridCacheQueryType.INDEX, valCls, cctx,
-                new IgniteOutClosureX<IndexQueryResult<K, V>>() {
-                    @Override public IndexQueryResult<K, V> applyx() throws IgniteCheckedException {
-                        return idxQryPrc.queryLocal(cctx, idxQryDesc, entryFilter, cacheFilter, keepBinary);
-                    }
-                }, true);
+            return executeQuery(
+                GridCacheQueryType.INDEX,
+                valCls,
+                cctx,
+                () -> idxQryPrc.queryLocal(cctx, idxQryDesc, entryFilter, cacheFilter, keepBinary), true
+            );
         }
         finally {
             busyLock.leaveBusy();

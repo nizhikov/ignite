@@ -515,11 +515,7 @@ public class IgniteCacheProxyImpl<K, V> extends AsyncSupportAdapter<IgniteCache<
             qry.projection(grp);
 
         final GridCloseableIterator<R> iter = ctx.kernalContext().query().executeQuery(GridCacheQueryType.SCAN,
-            cacheName, ctx, new IgniteOutClosureX<GridCloseableIterator<R>>() {
-                @Override public GridCloseableIterator<R> applyx() throws IgniteCheckedException {
-                    return qry.executeScanQuery();
-                }
-            }, true);
+            cacheName, ctx, (IgniteOutClosureX<GridCloseableIterator<R>>)qry::executeScanQuery, true);
 
         return new QueryCursorImpl<>(iter);
     }
@@ -552,11 +548,7 @@ public class IgniteCacheProxyImpl<K, V> extends AsyncSupportAdapter<IgniteCache<
                 qry.projection(grp);
 
             fut = ctx.kernalContext().query().executeQuery(GridCacheQueryType.TEXT, q.getText(), ctx,
-                new IgniteOutClosureX<CacheQueryFuture<Map.Entry<K, V>>>() {
-                    @Override public CacheQueryFuture<Map.Entry<K, V>> applyx() {
-                        return qry.execute();
-                    }
-                }, false);
+                (IgniteOutClosureX<CacheQueryFuture<Map.Entry<K, V>>>)qry::execute, false);
         }
         else if (query instanceof SpiQuery) {
             qry = ctx.queries().createSpiQuery(isKeepBinary);
@@ -564,12 +556,13 @@ public class IgniteCacheProxyImpl<K, V> extends AsyncSupportAdapter<IgniteCache<
             if (grp != null)
                 qry.projection(grp);
 
-            fut = ctx.kernalContext().query().executeQuery(GridCacheQueryType.SPI, query.getClass().getSimpleName(),
-                ctx, new IgniteOutClosureX<CacheQueryFuture<Map.Entry<K, V>>>() {
-                    @Override public CacheQueryFuture<Map.Entry<K, V>> applyx() {
-                        return qry.execute(((SpiQuery)query).getArgs());
-                    }
-                }, false);
+            fut = ctx.kernalContext().query().executeQuery(
+                GridCacheQueryType.SPI,
+                query.getClass().getSimpleName(),
+                ctx,
+                () -> qry.execute(((SpiQuery)query).getArgs()),
+                false
+            );
         }
         else if (query instanceof IndexQuery) {
             IndexQuery q = (IndexQuery)query;
@@ -582,12 +575,13 @@ public class IgniteCacheProxyImpl<K, V> extends AsyncSupportAdapter<IgniteCache<
             if (grp != null)
                 qry.projection(grp);
 
-            fut = ctx.kernalContext().query().executeQuery(GridCacheQueryType.INDEX, q.getValueType(), ctx,
-                new IgniteOutClosureX<CacheQueryFuture<Map.Entry<K, V>>>() {
-                    @Override public CacheQueryFuture<Map.Entry<K, V>> applyx() {
-                        return qry.execute();
-                    }
-                }, false);
+            fut = ctx.kernalContext().query().executeQuery(
+                GridCacheQueryType.INDEX,
+                q.getValueType(),
+                ctx,
+                (IgniteOutClosureX<CacheQueryFuture<Map.Entry<K, V>>>)qry::execute,
+                false
+            );
         }
         else {
             if (query instanceof SqlFieldsQuery)

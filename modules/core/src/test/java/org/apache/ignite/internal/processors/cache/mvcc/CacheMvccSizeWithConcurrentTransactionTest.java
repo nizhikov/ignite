@@ -18,7 +18,6 @@
 package org.apache.ignite.internal.processors.cache.mvcc;
 
 import java.util.concurrent.CountDownLatch;
-import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.util.lang.IgniteClosure2X;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.junit.Test;
@@ -36,19 +35,15 @@ public class CacheMvccSizeWithConcurrentTransactionTest extends CacheMvccAbstrac
     }
 
     /** Test closure. */
-    private final IgniteClosure2X<CountDownLatch, CountDownLatch, Integer> clo =
-        new IgniteClosure2X<CountDownLatch, CountDownLatch, Integer>() {
-            @Override public Integer applyx(CountDownLatch startLatch, CountDownLatch endLatch2)
-                throws IgniteCheckedException {
-                if (startLatch != null)
-                    startLatch.countDown();
+    private final IgniteClosure2X<CountDownLatch, CountDownLatch, Integer> clo = (startLatch, endLatch2) -> {
+        if (startLatch != null)
+            startLatch.countDown();
 
-                int res = cache().size();
+        int res = cache().size();
 
-                if (endLatch2 != null)
-                    U.await(endLatch2);
+        if (endLatch2 != null)
+            U.await(endLatch2);
 
-                return res;
-            }
-        };
+        return res;
+    };
 }

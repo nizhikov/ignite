@@ -4534,31 +4534,29 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
 
             final GridNearTxLocal tx0 = tx;
 
-            final CX1 clo = new CX1<IgniteInternalFuture<T>, T>() {
-                @Override public T applyx(IgniteInternalFuture<T> tFut) throws IgniteCheckedException {
+            final CX1<IgniteInternalFuture<T>, T> clo = tFut -> {
+                try {
+                    return tFut.get();
+                }
+                catch (IgniteTxTimeoutCheckedException |
+                    IgniteTxRollbackCheckedException |
+                    NodeStoppingException |
+                    IgniteConsistencyViolationException e) {
+                    throw e;
+                }
+                catch (IgniteCheckedException e1) {
                     try {
-                        return tFut.get();
+                        tx0.rollbackNearTxLocalAsync();
                     }
-                    catch (IgniteTxTimeoutCheckedException |
-                        IgniteTxRollbackCheckedException |
-                        NodeStoppingException |
-                        IgniteConsistencyViolationException e) {
-                        throw e;
+                    catch (Throwable e2) {
+                        if (e1 != e2)
+                            e1.addSuppressed(e2);
                     }
-                    catch (IgniteCheckedException e1) {
-                        try {
-                            tx0.rollbackNearTxLocalAsync();
-                        }
-                        catch (Throwable e2) {
-                            if (e1 != e2)
-                                e1.addSuppressed(e2);
-                        }
 
-                        throw e1;
-                    }
-                    finally {
-                        ctx.shared().txContextReset();
-                    }
+                    throw e1;
+                }
+                finally {
+                    ctx.shared().txContextReset();
                 }
             };
 

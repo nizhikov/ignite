@@ -831,7 +831,7 @@ public class GridCacheCommandHandler extends GridRestCommandHandlerAdapter {
     /**
      * Fixed result closure.
      */
-    private static final class FixedResult extends CX1<IgniteInternalFuture<?>, Object> {
+    private static final class FixedResult implements CX1<IgniteInternalFuture<?>, Object> {
         /** */
         private static final long serialVersionUID = 0L;
 
@@ -857,7 +857,7 @@ public class GridCacheCommandHandler extends GridRestCommandHandlerAdapter {
      * Type alias.
      */
     private abstract static class CacheCommand
-        extends IgniteClosure2X<IgniteInternalCache<Object, Object>, GridKernalContext, IgniteInternalFuture<?>> {
+        implements IgniteClosure2X<IgniteInternalCache<Object, Object>, GridKernalContext, IgniteInternalFuture<?>> {
         /** */
         private static final long serialVersionUID = 0L;
 
@@ -868,7 +868,7 @@ public class GridCacheCommandHandler extends GridRestCommandHandlerAdapter {
      * Type alias.
      */
     private abstract static class CacheProjectionCommand
-        extends IgniteClosure2X<IgniteInternalCache<Object, Object>, GridKernalContext, IgniteInternalFuture<?>> {
+        implements IgniteClosure2X<IgniteInternalCache<Object, Object>, GridKernalContext, IgniteInternalFuture<?>> {
         /** */
         private static final long serialVersionUID = 0L;
 

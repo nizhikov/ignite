@@ -5040,31 +5040,29 @@ public class GridCacheProcessor extends GridProcessorAdapter {
         if (val == null)
             return null;
 
-        return withBinaryContext(new IgniteOutClosureX<CacheConfiguration>() {
-            @Override public CacheConfiguration applyx() throws IgniteCheckedException {
-                if (val.getCacheStoreFactory() != null) {
-                    try {
-                        ClassLoader ldr = ctx.config().getClassLoader();
-
-                        if (ldr == null)
-                            ldr = val.getCacheStoreFactory().getClass().getClassLoader();
-
-                        U.unmarshal(marsh, U.marshal(marsh, val.getCacheStoreFactory()),
-                            U.resolveClassLoader(ldr, ctx.config()));
-                    }
-                    catch (IgniteCheckedException e) {
-                        throw new IgniteCheckedException("Failed to validate cache configuration. " +
-                            "Cache store factory is not serializable. Cache name: " + U.maskName(val.getName()), e);
-                    }
-                }
-
+        return withBinaryContext(() -> {
+            if (val.getCacheStoreFactory() != null) {
                 try {
-                    return U.unmarshal(marsh, U.marshal(marsh, val), U.resolveClassLoader(ctx.config()));
+                    ClassLoader ldr = ctx.config().getClassLoader();
+
+                    if (ldr == null)
+                        ldr = val.getCacheStoreFactory().getClass().getClassLoader();
+
+                    U.unmarshal(marsh, U.marshal(marsh, val.getCacheStoreFactory()),
+                        U.resolveClassLoader(ldr, ctx.config()));
                 }
                 catch (IgniteCheckedException e) {
-                    throw new IgniteCheckedException("Failed to validate cache configuration " +
-                        "(make sure all objects in cache configuration are serializable): " + U.maskName(val.getName()), e);
+                    throw new IgniteCheckedException("Failed to validate cache configuration. " +
+                        "Cache store factory is not serializable. Cache name: " + U.maskName(val.getName()), e);
                 }
+            }
+
+            try {
+                return U.unmarshal(marsh, U.marshal(marsh, val), U.resolveClassLoader(ctx.config()));
+            }
+            catch (IgniteCheckedException e) {
+                throw new IgniteCheckedException("Failed to validate cache configuration " +
+                    "(make sure all objects in cache configuration are serializable): " + U.maskName(val.getName()), e);
             }
         });
     }
@@ -5332,11 +5330,7 @@ public class GridCacheProcessor extends GridProcessorAdapter {
      * @throws IgniteCheckedException If failed.
      */
     public <T> T clone(final T obj) throws IgniteCheckedException {
-        return withBinaryContext(new IgniteOutClosureX<T>() {
-            @Override public T applyx() throws IgniteCheckedException {
-                return U.unmarshal(marsh, U.marshal(marsh, obj), U.resolveClassLoader(ctx.config()));
-            }
-        });
+        return withBinaryContext(() -> U.unmarshal(marsh, U.marshal(marsh, obj), U.resolveClassLoader(ctx.config())));
     }
 
     /**

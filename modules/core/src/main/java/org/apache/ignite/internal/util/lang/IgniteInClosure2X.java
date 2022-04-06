@@ -28,12 +28,10 @@ import org.apache.ignite.lang.IgniteBiInClosure;
  * method and properly wraps {@link IgniteCheckedException} into {@link GridClosureException} instance.
  * @see CIX2
  */
-public abstract class IgniteInClosure2X<E1, E2> implements IgniteBiInClosure<E1, E2> {
-    /** */
-    private static final long serialVersionUID = 0L;
-
+@FunctionalInterface
+public interface IgniteInClosure2X<E1, E2> extends IgniteBiInClosure<E1, E2> {
     /** {@inheritDoc} */
-    @Override public void apply(E1 e1, E2 e2) {
+    @Override public default void apply(E1 e1, E2 e2) {
         try {
             applyx(e1, e2);
         }

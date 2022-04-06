@@ -28,12 +28,9 @@ import org.apache.ignite.lang.IgniteBiClosure;
  * method and properly wraps {@link IgniteCheckedException} into {@link GridClosureException} instance.
  * @see CX2
  */
-public abstract class IgniteClosure2X<E1, E2, R> implements IgniteBiClosure<E1, E2, R> {
-    /** */
-    private static final long serialVersionUID = 0L;
-
+public interface IgniteClosure2X<E1, E2, R> extends IgniteBiClosure<E1, E2, R> {
     /** {@inheritDoc} */
-    @Override public R apply(E1 e1, E2 e2) {
+    @Override public default R apply(E1 e1, E2 e2) {
         try {
             return applyx(e1, e2);
         }
@@ -50,5 +47,5 @@ public abstract class IgniteClosure2X<E1, E2, R> implements IgniteBiClosure<E1, 
      * @return Optional return value.
      * @throws IgniteCheckedException Thrown in case of any error condition inside of the closure.
      */
-    public abstract R applyx(E1 e1, E2 e2) throws IgniteCheckedException;
+    public R applyx(E1 e1, E2 e2) throws IgniteCheckedException;
 }

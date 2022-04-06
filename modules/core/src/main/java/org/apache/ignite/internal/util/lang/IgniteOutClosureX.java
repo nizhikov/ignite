@@ -26,12 +26,9 @@ import org.apache.ignite.lang.IgniteOutClosure;
  * implements {@link #apply()} method that calls {@link #applyx()} method and properly
  * wraps {@link IgniteCheckedException} into {@link GridClosureException} instance.
  */
-public abstract class IgniteOutClosureX<T> implements IgniteOutClosure<T> {
-    /** */
-    private static final long serialVersionUID = 0L;
-
+public interface IgniteOutClosureX<T> extends IgniteOutClosure<T> {
     /** {@inheritDoc} */
-    @Override public T apply() {
+    @Override public default T apply() {
         try {
             return applyx();
         }

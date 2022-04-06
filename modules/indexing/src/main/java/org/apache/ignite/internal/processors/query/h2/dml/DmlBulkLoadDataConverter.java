@@ -25,7 +25,7 @@ import org.apache.ignite.lang.IgniteBiTuple;
 /**
  * Converts a row of values to actual key+value using {@link UpdatePlan#processRow(List)}.
  */
-public class DmlBulkLoadDataConverter extends IgniteClosureX<List<?>, IgniteBiTuple<?, ?>> {
+public class DmlBulkLoadDataConverter implements IgniteClosureX<List<?>, IgniteBiTuple<?, ?>> {
     /** Update plan to convert incoming rows. */
     private final UpdatePlan plan;
 

@@ -22,7 +22,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import javax.cache.Cache;
-import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.util.lang.IgniteClosure2X;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.junit.Test;
@@ -40,27 +39,23 @@ public class CacheMvccIteratorWithConcurrentTransactionTest extends CacheMvccAbs
     }
 
     /** Test closure. */
-    private final IgniteClosure2X<CountDownLatch, CountDownLatch, List<Person>> clo =
-        new IgniteClosure2X<CountDownLatch, CountDownLatch, List<Person>>() {
-            @Override public List<Person> applyx(CountDownLatch startLatch, CountDownLatch endLatch2)
-                throws IgniteCheckedException {
-                Iterator<Cache.Entry<Integer, Person>> it = cache().iterator();
+    private final IgniteClosure2X<CountDownLatch, CountDownLatch, List<Person>> clo = (startLatch, endLatch2) -> {
+        Iterator<Cache.Entry<Integer, Person>> it = cache().iterator();
 
-                List<Cache.Entry<Integer, Person>> pres = new ArrayList<>();
+        List<Cache.Entry<Integer, Person>> pres = new ArrayList<>();
 
-                for (int i = 0; i < 50; i++)
-                    pres.add(it.next());
+        for (int i = 0; i < 50; i++)
+            pres.add(it.next());
 
-                if (startLatch != null)
-                    startLatch.countDown();
+        if (startLatch != null)
+            startLatch.countDown();
 
-                while (it.hasNext())
-                    pres.add(it.next());
+        while (it.hasNext())
+            pres.add(it.next());
 
-                if (endLatch2 != null)
-                    U.await(endLatch2);
+        if (endLatch2 != null)
+            U.await(endLatch2);
 
-                return entriesToPersons(pres);
-            }
-        };
+        return entriesToPersons(pres);
+    };
 }

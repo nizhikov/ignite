@@ -25,7 +25,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Stream;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
-import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
@@ -135,15 +134,7 @@ public class RebalanceStatisticsTest extends GridCommonAbstractTest {
         assertEquals(supplyMsgs.values().stream().mapToInt(List::size).sum() + 1, logMsgs.size());
 
         IgniteClosure2X<GridCacheEntryInfo, CacheObjectContext, Long> getSize =
-            new IgniteClosure2X<GridCacheEntryInfo, CacheObjectContext, Long>() {
-                /** {@inheritDoc} */
-                @Override public Long applyx(
-                    GridCacheEntryInfo info,
-                    CacheObjectContext ctx
-                ) throws IgniteCheckedException {
-                    return (long)info.marshalledSize(ctx);
-                }
-            };
+            (info, ctx) -> (long)info.marshalledSize(ctx);
 
         for (Map.Entry<Ignite, List<GridDhtPartitionSupplyMessage>> supplyMsg : supplyMsgs.entrySet()) {
             List<String> supplierMsgs = logMsgs.stream()

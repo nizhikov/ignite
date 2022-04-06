@@ -28,7 +28,5 @@ import org.apache.ignite.internal.util.lang.IgniteInClosure2X;
  * @see GridFunc
  * @see org.apache.ignite.internal.util.lang.IgniteInClosure2X
  */
-public abstract class CIX2<E1, E2> extends IgniteInClosure2X<E1, E2> {
-    /** */
-    private static final long serialVersionUID = 0L;
+public interface CIX2<E1, E2> extends IgniteInClosure2X<E1, E2> {
 }

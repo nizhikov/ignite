@@ -28,12 +28,9 @@ import org.apache.ignite.lang.IgniteClosure;
  * and properly wraps {@link IgniteCheckedException} into {@link GridClosureException} instance.
  * @see CX1
  */
-public abstract class IgniteClosureX<E, R> implements IgniteClosure<E, R> {
-    /** */
-    private static final long serialVersionUID = 0L;
-
+public interface IgniteClosureX<E, R> extends IgniteClosure<E, R> {
     /** {@inheritDoc} */
-    @Override public R apply(E e) {
+    @Override public default R apply(E e) {
         try {
             return applyx(e);
         }
@@ -49,5 +46,5 @@ public abstract class IgniteClosureX<E, R> implements IgniteClosure<E, R> {
      * @return Optional return value.
      * @throws IgniteCheckedException Thrown in case of any error condition inside of the closure.
      */
-    public abstract R applyx(E e) throws IgniteCheckedException;
+    public R applyx(E e) throws IgniteCheckedException;
 }

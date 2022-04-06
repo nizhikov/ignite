@@ -205,13 +205,11 @@ public class CacheGroupPageScanner implements CheckpointListener {
      */
     private void schedule0(GroupScanTask grpScanTask) {
         try {
-            forEachPageStore(grpScanTask.group(), new IgniteInClosureX<Integer>() {
-                @Override public void applyx(Integer partId) {
-                    long encState = ctx.encryption().getEncryptionState(grpScanTask.group().groupId(), partId);
+            forEachPageStore(grpScanTask.group(), partId -> {
+                long encState = ctx.encryption().getEncryptionState(grpScanTask.group().groupId(), partId);
 
-                    if (encState != 0)
-                        grpScanTask.addPartition(partId, encState);
-                }
+                if (encState != 0)
+                    grpScanTask.addPartition(partId, encState);
             });
 
             if (log.isInfoEnabled())
@@ -290,12 +288,10 @@ public class CacheGroupPageScanner implements CheckpointListener {
         ctx.cache().context().database().checkpointReadLock();
 
         try {
-            forEachPageStore(grp, new IgniteInClosureX<Integer>() {
-                @Override public void applyx(Integer partId) throws IgniteCheckedException {
-                    int pagesCnt = ctx.cache().context().pageStore().pages(grp.groupId(), partId);
+            forEachPageStore(grp, partId -> {
+                int pagesCnt = ctx.cache().context().pageStore().pages(grp.groupId(), partId);
 
-                    partStates[Math.min(partId, partStates.length - 1)] = pagesCnt;
-                }
+                partStates[Math.min(partId, partStates.length - 1)] = pagesCnt;
             });
         } finally {
             ctx.cache().context().database().checkpointReadUnlock();
