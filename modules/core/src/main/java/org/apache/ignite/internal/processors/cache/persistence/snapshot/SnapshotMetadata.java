@@ -70,6 +70,10 @@ public class SnapshotMetadata implements Serializable {
     @GridToStringInclude
     private final List<Integer> grpIds;
 
+    /** Snapshot stores primary copy of this group partitions. */
+    @GridToStringInclude
+    private transient @Nullable Map<Integer, Set<Integer>> grpPrimaries;
+
     /** The set of affected by snapshot baseline nodes. */
     @GridToStringInclude
     private final Set<String> bltNodes;
@@ -99,10 +103,10 @@ public class SnapshotMetadata implements Serializable {
     private boolean hasComprGrps;
 
     /** If {@code true} snapshot only primary copies of partitions. */
-    private boolean onlyPrimary;
+    private final boolean onlyPrimary;
 
     /** If {@code true} cache group dump stored. */
-    private boolean dump;
+    private final boolean dump;
 
     /**
      * @param rqId Unique request id.
@@ -111,6 +115,7 @@ public class SnapshotMetadata implements Serializable {
      * @param folderName Directory name which stores the data files.
      * @param pageSize Page size of stored snapshot data.
      * @param grpIds The list of cache groups ids which were included into snapshot.
+     * @param grpPrimaries Snapshot stores primary copy of this group partitions.
      * @param bltNodes The set of affected by snapshot baseline nodes.
      * @param snpRecPtr WAL pointer to {@link ClusterSnapshotRecord} if exists.
      * @param masterKeyDigest Master key digest for encrypted caches.
@@ -124,6 +129,7 @@ public class SnapshotMetadata implements Serializable {
         String folderName,
         int pageSize,
         List<Integer> grpIds,
+        @Nullable Map<Integer, Set<Integer>> grpPrimaries,
         Collection<Integer> compGrpIds,
         Set<String> bltNodes,
         Set<GroupPartitionId> pairs,
@@ -138,6 +144,7 @@ public class SnapshotMetadata implements Serializable {
         this.folderName = folderName;
         this.pageSize = pageSize;
         this.grpIds = grpIds;
+        this.grpPrimaries = grpPrimaries;
         this.bltNodes = bltNodes;
         this.snpRecPtr = snpRecPtr;
         this.masterKeyDigest = masterKeyDigest;
@@ -239,6 +246,34 @@ public class SnapshotMetadata implements Serializable {
         return dump;
     }
 
+    /**
+     * @return Master key digest for encrypted caches.
+     */
+    public byte[] masterKeyDigest() {
+        return masterKeyDigest;
+    }
+
+    /**
+     * @param warnings Snapshot creation warnings.
+     */
+    public void warnings(List<String> warnings) {
+        assert this.warnings == null : "Snapshot warnings are already set. No rewriting is supposed.";
+
+        this.warnings = warnings;
+    }
+
+    /**
+     * @return Snapshot creation warnings.
+     */
+    public List<String> warnings() {
+        return warnings;
+    }
+
+    /** @return Set of primary copies of partitions for each group. */
+    public Map<Integer, Set<Integer>> groupPrimaries() {
+        return grpPrimaries;
+    }
+
     /** Save the state of this <tt>HashMap</tt> partitions and cache groups to a stream. */
     private void writeObject(java.io.ObjectOutputStream s)
         throws java.io.IOException {
@@ -259,6 +294,17 @@ public class SnapshotMetadata implements Serializable {
 
         if (hasComprGrps)
             U.writeCollection(s, comprGrpIds);
+
+        if (grpPrimaries != null) {
+            s.writeInt(grpPrimaries.size());
+
+            for (Map.Entry<Integer, Set<Integer>> e : grpPrimaries.entrySet()) {
+                s.writeInt(e.getKey());
+                U.writeIntCollection(s, e.getValue());
+            }
+        }
+        else
+            s.writeInt(-1);
     }
 
     /** Reconstitute the <tt>HashMap</tt> instance of partitions and cache groups from a stream. */
@@ -292,6 +338,18 @@ public class SnapshotMetadata implements Serializable {
 
         if (hasComprGrps)
             comprGrpIds = U.readSet(s);
+
+        size = s.readInt();
+
+        if (size < 0)
+            return;
+
+        grpPrimaries = U.newHashMap(size);
+
+        for (int i = 0; i < size; i++) {
+            int grp = s.readInt();
+            grpPrimaries.put(grp, U.readIntSet(s));
+        }
     }
 
     /**
@@ -305,30 +363,8 @@ public class SnapshotMetadata implements Serializable {
             Objects.equals(cacheGroupIds(), compare.cacheGroupIds()) &&
             Arrays.equals(masterKeyDigest, compare.masterKeyDigest) &&
             Objects.equals(baselineNodes(), compare.baselineNodes()) &&
-            onlyPrimary == compare.onlyPrimary;
-    }
-
-    /**
-     * @return Master key digest for encrypted caches.
-     */
-    public byte[] masterKeyDigest() {
-        return masterKeyDigest;
-    }
-
-    /**
-     * @param warnings Snapshot creation warnings.
-     */
-    public void warnings(List<String> warnings) {
-        assert this.warnings == null : "Snapshot warnings are already set. No rewriting is supposed.";
-
-        this.warnings = warnings;
-    }
-
-    /**
-     * @return Snapshot creation warnings.
-     */
-    public List<String> warnings() {
-        return warnings;
+            onlyPrimary == compare.onlyPrimary &&
+            Objects.equals(grpPrimaries, compare.grpPrimaries);
     }
 
     /** {@inheritDoc} */
@@ -350,12 +386,13 @@ public class SnapshotMetadata implements Serializable {
             Objects.equals(warnings, meta.warnings) &&
             Objects.equals(hasComprGrps, meta.hasComprGrps) &&
             Objects.equals(comprGrpIds, meta.comprGrpIds) &&
-            onlyPrimary == meta.onlyPrimary;
+            onlyPrimary == meta.onlyPrimary &&
+            Objects.equals(grpPrimaries, meta.grpPrimaries);
     }
 
     /** {@inheritDoc} */
     @Override public int hashCode() {
-        return Objects.hash(rqId, snpName, consId, grpIds, bltNodes, onlyPrimary);
+        return Objects.hash(rqId, snpName, consId, grpIds, bltNodes, onlyPrimary, grpPrimaries);
     }
 
     /** {@inheritDoc} */

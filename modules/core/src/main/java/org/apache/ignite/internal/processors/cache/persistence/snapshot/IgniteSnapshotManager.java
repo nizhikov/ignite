@@ -1220,6 +1220,7 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
                     pdsSettings.folderName(),
                     cctx.gridConfig().getDataStorageConfiguration().getPageSize(),
                     grpIds,
+                    task0 instanceof CreateDumpFutureTask ? ((CreateDumpFutureTask)task0).grourPrimaries() : null,
                     comprGrpIds,
                     blts,
                     res.parts(),

@@ -364,6 +364,11 @@ public class CreateDumpFutureTask extends AbstractCreateSnapshotFutureTask imple
         );
     }
 
+    /** @return Set of primary copies of partitions for each group. */
+    public Map<Integer, Set<Integer>> grourPrimaries() {
+        return grpPrimaries;
+    }
+
     /**
      * Context of dump single partition.
      */
