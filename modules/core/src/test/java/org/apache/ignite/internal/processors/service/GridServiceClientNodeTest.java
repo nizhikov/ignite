@@ -17,11 +17,15 @@
 
 package org.apache.ignite.internal.processors.service;
 
+import java.io.Serializable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.services.Service;
+import org.apache.ignite.services.ServiceConfiguration;
+import org.apache.ignite.services.ServiceContext;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.Test;
 
@@ -29,6 +33,9 @@ import org.junit.Test;
  *
  */
 public class GridServiceClientNodeTest extends GridCommonAbstractTest {
+    /** */
+    public static final int CNT = 800;
+
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
         IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
@@ -56,6 +63,39 @@ public class GridServiceClientNodeTest extends GridCommonAbstractTest {
         Ignite ignite = startClientGrid(3);
 
         checkDeploy(ignite, "service1");
+    }
+
+    /** @throws Exception If failed. */
+    @Test
+    public void testDeployFromClientAndCallArrayArgs() throws Exception {
+        startGrids(1);
+
+        Ignite client = startClientGrid(1);
+
+        ServiceConfiguration svcCfg = new ServiceConfiguration();
+
+        svcCfg.setName("arrayArgMethodSvc");
+        svcCfg.setService(new ArrayArgMethodServiceImpl());
+        svcCfg.setMaxPerNodeCount(1);
+
+        client.services().deploy(svcCfg);
+
+        ArrayArgMethodService svc =
+            client.services().serviceProxy("arrayArgMethodSvc", ArrayArgMethodService.class, true);
+
+        assertNotNull(svc);
+
+        Param[] params = new Param[CNT];
+
+        for (int i = 0; i < CNT; i++) {
+            params[i] = new Param(i);
+            params[i].setVals(new ParamVal[CNT]);
+
+            for (int j = 0; j < CNT; j++)
+                params[i].getVals()[j] = new ParamVal(j, j * 42.0);
+        }
+
+        svc.method(params);
     }
 
     /**
@@ -127,5 +167,81 @@ public class GridServiceClientNodeTest extends GridCommonAbstractTest {
         client.services().deployClusterSingleton(svcName, new DummyService());
 
         assertTrue(latch.await(5000, TimeUnit.MILLISECONDS));
+    }
+
+    /** */
+    public interface ArrayArgMethodService {
+        /** */
+        void method(Param[] params);
+    }
+
+    /** */
+    public static class ArrayArgMethodServiceImpl implements ArrayArgMethodService, Service {
+        /** {@inheritDoc} */
+        @Override public void method(Param[] params) {
+            assertNotNull(params);
+
+            assertEquals(CNT, params.length);
+
+            for (Param param : params) {
+                assertNotNull(param);
+
+                assertNotNull(param.getVals());
+
+                assertEquals(CNT, param.getVals().length);
+            }
+        }
+
+        /** {@inheritDoc} */
+        @Override public void cancel(ServiceContext ctx) {
+            // No-op.
+        }
+
+        /** {@inheritDoc} */
+        @Override public void init(ServiceContext ctx) throws Exception {
+            // No-op.
+        }
+
+        /** {@inheritDoc} */
+        @Override public void execute(ServiceContext ctx) throws Exception {
+            // No-op.
+        }
+    }
+
+    /** */
+    public static class Param implements Serializable {
+        /** */
+        int id;
+
+        /** */
+        ParamVal[] vals;
+
+        public Param(int id) {
+            this.id = id;
+        }
+
+        /** */
+        public ParamVal[] getVals() {
+            return vals;
+        }
+
+        /** */
+        public void setVals(ParamVal[] vals) {
+            this.vals = vals;
+        }
+    }
+
+    /** */
+    public static class ParamVal implements Serializable {
+        /** */
+        int id;
+
+        /** */
+        double val;
+
+        public ParamVal(int id, double val) {
+            this.id = id;
+            this.val = val;
+        }
     }
 }
