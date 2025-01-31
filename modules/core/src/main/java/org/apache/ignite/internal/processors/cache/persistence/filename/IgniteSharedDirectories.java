@@ -30,22 +30,23 @@ import static org.apache.ignite.internal.processors.cache.persistence.filename.P
 
 /**
  * Provides access to directories shared between all nodes.
- *
+ * <pre>
  * ❯ tree
- * .                                                                            ← root (work directory, shared between all nodes).
- * ├── db                                                                       ← db (shared between all nodes).
- * │  ├── binary_meta                                                           ← binaryMetaRoot (shared between all nodes).
- * │  ├── marshaller                                                            ← marshaller (shared between all nodes).
+ * .                                                                            ← root (work directory, shared between all local nodes).
+ * ├── db                                                                       ← db (shared between all local nodes).
+ * │  ├── binary_meta                                                           ← binaryMetaRoot (shared between all local nodes).
+ * │  ├── marshaller                                                            ← marshaller (shared between all local nodes).
  * ├── snapshots                                                                ← snpsRoot (shared between all nodes).
+ * </pre>
  *
  * @see IgniteNodeDirectories
  */
 public class IgniteSharedDirectories {
-    /** Default path (relative to working directory) of binary metadata folder */
-    public static final String DFLT_BINARY_METADATA_PATH = "binary_meta";
+    /** Default path (relative to working directory) of binary metadata folder. */
+    public static final String BINARY_METADATA_DIR = "binary_meta";
 
-    /** Default path (relative to working directory) of marshaller mappings folder */
-    public static final String DFLT_MARSHALLER_PATH = "marshaller";
+    /** Default path (relative to working directory) of marshaller mappings folder. */
+    public static final String MARSHALLER_DIR = "marshaller";
 
     /** Root(work) directory. */
     protected final File root;
@@ -70,8 +71,8 @@ public class IgniteSharedDirectories {
 
         this.root = root;
         db = new File(root, DB_DEFAULT_FOLDER);
-        marshaller = new File(db, DFLT_MARSHALLER_PATH);
-        binaryMetaRoot = new File(db, DFLT_BINARY_METADATA_PATH);
+        marshaller = new File(db, MARSHALLER_DIR);
+        binaryMetaRoot = new File(db, BINARY_METADATA_DIR);
         snpsRoot = new File(root, DFLT_SNAPSHOT_DIRECTORY);
     }
 
@@ -96,8 +97,8 @@ public class IgniteSharedDirectories {
         }
 
         db = new File(root, DB_DEFAULT_FOLDER);
-        marshaller = new File(db, DFLT_MARSHALLER_PATH);
-        binaryMetaRoot = new File(db, DFLT_BINARY_METADATA_PATH);
+        marshaller = new File(db, MARSHALLER_DIR);
+        binaryMetaRoot = new File(db, BINARY_METADATA_DIR);
         snpsRoot = resolveSharedDirectory(cfg.getSnapshotPath());
     }
 
@@ -138,7 +139,7 @@ public class IgniteSharedDirectories {
      * @return Created directory.
      * @see IgniteSharedDirectories#binaryMetaRoot()
      */
-    public File mkdirBinaryMetaRoot() throws IgniteCheckedException {
+    public File mkdirBinaryMetaRoot() {
         return mkdir(binaryMetaRoot, "root binary metadata");
     }
 
@@ -147,7 +148,7 @@ public class IgniteSharedDirectories {
      * @return Created directory.
      * @see #marshaller()
      */
-    public File mkdirMarshaller() throws IgniteCheckedException {
+    public File mkdirMarshaller() {
         return mkdir(marshaller, "marshaller mappings");
     }
 
@@ -170,7 +171,7 @@ public class IgniteSharedDirectories {
      * @return {@code True} if argument can be binary meta root directory.
      */
     public static boolean isBinaryMetaRoot(File f) {
-        return f.getAbsolutePath().endsWith(DFLT_BINARY_METADATA_PATH);
+        return f.getAbsolutePath().endsWith(BINARY_METADATA_DIR);
     }
 
     /**
@@ -178,7 +179,7 @@ public class IgniteSharedDirectories {
      * @return {@code True} if f ends with binary meta root directory.
      */
     public static boolean isMarshaller(File f) {
-        return f.getAbsolutePath().endsWith(DFLT_MARSHALLER_PATH);
+        return f.getAbsolutePath().endsWith(MARSHALLER_DIR);
     }
 
     /**
@@ -186,7 +187,7 @@ public class IgniteSharedDirectories {
      * @return {@code True} if {@code f} contains binary meta root directory.
      */
     public static boolean containsBinaryMetaPath(File file) {
-        return file.getPath().contains(DFLT_BINARY_METADATA_PATH);
+        return file.getPath().contains(BINARY_METADATA_DIR);
     }
 
     /**
@@ -194,22 +195,21 @@ public class IgniteSharedDirectories {
      * @return {@code True} if {@code f} contains marshaller directory.
      */
     public static boolean containsMarshaller(File f) {
-        return f.getAbsolutePath().contains(DFLT_MARSHALLER_PATH);
+        return f.getAbsolutePath().contains(MARSHALLER_DIR);
     }
 
     /**
-     * @param dir Directory to create
-     * @throws IgniteCheckedException
+     * @param dir Directory to create.
      */
-    public static File mkdir(File dir, String name) throws IgniteCheckedException {
+    public static File mkdir(File dir, String name) {
         if (!U.mkdirs(dir))
             throw new IgniteException("Could not create directory for " + name + ": " + dir);
 
         if (!dir.canRead())
-            throw new IgniteCheckedException("Cannot read from directory: " + dir);
+            throw new IgniteException("Cannot read from directory: " + dir);
 
         if (!dir.canWrite())
-            throw new IgniteCheckedException("Cannot write to directory: " + dir);
+            throw new IgniteException("Cannot write to directory: " + dir);
 
         return dir;
     }
