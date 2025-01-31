@@ -158,12 +158,7 @@ public class IgniteSharedDirectories {
      * @see #snapshotsRoot()
      */
     public File mkdirSnapshotsRoot() {
-        try {
-            return mkdir(snpsRoot, "snapshot work directory");
-        }
-        catch (IgniteCheckedException e) {
-            throw new IgniteException(e);
-        }
+        return mkdir(snpsRoot, "snapshot work directory");
     }
 
     /**

@@ -110,6 +110,13 @@ public class SnapshotDirectories {
     }
 
     /**
+     * @return Path to the {@code {snapshots}/{snp_name}/db/{folder_name}}.
+     */
+    public File nodeRoot() {
+        return new File(db, folderName);
+    }
+
+    /**
      * @return Temp directory for temp files.
      * @see IgniteNodeDirectories#snapshotTempRoot()
      */

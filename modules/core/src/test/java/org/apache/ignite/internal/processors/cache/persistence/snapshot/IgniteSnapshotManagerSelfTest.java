@@ -56,6 +56,7 @@ import org.apache.ignite.internal.processors.cache.persistence.file.FileIODecora
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileVersionCheckingFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
 import org.apache.ignite.internal.processors.cache.persistence.partstate.GroupPartitionId;
 import org.apache.ignite.internal.util.lang.GridCloseableIterator;
 import org.apache.ignite.internal.util.typedef.F;
@@ -143,6 +144,8 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
             }
         }, 5, "cache-loader-");
 
+        SnapshotDirectories sdirs = new SnapshotDirectories(ig.context().pdsFolderResolver().resolveDirectories(), SNAPSHOT_NAME, null);
+
         // Register task but not schedule it on the checkpoint.
         SnapshotFutureTask snpFutTask = (SnapshotFutureTask)mgr.registerSnapshotTask(SNAPSHOT_NAME,
             null,
@@ -153,7 +156,7 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
             false,
             false,
             false,
-            new DelegateSnapshotSender(log, mgr.snapshotExecutorService(), mgr.localSnapshotSenderFactory().apply(SNAPSHOT_NAME, null)) {
+            new DelegateSnapshotSender(log, mgr.snapshotExecutorService(), mgr.localSnapshotSenderFactory().apply(sdirs)) {
                 @Override public void sendPart0(File part, String cacheDirName, GroupPartitionId pair, Long length) {
                     try {
                         U.await(slowCopy);
@@ -271,11 +274,13 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
             }
         });
 
+        SnapshotDirectories sdirs = new SnapshotDirectories(ig.context().pdsFolderResolver().resolveDirectories(), SNAPSHOT_NAME, null);
+
         IgniteInternalFuture<?> snpFut = startLocalSnapshotTask(cctx0,
             SNAPSHOT_NAME,
             F.asMap(CU.cacheId(DEFAULT_CACHE_NAME), null),
             encryption,
-            mgr.localSnapshotSenderFactory().apply(SNAPSHOT_NAME, null));
+            mgr.localSnapshotSenderFactory().apply(sdirs));
 
         // Check the right exception thrown.
         assertThrowsAnyCause(log,
@@ -295,12 +300,14 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
 
         IgniteSnapshotManager mgr0 = snp(ig);
 
+        SnapshotDirectories sdirs = new SnapshotDirectories(ig.context().pdsFolderResolver().resolveDirectories(), SNAPSHOT_NAME, null);
+
         IgniteInternalFuture<?> fut = startLocalSnapshotTask(ig.context().cache().context(),
             SNAPSHOT_NAME,
             parts,
             encryption,
             new DelegateSnapshotSender(log, mgr0.snapshotExecutorService(),
-                mgr0.localSnapshotSenderFactory().apply(SNAPSHOT_NAME, null)) {
+                mgr0.localSnapshotSenderFactory().apply(sdirs)) {
                 @Override public void sendPart0(File part, String cacheDirName, GroupPartitionId pair, Long length) {
                     if (pair.getPartitionId() == 0)
                         throw new IgniteException(err_msg + pair);
@@ -331,11 +338,13 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
 
         CountDownLatch cpLatch = new CountDownLatch(1);
 
+        SnapshotDirectories sdirs = new SnapshotDirectories(ig.context().pdsFolderResolver().resolveDirectories(), SNAPSHOT_NAME, null);
+
         IgniteInternalFuture<?> snpFut = startLocalSnapshotTask(cctx0,
             SNAPSHOT_NAME,
             F.asMap(CU.cacheId(DEFAULT_CACHE_NAME), null),
             encryption,
-            new DelegateSnapshotSender(log, mgr.snapshotExecutorService(), mgr.localSnapshotSenderFactory().apply(SNAPSHOT_NAME, null)) {
+            new DelegateSnapshotSender(log, mgr.snapshotExecutorService(), mgr.localSnapshotSenderFactory().apply(sdirs)) {
                 @Override public void sendPart0(File part, String cacheDirName, GroupPartitionId pair, Long length) {
                     try {
                         U.await(cpLatch);

@@ -77,6 +77,7 @@ import org.apache.ignite.internal.processors.cache.CacheGroupContext;
 import org.apache.ignite.internal.processors.cache.CacheGroupDescriptor;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
 import org.apache.ignite.internal.processors.cache.persistence.partstate.GroupPartitionId;
 import org.apache.ignite.internal.processors.cache.persistence.wal.WALPointer;
 import org.apache.ignite.internal.processors.cache.persistence.wal.crc.FastCrc;
@@ -759,13 +760,13 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
 
         for (Ignite grid : grids) {
             IgniteSnapshotManager mgr = snp((IgniteEx)grid);
-            BiFunction<String, String, SnapshotSender> old = mgr.localSnapshotSenderFactory();
+            Function<SnapshotDirectories, SnapshotSender> old = mgr.localSnapshotSenderFactory();
 
             BlockingExecutor block = new BlockingExecutor(mgr.snapshotExecutorService());
             execs.add(block);
 
-            mgr.localSnapshotSenderFactory((snpName, snpPath) ->
-                new DelegateSnapshotSender(log, block, old.apply(snpName, snpPath)));
+            mgr.localSnapshotSenderFactory(sdirs ->
+                new DelegateSnapshotSender(log, block, old.apply(sdirs)));
         }
 
         return execs;
