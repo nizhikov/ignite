@@ -83,7 +83,6 @@ import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.compute.ComputeTask;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.DiskPageCompression;
-import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.events.DiscoveryEvent;
 import org.apache.ignite.events.SnapshotEvent;
 import org.apache.ignite.failure.FailureContext;
@@ -136,6 +135,7 @@ import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStor
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.filename.IgniteNodeDirectories;
 import org.apache.ignite.internal.processors.cache.persistence.filename.PdsFolderSettings;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
 import org.apache.ignite.internal.processors.cache.persistence.metastorage.MetaStorage;
 import org.apache.ignite.internal.processors.cache.persistence.metastorage.MetastorageLifecycleListener;
 import org.apache.ignite.internal.processors.cache.persistence.metastorage.ReadOnlyMetastorage;
@@ -856,20 +856,6 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
     }
 
     /**
-     * @param snpName Snapshot name.
-     * @return Local snapshot directory for snapshot with given name.
-     * @throws IgniteCheckedException If directory doesn't exist.
-     */
-    private File resolveSnapshotDir(String snpName, @Nullable String snpPath) throws IgniteCheckedException {
-        File snpDir = snapshotLocalDir(snpName, snpPath);
-
-        if (!snpDir.exists())
-            throw new IgniteCheckedException("Snapshot directory doesn't exists: " + snpDir.getAbsolutePath());
-
-        return snpDir;
-    }
-
-    /**
      * @param req Request on snapshot creation.
      * @return Future which will be completed when a snapshot has been started.
      */
@@ -1012,7 +998,7 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
             req.operationalNodeId(),
             req.requestId(),
             meta,
-            req.snapshotPath(),
+            new SnapshotDirectories(dirs, meta.snapshotName(), req.snapshotPath()),
             req.incrementIndex(),
             lowPtr,
             markWalFut
@@ -2551,7 +2537,6 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
 
     /**
      * @param snpName Snapshot name.
-     * @param folderName The node folder name, usually it's the same as the U.maskForFileName(consistentId).
      * @param grpName Cache group name.
      * @param partId Partition id.
      * @param encrKeyProvider Encryption keys provider to create encrypted IO. If {@code null}, no encrypted IO is used.
@@ -2559,14 +2544,18 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
      * @throws IgniteCheckedException If and error occurs.
      */
     public GridCloseableIterator<CacheDataRow> partitionRowIterator(String snpName,
-        String folderName,
         String grpName,
         int partId,
         @Nullable EncryptionCacheKeyProvider encrKeyProvider
     ) throws IgniteCheckedException {
-        File snpDir = resolveSnapshotDir(snpName, null);
+        SnapshotDirectories sdirs = new SnapshotDirectories(dirs, snpName, null);
 
-        File nodePath = new File(snpDir, databaseRelativePath(folderName));
+        File snpDir = snapshotLocalDir(snpName);
+
+        if (!snpDir.exists())
+            throw new IgniteCheckedException("Snapshot directory doesn't exists: " + snpDir.getAbsolutePath());
+
+        File nodePath = new File(snpDir, databaseRelativePath(dirs.folderName()));
 
         if (!nodePath.exists())
             throw new IgniteCheckedException("Consistent id directory doesn't exists: " + nodePath.getAbsolutePath());
@@ -2586,7 +2575,7 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
             );
         }
 
-        File snpPart = getPartitionFile(new File(snapshotLocalDir(snpName, null), databaseRelativePath(folderName)),
+        File snpPart = getPartitionFile(new File(snapshotLocalDir(snpName, null), databaseRelativePath(dirs.folderName())),
             grps.get(0).getName(), partId);
 
         int grpId = CU.cacheId(grpName);
@@ -2646,8 +2635,7 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
             ? new CreateDumpFutureTask(cctx,
                 srcNodeId,
                 reqId,
-                snpName,
-                snapshotLocalDir(snpName, snpPath),
+                new SnapshotDirectories(dirs, snpName, snpPath),
                 ioFactory,
                 transferRateLimiter,
                 snpSndr,
@@ -2656,7 +2644,16 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
                 encrypt
             )
             : new SnapshotFutureTask(
-                cctx, srcNodeId, reqId, snpName, dirs.snapshotTempRoot(), ioFactory, snpSndr, parts, withMetaStorage, locBuff));
+                cctx,
+                srcNodeId,
+                reqId,
+                new SnapshotDirectories(dirs, snpName, snpPath),
+                ioFactory,
+                snpSndr,
+                parts,
+                withMetaStorage,
+                locBuff
+            ));
 
         if (!withMetaStorage) {
             for (Integer grpId : parts.keySet()) {
@@ -2914,29 +2911,6 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
     }
 
     /**
-     * @param cfg Ignite configuration.
-     * @return Snapshot directory resolved through given configuration.
-     */
-    public static File resolveSnapshotWorkDirectory(IgniteConfiguration cfg) {
-        return resolveSnapshotWorkDirectory(cfg, true);
-    }
-
-    /**
-     * @param cfg Ignite configuration.
-     * @param create If {@code true} then create resolved directory if not exists.
-     * @return Snapshot directory resolved through given configuration.
-     */
-    public static File resolveSnapshotWorkDirectory(IgniteConfiguration cfg, boolean create) {
-        try {
-            return U.resolveWorkDirectory(cfg.getWorkDirectory() == null ? U.defaultWorkDirectory() : cfg.getWorkDirectory(),
-                cfg.getSnapshotPath(), false, create);
-        }
-        catch (IgniteCheckedException e) {
-            throw new IgniteException(e);
-        }
-    }
-
-    /**
      * @param factory Factory to produce FileIO access.
      * @param from Copy from file.
      * @param to Copy data to file.
@@ -3031,8 +3005,6 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
 
         if (wal == null)
             throw new IgniteCheckedException("Create incremental snapshot request has been rejected. WAL must be enabled.");
-
-        IgniteNodeDirectories dirs = cctx.kernalContext().pdsFolderResolver().resolveDirectories();
 
         if (!dirs.isWalArchiveEnabled())
             throw new IgniteCheckedException("Create incremental snapshot request has been rejected. WAL archive must be enabled.");
@@ -3786,8 +3758,7 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
                             new SnapshotResponseRemoteFutureTask(cctx,
                                 nodeId,
                                 reqMsg0.requestId(),
-                                snpName,
-                                reqMsg0.snapshotPath(),
+                                new SnapshotDirectories(dirs, snpName, reqMsg0.snapshotPath()),
                                 rmtSndrFactory.apply(rqId, nodeId),
                                 reqMsg0.parts()));
 

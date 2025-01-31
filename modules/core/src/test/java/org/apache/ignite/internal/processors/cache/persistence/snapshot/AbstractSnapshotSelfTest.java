@@ -23,7 +23,6 @@ import java.io.Serializable;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -121,7 +120,6 @@ import static org.apache.ignite.internal.processors.cache.persistence.metastorag
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.CP_SNAPSHOT_REASON;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.databaseRelativePath;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.incrementalSnapshotWalsDir;
-import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.resolveSnapshotWorkDirectory;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.snapshotMetaFileName;
 import static org.apache.ignite.testframework.GridTestUtils.assertThrowsAnyCause;
 import static org.apache.ignite.testframework.GridTestUtils.waitForCondition;
@@ -491,7 +489,12 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
      * @throws Exception If fails.
      */
     protected IgniteEx startGridsFromSnapshot(int cnt, String snpName) throws Exception {
-        return startGridsFromSnapshot(cnt, cfg -> resolveSnapshotWorkDirectory(cfg).getAbsolutePath(), snpName, true);
+        return startGridsFromSnapshot(
+            cnt,
+            cfg -> nodeDirs(U.maskForFileName(cfg.getIgniteInstanceName())).snapshotsRoot(),
+            snpName,
+            true
+        );
     }
 
     /**
@@ -502,7 +505,7 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
      * @throws Exception If fails.
      */
     protected IgniteEx startGridsFromSnapshot(int cnt,
-        Function<IgniteConfiguration, String> path,
+        Function<IgniteConfiguration, File> path,
         String snpName,
         boolean activate
     ) throws Exception {
@@ -518,7 +521,7 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
      * @throws Exception If fails.
      */
     protected IgniteEx startGridsFromSnapshot(Set<Integer> ids,
-        Function<IgniteConfiguration, String> path,
+        Function<IgniteConfiguration, File> path,
         String snpName,
         boolean activate
     ) throws Exception {
@@ -527,7 +530,7 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
         for (Integer i : ids) {
             IgniteConfiguration cfg = optimize(getConfiguration(getTestIgniteInstanceName(i)));
 
-            cfg.setWorkDirectory(Paths.get(path.apply(cfg), snpName).toString());
+            cfg.setWorkDirectory(new File(path.apply(cfg), snpName).toString());
 
             if (crd == null)
                 crd = startGrid(cfg);
@@ -804,7 +807,7 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
         assertTrue(CU.isPersistenceEnabled(srv.configuration()));
         assertTrue(CU.isPersistentCache(ccfg, srv.configuration().getDataStorageConfiguration()));
 
-        File snpDir = resolveSnapshotWorkDirectory(srv.configuration());
+        File snpDir = srv.context().pdsFolderResolver().resolveDirectories().snapshotsRoot();
 
         List<BlockingExecutor> execs = setBlockingSnapshotExecutor(srvs);
 

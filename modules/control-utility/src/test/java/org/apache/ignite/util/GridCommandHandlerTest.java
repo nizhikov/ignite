@@ -176,7 +176,6 @@ import static org.apache.ignite.internal.processors.cache.persistence.snapshot.A
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.SNAPSHOT_LIMITED_TRANSFER_BLOCK_SIZE_BYTES;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.SNAPSHOT_METRICS;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.SNAPSHOT_TRANSFER_RATE_DMS_KEY;
-import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.resolveSnapshotWorkDirectory;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.SnapshotRestoreProcess.SNAPSHOT_RESTORE_METRICS;
 import static org.apache.ignite.internal.processors.cache.verify.IdleVerifyUtility.CRC_CHECK_ERR_MSG;
 import static org.apache.ignite.internal.processors.cache.verify.IdleVerifyUtility.GRID_NOT_IDLE_MSG;
@@ -3468,8 +3467,10 @@ public class GridCommandHandlerTest extends GridCommandHandlerClusterPerMethodAb
 
         stopAllGrids();
 
-        IgniteConfiguration cfg = optimize(getConfiguration(getTestIgniteInstanceName(0)));
-        cfg.setWorkDirectory(Paths.get(resolveSnapshotWorkDirectory(cfg).getAbsolutePath(), snpName).toString());
+        String instanceName = getTestIgniteInstanceName(0);
+        IgniteConfiguration cfg = optimize(getConfiguration(instanceName));
+
+        cfg.setWorkDirectory(snapshotDirs(cfg, snpName).root().getAbsolutePath());
 
         Ignite snpIg = startGrid(cfg);
         snpIg.cluster().state(ACTIVE);

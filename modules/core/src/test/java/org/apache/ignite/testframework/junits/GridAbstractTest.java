@@ -90,6 +90,7 @@ import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheGroupContext;
 import org.apache.ignite.internal.processors.cache.persistence.filename.IgniteNodeDirectories;
 import org.apache.ignite.internal.processors.cache.persistence.filename.IgniteSharedDirectories;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
 import org.apache.ignite.internal.processors.cache.persistence.tree.BPlusTree;
 import org.apache.ignite.internal.processors.resource.DependencyResolver;
 import org.apache.ignite.internal.processors.resource.GridSpringResourceContext;
@@ -3198,6 +3199,13 @@ public abstract class GridAbstractTest extends JUnitAssertAware {
     }
 
     /**
+     * @return Ignite directories for specific {@code cfg}.
+     */
+    protected IgniteNodeDirectories nodeDirs(IgniteConfiguration cfg) {
+        return new IgniteNodeDirectories(cfg, U.maskForFileName(cfg.getIgniteInstanceName()));
+    }
+
+    /**
      * @return Ignite directories for specific {@code folderName}.
      */
     protected IgniteNodeDirectories nodeDirs(String folderName) {
@@ -3207,5 +3215,10 @@ public abstract class GridAbstractTest extends JUnitAssertAware {
         catch (IgniteCheckedException e) {
             throw new IgniteException(e);
         }
+    }
+
+    /** */
+    public static SnapshotDirectories snapshotDirs(IgniteConfiguration cfg, String name) {
+        return new SnapshotDirectories(new IgniteNodeDirectories(cfg, U.maskForFileName(cfg.getIgniteInstanceName())), name, null);
     }
 }

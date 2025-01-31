@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.IgniteFutureCancelledCheckedException;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -45,7 +46,7 @@ abstract class AbstractSnapshotFutureTask<T> extends GridFutureAdapter<T> {
     protected final UUID reqId;
 
     /** Unique identifier of snapshot process. */
-    protected final String snpName;
+    protected final SnapshotDirectories sdirs;
 
     /** Snapshot data sender. */
     @GridToStringExclude
@@ -61,7 +62,7 @@ abstract class AbstractSnapshotFutureTask<T> extends GridFutureAdapter<T> {
      * @param cctx Shared context.
      * @param srcNodeId Node id which cause snapshot task creation.
      * @param reqId Snapshot operation request ID.
-     * @param snpName Unique identifier of snapshot process.
+     * @param sdirs Snapshot directories.
      * @param snpSndr Factory which produces snapshot receiver instance.
      * @param parts Partition to be processed.
      */
@@ -69,11 +70,11 @@ abstract class AbstractSnapshotFutureTask<T> extends GridFutureAdapter<T> {
         GridCacheSharedContext<?, ?> cctx,
         UUID srcNodeId,
         UUID reqId,
-        String snpName,
+        SnapshotDirectories sdirs,
         SnapshotSender snpSndr,
         Map<Integer, Set<Integer>> parts
     ) {
-        assert snpName != null : "Snapshot name cannot be empty or null.";
+        assert sdirs != null : "Snapshot name cannot be empty or null.";
         assert snpSndr != null : "Snapshot sender which handles execution tasks must be not null.";
         assert snpSndr.executor() != null : "Executor service must be not null.";
 
@@ -81,7 +82,7 @@ abstract class AbstractSnapshotFutureTask<T> extends GridFutureAdapter<T> {
         this.log = cctx.logger(this.getClass());
         this.srcNodeId = srcNodeId;
         this.reqId = reqId;
-        this.snpName = snpName;
+        this.sdirs = sdirs;
         this.snpSndr = snpSndr;
         this.parts = parts;
     }
@@ -90,7 +91,8 @@ abstract class AbstractSnapshotFutureTask<T> extends GridFutureAdapter<T> {
      * @return Snapshot name.
      */
     public String snapshotName() {
-        return snpName;
+        // TODO: remove method. user sdir directly.
+        return sdirs.name();
     }
 
     /**
@@ -130,7 +132,7 @@ abstract class AbstractSnapshotFutureTask<T> extends GridFutureAdapter<T> {
     @Override public boolean cancel() {
         // Cancellation of snapshot future should not throw an exception.
         acceptException(new IgniteFutureCancelledCheckedException("Snapshot operation has been cancelled " +
-            "by external process [snpName=" + snpName + ']'));
+            "by external process [snpName=" + sdirs.name() + ']'));
 
         return true;
     }
