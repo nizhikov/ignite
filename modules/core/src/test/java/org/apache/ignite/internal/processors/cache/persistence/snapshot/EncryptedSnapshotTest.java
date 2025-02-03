@@ -283,7 +283,7 @@ public class EncryptedSnapshotTest extends AbstractSnapshotSelfTest {
         // Start grid node with data before each test.
         IgniteEx ig = startGridsWithCache(1, CACHE_KEYS_RANGE, valueBuilder(), dfltCacheCfg);
 
-        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().nodeFileTree(), SNAPSHOT_NAME, null);
+        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
 
         assertThrowsAnyCause(log,
             () -> snp(ig).registerSnapshotTask(SNAPSHOT_NAME,

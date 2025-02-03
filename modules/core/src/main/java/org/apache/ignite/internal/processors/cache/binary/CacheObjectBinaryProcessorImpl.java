@@ -226,7 +226,7 @@ public class CacheObjectBinaryProcessorImpl extends GridProcessorAdapter impleme
         if (marsh instanceof BinaryMarshaller) {
             if (!ctx.clientNode()) {
                 if (CU.isPersistenceEnabled(ctx.config()) && binaryMetadataFileStoreDir == null)
-                    binaryMetadataFileStoreDir = ctx.pdsFolderResolver().nodeFileTree().mkdirBinaryMeta();
+                    binaryMetadataFileStoreDir = ctx.pdsFolderResolver().fileTree().mkdirBinaryMeta();
 
                 metadataFileStore = new BinaryMetadataFileStore(metadataLocCache, ctx, log, binaryMetadataFileStoreDir, false);
 

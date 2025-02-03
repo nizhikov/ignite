@@ -478,7 +478,7 @@ public class FileWriteAheadLogManager extends GridCacheSharedManagerAdapter impl
         if (cctx.kernalContext().clientNode())
             return;
 
-        ft = cctx.kernalContext().pdsFolderResolver().nodeFileTree();
+        ft = cctx.kernalContext().pdsFolderResolver().fileTree();
 
         checkWalConfiguration();
 

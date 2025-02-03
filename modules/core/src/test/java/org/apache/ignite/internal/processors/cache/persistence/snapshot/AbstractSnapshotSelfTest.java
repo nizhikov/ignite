@@ -269,7 +269,7 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
                 if (ig.configuration().isClientMode() || !persistence)
                     continue;
 
-                Path snpTempDir = ((IgniteEx)ig).context().pdsFolderResolver().nodeFileTree().snapshotTempRoot().toPath();
+                Path snpTempDir = ((IgniteEx)ig).context().pdsFolderResolver().fileTree().snapshotTempRoot().toPath();
 
                 assertEquals("Snapshot working directory must be empty at the moment test execution stopped: " + snpTempDir,
                     0, U.fileCount(snpTempDir));
@@ -808,7 +808,7 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
         assertTrue(CU.isPersistenceEnabled(srv.configuration()));
         assertTrue(CU.isPersistentCache(ccfg, srv.configuration().getDataStorageConfiguration()));
 
-        File snpDir = srv.context().pdsFolderResolver().nodeFileTree().snapshotsRoot();
+        File snpDir = srv.context().pdsFolderResolver().fileTree().snapshotsRoot();
 
         List<BlockingExecutor> execs = setBlockingSnapshotExecutor(srvs);
 

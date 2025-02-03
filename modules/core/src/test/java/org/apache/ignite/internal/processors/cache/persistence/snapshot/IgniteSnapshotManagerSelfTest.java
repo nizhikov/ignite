@@ -144,7 +144,7 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
             }
         }, 5, "cache-loader-");
 
-        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().nodeFileTree(), SNAPSHOT_NAME, null);
+        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
 
         // Register task but not schedule it on the checkpoint.
         SnapshotFutureTask snpFutTask = (SnapshotFutureTask)mgr.registerSnapshotTask(SNAPSHOT_NAME,
@@ -274,7 +274,7 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
             }
         });
 
-        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().nodeFileTree(), SNAPSHOT_NAME, null);
+        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
 
         IgniteInternalFuture<?> snpFut = startLocalSnapshotTask(cctx0,
             SNAPSHOT_NAME,
@@ -300,7 +300,7 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
 
         IgniteSnapshotManager mgr0 = snp(ig);
 
-        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().nodeFileTree(), SNAPSHOT_NAME, null);
+        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
 
         IgniteInternalFuture<?> fut = startLocalSnapshotTask(ig.context().cache().context(),
             SNAPSHOT_NAME,
@@ -338,7 +338,7 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
 
         CountDownLatch cpLatch = new CountDownLatch(1);
 
-        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().nodeFileTree(), SNAPSHOT_NAME, null);
+        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
 
         IgniteInternalFuture<?> snpFut = startLocalSnapshotTask(cctx0,
             SNAPSHOT_NAME,

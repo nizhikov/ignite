@@ -109,7 +109,7 @@ public class IgniteEncryptedWalConverterTest extends GridCommonAbstractTest {
             for (int i = 0; i < 10; i++)
                 cache.put(i, i);
 
-            return node.context().pdsFolderResolver().nodeFileTree();
+            return node.context().pdsFolderResolver().fileTree();
         }
     }
 }

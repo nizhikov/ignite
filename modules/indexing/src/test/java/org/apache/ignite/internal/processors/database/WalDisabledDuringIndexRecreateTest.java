@@ -315,7 +315,7 @@ public class WalDisabledDuringIndexRecreateTest extends GridCommonAbstractTest {
         Predicate<WALPointer> filter,
         long grpId
     ) throws IgniteCheckedException {
-        NodeFileTree ft = grid(0).context().pdsFolderResolver().nodeFileTree();
+        NodeFileTree ft = grid(0).context().pdsFolderResolver().fileTree();
 
         IteratorParametersBuilder walIterBldr = new IteratorParametersBuilder()
             .filesOrDirs(ft.wal(), ft.walArchive())

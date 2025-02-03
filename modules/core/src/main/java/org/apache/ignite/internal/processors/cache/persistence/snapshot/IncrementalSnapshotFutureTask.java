@@ -132,7 +132,7 @@ class IncrementalSnapshotFutureTask extends AbstractSnapshotFutureTask<Void> imp
 
                     copyWal(incrementalSnapshotWalsDir(incSnpDir, folderName), highPtrFut.result());
 
-                    NodeFileTree nodeDirs = cctx.kernalContext().pdsFolderResolver().nodeFileTree();
+                    NodeFileTree nodeDirs = cctx.kernalContext().pdsFolderResolver().fileTree();
                     NodeFileTree snpDirs = new NodeFileTree(incSnpDir, folderName);
 
                     copyFiles(

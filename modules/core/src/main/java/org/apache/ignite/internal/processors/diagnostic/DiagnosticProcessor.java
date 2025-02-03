@@ -194,7 +194,7 @@ public class DiagnosticProcessor extends GridProcessorAdapter {
     @Nullable static File[] walDirs(GridKernalContext ctx) {
         IgniteWriteAheadLogManager walMgr = ctx.cache().context().wal();
 
-        NodeFileTree ft = ctx.pdsFolderResolver().nodeFileTree();
+        NodeFileTree ft = ctx.pdsFolderResolver().fileTree();
 
         if (walMgr instanceof FileWriteAheadLogManager) {
             SegmentRouter sr = ((FileWriteAheadLogManager)walMgr).getSegmentRouter();

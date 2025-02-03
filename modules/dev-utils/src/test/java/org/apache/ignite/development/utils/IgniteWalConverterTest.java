@@ -573,7 +573,7 @@ public class IgniteWalConverterTest extends GridCommonAbstractTest {
         try (final IgniteEx node = startGrid(0)) {
             node.cluster().state(ClusterState.ACTIVE);
 
-            ft = node.context().pdsFolderResolver().nodeFileTree();
+            ft = node.context().pdsFolderResolver().fileTree();
 
             final IgniteCache<PersonKey, Person> cache = node.cache(DEFAULT_CACHE_NAME);
 

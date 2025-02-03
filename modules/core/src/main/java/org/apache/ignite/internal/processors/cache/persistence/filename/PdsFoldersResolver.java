@@ -35,5 +35,5 @@ public interface PdsFoldersResolver {
     /**
      * @return Ignite node standart directories.
      */
-    public NodeFileTree nodeFileTree();
+    public NodeFileTree fileTree();
 }

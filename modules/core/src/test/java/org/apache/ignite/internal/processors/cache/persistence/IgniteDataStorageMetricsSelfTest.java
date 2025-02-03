@@ -520,7 +520,7 @@ public class IgniteDataStorageMetricsSelfTest extends GridCommonAbstractTest {
     private void checkWalArchiveAndTotalSize(IgniteEx igniteEx, boolean hasWalArchive) throws Exception {
         FileWriteAheadLogManager walMgr = walMgr(igniteEx);
 
-        NodeFileTree ft = igniteEx.context().pdsFolderResolver().nodeFileTree();
+        NodeFileTree ft = igniteEx.context().pdsFolderResolver().fileTree();
 
         assertEquals(ft.isWalArchiveEnabled(), hasWalArchive);
 
@@ -543,7 +543,7 @@ public class IgniteDataStorageMetricsSelfTest extends GridCommonAbstractTest {
         long lastArchivedSegIdx = dsMetricRegistry(igniteEx).<LongGauge>findMetric("LastArchivedSegment").value();
 
         if (ft.isWalArchiveEnabled()) {
-            long cdcWalArchiveSegments = walFiles(igniteEx.context().pdsFolderResolver().nodeFileTree().walCdc()).length;
+            long cdcWalArchiveSegments = walFiles(igniteEx.context().pdsFolderResolver().fileTree().walCdc()).length;
 
             // Count of segments = LastArchivedSegmentIndex + 1
             assertEquals(cdcWalArchiveSegments, lastArchivedSegIdx + 1);

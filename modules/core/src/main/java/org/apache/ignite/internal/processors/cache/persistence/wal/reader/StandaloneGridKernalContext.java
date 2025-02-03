@@ -701,7 +701,7 @@ public class StandaloneGridKernalContext implements GridKernalContext {
             }
 
             /** {@inheritDoc} */
-            @Override public NodeFileTree nodeFileTree() {
+            @Override public NodeFileTree fileTree() {
                 return new NodeFileTree(new File("."), resolveFolders().folderName());
             }
         };

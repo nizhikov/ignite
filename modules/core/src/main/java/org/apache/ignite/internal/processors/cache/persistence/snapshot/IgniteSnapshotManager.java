@@ -520,7 +520,7 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
         locCfgMgr = cctx.cache().configManager();
 
         pdsSettings = cctx.kernalContext().pdsFolderResolver().resolveFolders();
-        ft = cctx.kernalContext().pdsFolderResolver().nodeFileTree();
+        ft = cctx.kernalContext().pdsFolderResolver().fileTree();
 
         if (isPersistenceEnabled(cctx.gridConfig())) {
             ft.mkdirSnapshotsRoot();

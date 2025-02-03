@@ -100,7 +100,7 @@ public class PlainSnapshotTest extends AbstractSnapshotSelfTest {
             SNAPSHOT_NAME,
             F.asMap(CU.cacheId(DEFAULT_CACHE_NAME), null),
             false, mgr.localSnapshotSenderFactory().apply(
-                new SnapshotDirectories(ig.context().pdsFolderResolver().nodeFileTree(), SNAPSHOT_NAME, null)));
+                new SnapshotDirectories(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null)));
 
         snpFut.get();
 
@@ -118,7 +118,7 @@ public class PlainSnapshotTest extends AbstractSnapshotSelfTest {
         // Calculate CRCs.
         PdsFolderSettings<?> settings = ig.context().pdsFolderResolver().resolveFolders();
         String nodePath = databaseRelativePath(settings.folderName());
-        NodeFileTree ft = ig.context().pdsFolderResolver().nodeFileTree();
+        NodeFileTree ft = ig.context().pdsFolderResolver().fileTree();
         NodeFileTree snpFt =
             new NodeFileTree(mgr.snapshotLocalDir(SNAPSHOT_NAME).getAbsolutePath(), settings.folderName());
 
@@ -137,7 +137,7 @@ public class PlainSnapshotTest extends AbstractSnapshotSelfTest {
         assertEquals("Marshaller meta mast be the same for local node and created snapshot",
             calculateCRC32Partitions(ft.marshaller()), calculateCRC32Partitions(snpFt.marshaller()));
 
-        File snpWorkDir = ig.context().pdsFolderResolver().nodeFileTree().snapshotTempRoot();
+        File snpWorkDir = ig.context().pdsFolderResolver().fileTree().snapshotTempRoot();
 
         assertEquals("Snapshot working directory must be cleaned after usage", 0, snpWorkDir.listFiles().length);
     }

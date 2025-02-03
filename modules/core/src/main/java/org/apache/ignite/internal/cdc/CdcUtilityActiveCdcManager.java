@@ -44,7 +44,7 @@ public class CdcUtilityActiveCdcManager extends GridCacheSharedManagerAdapter im
         if (fut.localJoinExchange() || fut.activateCluster()) {
             try {
                 File cdcModeFile = Paths.get(
-                    cctx.kernalContext().pdsFolderResolver().nodeFileTree().walCdc().getAbsolutePath(),
+                    cctx.kernalContext().pdsFolderResolver().fileTree().walCdc().getAbsolutePath(),
                     STATE_DIR,
                     CDC_MODE_FILE_NAME).toFile();
 

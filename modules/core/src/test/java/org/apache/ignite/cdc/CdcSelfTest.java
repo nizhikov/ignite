@@ -334,7 +334,7 @@ public class CdcSelfTest extends AbstractCdcTest {
         txCache.putAll(batch);
 
         // Check `DataRecord(List<DataEntry>)` logged.
-        File archive = grid(1).context().pdsFolderResolver().nodeFileTree().walArchive();
+        File archive = grid(1).context().pdsFolderResolver().fileTree().walArchive();
 
         IteratorParametersBuilder param = new IteratorParametersBuilder().filesOrDirs(archive)
             .filter((type, pointer) -> type == WALRecord.RecordType.DATA_RECORD_V2);
@@ -809,7 +809,7 @@ public class CdcSelfTest extends AbstractCdcTest {
 
         addData(cache, 0, 1);
 
-        NodeFileTree ft = ign.context().pdsFolderResolver().nodeFileTree();
+        NodeFileTree ft = ign.context().pdsFolderResolver().fileTree();
 
         assertTrue(waitForCondition(() -> 1 == ft.walCdc().list().length, 2 * WAL_ARCHIVE_TIMEOUT));
 
@@ -843,7 +843,7 @@ public class CdcSelfTest extends AbstractCdcTest {
 
         IgniteCache<Integer, User> cache = ign.getOrCreateCache(DEFAULT_CACHE_NAME);
         IgniteWriteAheadLogManager wal = ign.context().cache().context().wal(true);
-        NodeFileTree ft = ign.context().pdsFolderResolver().nodeFileTree();
+        NodeFileTree ft = ign.context().pdsFolderResolver().fileTree();
 
         RunnableX writeSgmnt = () -> {
             int sgmnts = wal.walArchiveSegments();

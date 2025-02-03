@@ -391,7 +391,7 @@ public class IgniteSnapshotRestoreFromRemoteTest extends IgniteClusterSnapshotRe
                 String snpName = p.getFileName().toString();
 
                 U.copy(p.toFile(),
-                    new SnapshotDirectories(loc.context().pdsFolderResolver().nodeFileTree(), snpName, null).root(),
+                    new SnapshotDirectories(loc.context().pdsFolderResolver().fileTree(), snpName, null).root(),
                     false);
             }
             catch (IOException e) {

@@ -78,7 +78,7 @@ public class PdsConsistentIdProcessor extends GridProcessorAdapter implements Pd
     }
 
     /** {@inheritDoc} */
-    @Override public NodeFileTree nodeFileTree() {
+    @Override public NodeFileTree fileTree() {
         if (ft == null) {
             try {
                 if (ctx.clientNode()) {

@@ -272,7 +272,7 @@ public class WalTask extends VisorMultiNodeTask<WalDeleteCommandArg, WalTaskResu
          * @throws IgniteCheckedException if failed.
          */
         private File getWalArchiveDir() throws IgniteCheckedException {
-            NodeFileTree ft = ignite.context().pdsFolderResolver().nodeFileTree();
+            NodeFileTree ft = ignite.context().pdsFolderResolver().fileTree();
 
             if (!ft.walArchive().exists())
                 throw new IgniteCheckedException("WAL archive directory does not exists" + ft.walArchive().getAbsolutePath());
