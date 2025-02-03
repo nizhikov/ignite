@@ -87,7 +87,7 @@ import static org.apache.ignite.configuration.DataStorageConfiguration.DFLT_WAL_
  * │  │  ├── metastorage
  * │  │  │  ├── part-0.bin
  * │  │  │  └── part-1.bin
- * │  │  └── snp                                                                ← snpTmp (node 0)
+ * │  │  └── snp                                                                ← snpTmpRoot (node 0)
  * │  ├── node01-e57e62a9-2ccf-4e1b-a11e-d35d32c0fe5d                           ← nodeRoot (node 1).
  * │  │  ├── cache-default
  * ..
@@ -101,7 +101,7 @@ import static org.apache.ignite.configuration.DataStorageConfiguration.DFLT_WAL_
  * │  │  ├── maintenance_tasks.mntc
  * │  │  ├── metastorage
  * ...
- * │  │  └── snp                                                                ← snpTmp (node 1)
+ * │  │  └── snp                                                                ← snpTmpRoot (node 1)
  * ...
  * ...
  * │  └── wal
