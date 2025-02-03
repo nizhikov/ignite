@@ -29,7 +29,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
 import org.apache.ignite.internal.processors.cache.persistence.filename.NodeFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.filename.PdsFolderSettings;
-import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -39,6 +39,7 @@ import org.junit.runners.Parameterized;
 
 import static org.apache.ignite.cluster.ClusterState.ACTIVE;
 import static org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager.cacheDirName;
+import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteClusterSnapshotCheckTest.snapshotLocalDir;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.databaseRelativePath;
 import static org.apache.ignite.testframework.GridTestUtils.assertThrowsAnyCause;
 
@@ -100,7 +101,7 @@ public class PlainSnapshotTest extends AbstractSnapshotSelfTest {
             SNAPSHOT_NAME,
             F.asMap(CU.cacheId(DEFAULT_CACHE_NAME), null),
             false, mgr.localSnapshotSenderFactory().apply(
-                new SnapshotDirectories(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null)));
+                new SnapshotFileTree(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null)));
 
         snpFut.get();
 
@@ -119,13 +120,11 @@ public class PlainSnapshotTest extends AbstractSnapshotSelfTest {
         PdsFolderSettings<?> settings = ig.context().pdsFolderResolver().resolveFolders();
         String nodePath = databaseRelativePath(settings.folderName());
         NodeFileTree ft = ig.context().pdsFolderResolver().fileTree();
-        NodeFileTree snpFt =
-            new NodeFileTree(mgr.snapshotLocalDir(SNAPSHOT_NAME).getAbsolutePath(), settings.folderName());
+        SnapshotFileTree snpFt = new SnapshotFileTree(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
 
         final Map<String, Integer> origPartCRCs = calculateCRC32Partitions(cacheWorkDir);
         final Map<String, Integer> snpPartCRCs = calculateCRC32Partitions(
-            FilePageStoreManager.cacheWorkDir(U.resolveWorkDirectory(mgr.snapshotLocalDir(SNAPSHOT_NAME)
-                    .getAbsolutePath(),
+            FilePageStoreManager.cacheWorkDir(U.resolveWorkDirectory(snpFt.root().getAbsolutePath(),
                 nodePath,
                 false),
                 cacheDirName(dfltCacheCfg)));

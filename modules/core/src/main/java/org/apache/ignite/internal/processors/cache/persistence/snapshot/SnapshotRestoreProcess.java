@@ -80,6 +80,7 @@ import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStor
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileVersionCheckingFactory;
 import org.apache.ignite.internal.processors.cache.persistence.filename.NodeFileTree;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.ClusterSnapshotFuture;
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.PageIO;
 import org.apache.ignite.internal.processors.cluster.DiscoveryDataClusterState;
@@ -105,7 +106,6 @@ import static org.apache.ignite.internal.processors.cache.persistence.file.FileP
 import static org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager.partId;
 import static org.apache.ignite.internal.processors.cache.persistence.metastorage.MetaStorage.METASTORAGE_CACHE_NAME;
 import static org.apache.ignite.internal.processors.cache.persistence.partstate.GroupPartitionId.getTypeByPartId;
-import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.databaseRelativePath;
 import static org.apache.ignite.internal.util.distributed.DistributedProcess.DistributedProcessType.RESTORE_CACHE_GROUP_SNAPSHOT_PRELOAD;
 import static org.apache.ignite.internal.util.distributed.DistributedProcess.DistributedProcessType.RESTORE_CACHE_GROUP_SNAPSHOT_PREPARE;
 import static org.apache.ignite.internal.util.distributed.DistributedProcess.DistributedProcessType.RESTORE_CACHE_GROUP_SNAPSHOT_ROLLBACK;
@@ -951,7 +951,8 @@ public class SnapshotRestoreProcess {
                     ", caches=" + F.transform(opCtx0.dirs, FilePageStoreManager::cacheGroupName) + ']');
             }
 
-            File snpDir = snpMgr.snapshotLocalDir(opCtx0.snpName, opCtx0.snpPath);
+            // TODO: check case when snapshot moved from one node to other (so fileTree returns different folderName then in snapshot).
+            SnapshotFileTree sft = new SnapshotFileTree(ctx.pdsFolderResolver().fileTree(), opCtx0.snpName, opCtx0.snpPath);
 
             CompletableFuture<Void> metaFut = ctx.localNodeId().equals(opCtx0.opNodeId) ?
                 CompletableFuture.runAsync(
@@ -962,7 +963,7 @@ public class SnapshotRestoreProcess {
                             File dir = opCtx0.incIdx > 0 ?
                                 ctx.cache().context().snapshotMgr()
                                     .incrementalSnapshotLocalDir(opCtx0.snpName, opCtx0.snpPath, opCtx0.incIdx)
-                                : snpDir;
+                                : sft.root();
 
                             NodeFileTree ft = new NodeFileTree(dir, meta.folderName());
 
@@ -1035,8 +1036,7 @@ public class SnapshotRestoreProcess {
                     if (leftParts.isEmpty())
                         break;
 
-                    File snpCacheDir = new File(snpDir,
-                        Paths.get(databaseRelativePath(meta.folderName()), dir.getName()).toString());
+                    File snpCacheDir = new File(sft.nodeRoot(), dir.getName());
 
                     leftParts.removeIf(partFut -> {
                         boolean doCopy = ofNullable(meta.partitions().get(grpId))

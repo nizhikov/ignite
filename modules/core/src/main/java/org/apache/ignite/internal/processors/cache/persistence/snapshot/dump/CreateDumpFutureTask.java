@@ -58,7 +58,7 @@ import org.apache.ignite.internal.processors.cache.persistence.CacheDataRow;
 import org.apache.ignite.internal.processors.cache.persistence.CacheSearchRow;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
-import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.partstate.GroupPartitionId;
 import org.apache.ignite.internal.processors.cache.persistence.snapshot.AbstractCreateSnapshotFutureTask;
 import org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager;
@@ -148,7 +148,7 @@ public class CreateDumpFutureTask extends AbstractCreateSnapshotFutureTask imple
      * @param cctx Cache context.
      * @param srcNodeId Node id which cause snapshot task creation.
      * @param reqId Snapshot operation request ID.
-     * @param sdirs Snapshot directories.
+     * @param sft Snapshot file tree.
      * @param ioFactory IO factory.
      * @param snpSndr Snapshot sender.
      * @param rateLimiter Dump transfer rate limiter.
@@ -160,7 +160,7 @@ public class CreateDumpFutureTask extends AbstractCreateSnapshotFutureTask imple
         GridCacheSharedContext<?, ?> cctx,
         UUID srcNodeId,
         UUID reqId,
-        SnapshotDirectories sdirs,
+        SnapshotFileTree sft,
         FileIOFactory ioFactory,
         BasicRateLimiter rateLimiter,
         SnapshotSender snpSndr,
@@ -172,7 +172,7 @@ public class CreateDumpFutureTask extends AbstractCreateSnapshotFutureTask imple
             cctx,
             srcNodeId,
             reqId,
-            sdirs,
+            sft,
             snpSndr,
             parts
         );
@@ -189,7 +189,7 @@ public class CreateDumpFutureTask extends AbstractCreateSnapshotFutureTask imple
     @Override public boolean start() {
         try {
             if (log.isInfoEnabled())
-                log.info("Start cache dump [name=" + sdirs.name() + ", grps=" + parts.keySet() + ']');
+                log.info("Start cache dump [name=" + sft.name() + ", grps=" + parts.keySet() + ']');
 
             createDumpLock();
 
@@ -406,12 +406,10 @@ public class CreateDumpFutureTask extends AbstractCreateSnapshotFutureTask imple
 
     /** */
     private void createDumpLock() throws IgniteCheckedException, IOException {
-        File nodeDumpDir = IgniteSnapshotManager.nodeDumpDirectory(sdirs.root(), cctx);
+        if (!sft.nodeRoot().mkdirs())
+            throw new IgniteCheckedException("Can't create node dump directory: " + sft.nodeRoot().getAbsolutePath());
 
-        if (!nodeDumpDir.mkdirs())
-            throw new IgniteCheckedException("Can't create node dump directory: " + nodeDumpDir.getAbsolutePath());
-
-        File lock = new File(nodeDumpDir, DUMP_LOCK);
+        File lock = new File(sft.nodeRoot(), DUMP_LOCK);
 
         if (!lock.createNewFile())
             throw new IgniteCheckedException("Lock file can't be created or already exists: " + lock.getAbsolutePath());
@@ -711,7 +709,7 @@ public class CreateDumpFutureTask extends AbstractCreateSnapshotFutureTask imple
     /** */
     private File groupDirectory(CacheGroupContext grpCtx) throws IgniteCheckedException {
         return new File(
-            IgniteSnapshotManager.nodeDumpDirectory(sdirs.root(), cctx),
+            IgniteSnapshotManager.nodeDumpDirectory(sft.root(), cctx),
             (grpCtx.caches().size() > 1 ? CACHE_GRP_DIR_PREFIX : CACHE_DIR_PREFIX) + grpCtx.cacheOrGroupName()
         );
     }

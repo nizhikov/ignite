@@ -78,6 +78,7 @@ import static org.apache.ignite.internal.processors.cache.persistence.file.FileP
 import static org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager.FILE_SUFFIX;
 import static org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager.PART_FILE_PREFIX;
 import static org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager.getPartitionFileName;
+import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteClusterSnapshotCheckTest.snapshotLocalDir;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.SnapshotRestoreProcess.TMP_CACHE_DIR_PREFIX;
 import static org.apache.ignite.internal.util.distributed.DistributedProcess.DistributedProcessType.RESTORE_CACHE_GROUP_SNAPSHOT_PRELOAD;
 import static org.apache.ignite.internal.util.distributed.DistributedProcess.DistributedProcessType.RESTORE_CACHE_GROUP_SNAPSHOT_PREPARE;
@@ -180,7 +181,7 @@ public class IgniteClusterSnapshotRestoreSelfTest extends IgniteClusterSnapshotR
     public void testRestoreWithMissedPart() throws Exception {
         IgniteEx ignite = startGridsWithSnapshot(2, CACHE_KEYS_RANGE);
 
-        Path part0 = U.searchFileRecursively(snp(ignite).snapshotLocalDir(SNAPSHOT_NAME).toPath(),
+        Path part0 = U.searchFileRecursively(snapshotLocalDir(ignite, SNAPSHOT_NAME).toPath(),
             getPartitionFileName(0));
 
         assertNotNull(part0);

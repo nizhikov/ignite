@@ -17,7 +17,6 @@
 
 package org.apache.ignite.internal.processors.cache.persistence.snapshot;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,6 +43,7 @@ import org.apache.ignite.internal.management.cache.PartitionKey;
 import org.apache.ignite.internal.processors.cache.GridCacheOperation;
 import org.apache.ignite.internal.processors.cache.GridLocalConfigManager;
 import org.apache.ignite.internal.processors.cache.StoredCacheData;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.verify.IdleVerifyUtility.VerifyPartitionContext;
 import org.apache.ignite.internal.processors.cache.verify.PartitionHashRecord;
 import org.apache.ignite.internal.processors.cache.verify.TransactionsHashRecord;
@@ -56,7 +56,6 @@ import org.apache.ignite.transactions.TransactionState;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.managers.discovery.ConsistentIdMapper.ALL_NODES;
-import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.databaseRelativePath;
 
 /** */
 @GridInternal
@@ -137,7 +136,7 @@ public class IncrementalSnapshotVerificationTask extends AbstractSnapshotVerific
     }
 
     /** */
-    private static class VerifyIncrementalSnapshotJob extends AbstractSnapshotVerificationJob {
+    private static class VerifyIncrementalSnapshotJob extends AbstractSnapshotVerificationJob<IncrementalSnapshotVerificationTaskResult> {
         /** Serial version uid. */
         private static final long serialVersionUID = 0L;
 
@@ -167,7 +166,7 @@ public class IncrementalSnapshotVerificationTask extends AbstractSnapshotVerific
         /**
          * @return Map containing calculated transactions hash for every remote node in the cluster.
          */
-        @Override public IncrementalSnapshotVerificationTaskResult execute() throws IgniteException {
+        @Override public IncrementalSnapshotVerificationTaskResult execute(SnapshotFileTree sft) throws IgniteException {
             try {
                 if (log.isInfoEnabled()) {
                     log.info("Verify incremental snapshot procedure has been initiated " +
@@ -179,9 +178,9 @@ public class IncrementalSnapshotVerificationTask extends AbstractSnapshotVerific
 
                 BaselineTopology blt = ignite.context().state().clusterState().baselineTopology();
 
-                checkBaseline(blt);
+                checkBaseline(blt, sft);
 
-                Map<Integer, StoredCacheData> txCaches = readTxCachesData();
+                Map<Integer, StoredCacheData> txCaches = readTxCachesData(sft);
 
                 AtomicLong procSegCnt = new AtomicLong();
 
@@ -361,11 +360,10 @@ public class IncrementalSnapshotVerificationTask extends AbstractSnapshotVerific
         }
 
         /** Checks that current baseline topology matches baseline topology of the snapshot. */
-        private void checkBaseline(BaselineTopology blt) throws IgniteCheckedException, IOException {
+        private void checkBaseline(BaselineTopology blt, SnapshotFileTree sft) throws IgniteCheckedException, IOException {
             IgniteSnapshotManager snpMgr = ignite.context().cache().context().snapshotMgr();
 
-            File snpDir = snpMgr.snapshotLocalDir(snpName, snpPath);
-            SnapshotMetadata meta = snpMgr.readSnapshotMetadata(snpDir, ignite.localNode().consistentId().toString());
+            SnapshotMetadata meta = snpMgr.readSnapshotMetadata(sft.root(), ignite.localNode().consistentId().toString());
 
             if (!F.eqNotOrdered(blt.consistentIds(), meta.baselineNodes())) {
                 throw new IgniteCheckedException("Topologies of snapshot and current cluster are different [snp=" +
@@ -374,13 +372,9 @@ public class IncrementalSnapshotVerificationTask extends AbstractSnapshotVerific
         }
 
         /** @return Collection of snapshotted transactional caches, key is a cache ID. */
-        private Map<Integer, StoredCacheData> readTxCachesData() throws IgniteCheckedException, IOException {
-            File snpDir = ignite.context().cache().context().snapshotMgr().snapshotLocalDir(snpName, snpPath);
-
-            String folderName = ignite.context().pdsFolderResolver().resolveFolders().folderName();
-
+        private Map<Integer, StoredCacheData> readTxCachesData(SnapshotFileTree sft) throws IgniteCheckedException, IOException {
             return GridLocalConfigManager.readCachesData(
-                    new File(snpDir, databaseRelativePath(folderName)),
+                    sft.nodeRoot(),
                     ignite.context().marshallerContext().jdkMarshaller(),
                     ignite.configuration())
                 .values().stream()

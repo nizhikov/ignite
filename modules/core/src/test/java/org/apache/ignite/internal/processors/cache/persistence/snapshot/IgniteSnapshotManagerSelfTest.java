@@ -56,7 +56,7 @@ import org.apache.ignite.internal.processors.cache.persistence.file.FileIODecora
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileVersionCheckingFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIOFactory;
-import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.partstate.GroupPartitionId;
 import org.apache.ignite.internal.util.lang.GridCloseableIterator;
 import org.apache.ignite.internal.util.typedef.F;
@@ -144,11 +144,11 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
             }
         }, 5, "cache-loader-");
 
-        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
+        SnapshotFileTree snpFt = new SnapshotFileTree(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
 
         // Register task but not schedule it on the checkpoint.
-        SnapshotFutureTask snpFutTask = (SnapshotFutureTask)mgr.registerSnapshotTask(SNAPSHOT_NAME,
-            null,
+        SnapshotFutureTask snpFutTask = (SnapshotFutureTask)mgr.registerSnapshotTask(
+            snpFt,
             cctx.localNodeId(),
             null,
             F.asMap(CU.cacheId(DEFAULT_CACHE_NAME), null),
@@ -274,7 +274,7 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
             }
         });
 
-        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
+        SnapshotFileTree snpFt = new SnapshotFileTree(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
 
         IgniteInternalFuture<?> snpFut = startLocalSnapshotTask(cctx0,
             SNAPSHOT_NAME,
@@ -300,7 +300,7 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
 
         IgniteSnapshotManager mgr0 = snp(ig);
 
-        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
+        SnapshotFileTree snpFt = new SnapshotFileTree(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
 
         IgniteInternalFuture<?> fut = startLocalSnapshotTask(ig.context().cache().context(),
             SNAPSHOT_NAME,
@@ -338,7 +338,7 @@ public class IgniteSnapshotManagerSelfTest extends AbstractSnapshotSelfTest {
 
         CountDownLatch cpLatch = new CountDownLatch(1);
 
-        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
+        SnapshotFileTree snpFt = new SnapshotFileTree(ig.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
 
         IgniteInternalFuture<?> snpFut = startLocalSnapshotTask(cctx0,
             SNAPSHOT_NAME,

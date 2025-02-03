@@ -47,6 +47,7 @@ import org.apache.ignite.testframework.GridTestUtils;
 import org.jetbrains.annotations.Nullable;
 import org.junit.Test;
 
+import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteClusterSnapshotCheckTest.snapshotLocalDir;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.SNAPSHOT_METAFILE_EXT;
 import static org.apache.ignite.testframework.GridTestUtils.assertThrowsWithCause;
 
@@ -151,7 +152,7 @@ public class IgniteClusterSnapshotHandlerTest extends IgniteClusterSnapshotResto
         for (Ignite grid : G.allGrids()) {
             IgniteSnapshotManager snpMgr = ((IgniteEx)grid).context().cache().context().snapshotMgr();
             String constId = grid.cluster().localNode().consistentId().toString();
-            File snpDir = snpMgr.snapshotLocalDir(SNAPSHOT_NAME);
+            File snpDir = snapshotLocalDir((IgniteEx)grid, SNAPSHOT_NAME);
 
             SnapshotMetadata metadata = snpMgr.readSnapshotMetadata(snpDir, constId);
             File smf = new File(snpDir, U.maskForFileName(constId) + SNAPSHOT_METAFILE_EXT);

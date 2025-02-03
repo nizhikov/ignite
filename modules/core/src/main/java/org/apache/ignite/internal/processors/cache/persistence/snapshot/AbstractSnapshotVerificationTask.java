@@ -32,6 +32,7 @@ import org.apache.ignite.compute.ComputeJobResult;
 import org.apache.ignite.compute.ComputeJobResultPolicy;
 import org.apache.ignite.compute.ComputeTaskAdapter;
 import org.apache.ignite.internal.IgniteEx;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.resources.IgniteInstanceResource;
 import org.apache.ignite.resources.LoggerResource;
@@ -105,7 +106,7 @@ public abstract class AbstractSnapshotVerificationTask extends
     protected abstract AbstractSnapshotVerificationJob createJob(String name, String consId, SnapshotPartitionsVerifyTaskArg args);
 
     /** */
-    protected abstract static class AbstractSnapshotVerificationJob extends ComputeJobAdapter {
+    protected abstract static class AbstractSnapshotVerificationJob<R> extends ComputeJobAdapter {
         /** Serial version uid. */
         private static final long serialVersionUID = 0L;
 
@@ -152,5 +153,12 @@ public abstract class AbstractSnapshotVerificationTask extends
             this.rqGrps = rqGrps;
             this.check = check;
         }
+
+        /** {@inheritDoc} */
+        @Override public Object execute() throws IgniteException {
+            return execute(new SnapshotFileTree(ignite.context().pdsFolderResolver().fileTree(), snpName, snpPath));
+        }
+
+        protected abstract R execute(SnapshotFileTree sft);
     }
 }

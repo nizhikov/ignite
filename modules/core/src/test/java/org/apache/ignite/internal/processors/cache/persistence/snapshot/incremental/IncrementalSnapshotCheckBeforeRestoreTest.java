@@ -36,6 +36,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.junit.Test;
 
+import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteClusterSnapshotCheckTest.snapshotLocalDir;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.DFLT_CHECK_ON_RESTORE;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.snapshotMetaFileName;
 import static org.junit.Assume.assumeFalse;
@@ -138,7 +139,7 @@ public class IncrementalSnapshotCheckBeforeRestoreTest extends AbstractSnapshotS
         createIncrementalSnapshots(1);
 
         U.delete(new File(
-            snp(srv).snapshotLocalDir(SNP),
+            snapshotLocalDir(srv, SNP),
             snapshotMetaFileName((String)srv.localNode().consistentId())));
 
         for (IgniteEx n : F.asList(srv, grid(GRID_CNT))) {

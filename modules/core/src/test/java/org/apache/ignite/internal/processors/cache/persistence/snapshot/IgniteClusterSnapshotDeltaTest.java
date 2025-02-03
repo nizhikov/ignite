@@ -36,7 +36,7 @@ import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIODecorator;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactory;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
-import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.partstate.GroupPartitionId;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteFuture;
@@ -114,13 +114,13 @@ public class IgniteClusterSnapshotDeltaTest extends AbstractSnapshotSelfTest {
 
         IgniteSnapshotManager mgr = snp(srv);
 
-        Function<SnapshotDirectories, SnapshotSender> old = mgr.localSnapshotSenderFactory();
+        Function<SnapshotFileTree, SnapshotSender> old = mgr.localSnapshotSenderFactory();
 
         CountDownLatch partStart = new CountDownLatch(partCnt);
         CountDownLatch deltaApply = new CountDownLatch(1);
 
-        mgr.localSnapshotSenderFactory(sdirs -> new DelegateSnapshotSender(log,
-            mgr.snapshotExecutorService(), old.apply(sdirs)) {
+        mgr.localSnapshotSenderFactory(sft -> new DelegateSnapshotSender(log,
+            mgr.snapshotExecutorService(), old.apply(sft)) {
             @Override public void sendPart0(File part, String cacheDirName, GroupPartitionId pair, Long length) {
                 if (cacheDir.equals(cacheDirName))
                     partStart.countDown();

@@ -46,6 +46,7 @@ import org.apache.ignite.spi.systemview.view.SystemView;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.junit.Test;
 
+import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteClusterSnapshotCheckTest.snapshotLocalDir;
 import static org.apache.ignite.spi.systemview.view.SnapshotView.SNAPSHOT_SYS_VIEW;
 
 /** */
@@ -137,7 +138,7 @@ public class IgniteClusterSnapshotWalRecordTest extends AbstractSnapshotSelfTest
 
                 if (rec.type() == WALRecord.RecordType.CLUSTER_SNAPSHOT) {
                     SnapshotMetadata metadata = snp(grid(i)).readSnapshotMetadata(
-                        snp(grid(i)).snapshotLocalDir(SNAPSHOT_NAME + snpCnt),
+                        snapshotLocalDir(grid(i), SNAPSHOT_NAME + snpCnt),
                         (String)grid(i).configuration().getConsistentId());
 
                     assertEquals(tuple.getKey(), metadata.snapshotRecordPointer());

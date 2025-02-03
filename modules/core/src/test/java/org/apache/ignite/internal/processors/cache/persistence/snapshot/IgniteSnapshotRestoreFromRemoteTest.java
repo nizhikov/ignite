@@ -47,7 +47,7 @@ import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.TestRecordingCommunicationSpi;
 import org.apache.ignite.internal.management.cache.IdleVerifyResult;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionDemandMessage;
-import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.partstate.GroupPartitionId;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.G;
@@ -391,7 +391,7 @@ public class IgniteSnapshotRestoreFromRemoteTest extends IgniteClusterSnapshotRe
                 String snpName = p.getFileName().toString();
 
                 U.copy(p.toFile(),
-                    new SnapshotDirectories(loc.context().pdsFolderResolver().fileTree(), snpName, null).root(),
+                    new SnapshotFileTree(loc.context().pdsFolderResolver().fileTree(), snpName, null).root(),
                     false);
             }
             catch (IOException e) {

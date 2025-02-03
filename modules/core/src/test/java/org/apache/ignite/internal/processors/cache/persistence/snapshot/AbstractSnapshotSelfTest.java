@@ -77,7 +77,7 @@ import org.apache.ignite.internal.processors.cache.CacheGroupContext;
 import org.apache.ignite.internal.processors.cache.CacheGroupDescriptor;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
-import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.partstate.GroupPartitionId;
 import org.apache.ignite.internal.processors.cache.persistence.wal.WALPointer;
 import org.apache.ignite.internal.processors.cache.persistence.wal.crc.FastCrc;
@@ -634,7 +634,7 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
 
             IgniteEx node0 = (IgniteEx)node;
 
-            File nodeSnapDir = new SnapshotDirectories(node0.context().pdsFolderResolver().fileTree(), snpName, snpPath).nodeRoot();
+            File nodeSnapDir = new SnapshotFileTree(node0.context().pdsFolderResolver().fileTree(), snpName, snpPath).nodeRoot();
 
             if (!nodeSnapDir.exists())
                 continue;
@@ -756,13 +756,13 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
 
         for (Ignite grid : grids) {
             IgniteSnapshotManager mgr = snp((IgniteEx)grid);
-            Function<SnapshotDirectories, SnapshotSender> old = mgr.localSnapshotSenderFactory();
+            Function<SnapshotFileTree, SnapshotSender> old = mgr.localSnapshotSenderFactory();
 
             BlockingExecutor block = new BlockingExecutor(mgr.snapshotExecutorService());
             execs.add(block);
 
-            mgr.localSnapshotSenderFactory(sdirs ->
-                new DelegateSnapshotSender(log, block, old.apply(sdirs)));
+            mgr.localSnapshotSenderFactory(sft ->
+                new DelegateSnapshotSender(log, block, old.apply(sft)));
         }
 
         return execs;
@@ -837,8 +837,10 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
         boolean withMetaStorage,
         SnapshotSender snpSndr
     ) throws IgniteCheckedException {
-        AbstractSnapshotFutureTask<?> task = cctx.snapshotMgr().registerSnapshotTask(snpName,
-            null,
+        SnapshotFileTree sft = new SnapshotFileTree(cctx.kernalContext().pdsFolderResolver().fileTree(), snpName, null);
+
+        AbstractSnapshotFutureTask<?> task = cctx.snapshotMgr().registerSnapshotTask(
+            sft,
             cctx.localNodeId(),
             null,
             parts,

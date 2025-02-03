@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.ignite.internal.pagemem.wal.record.delta.ClusterSnapshotRecord;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.partstate.GroupPartitionId;
 import org.apache.ignite.internal.processors.cache.persistence.wal.WALPointer;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
@@ -119,9 +120,8 @@ public class SnapshotMetadata implements Serializable {
 
     /**
      * @param rqId Unique request id.
-     * @param snpName Snapshot name.
+     * @param snpFt Snapshot file tree.
      * @param consId Consistent id of a node to which this metadata relates.
-     * @param folderName Directory name which stores the data files.
      * @param comprParts If {@code true} then compress partition files.
      * @param pageSize Page size of stored snapshot data.
      * @param grpIds The list of cache groups ids which were included into snapshot.
@@ -135,9 +135,8 @@ public class SnapshotMetadata implements Serializable {
      */
     public SnapshotMetadata(
         UUID rqId,
-        String snpName,
+        SnapshotFileTree snpFt,
         String consId,
-        String folderName,
         boolean comprParts,
         int pageSize,
         List<Integer> grpIds,
@@ -152,9 +151,9 @@ public class SnapshotMetadata implements Serializable {
         @Nullable byte[] encKey
     ) {
         this.rqId = rqId;
-        this.snpName = snpName;
+        this.snpName = snpFt.name();
         this.consId = consId;
-        this.folderName = folderName;
+        this.folderName = snpFt.folderName();
         this.comprParts = comprParts;
         this.pageSize = pageSize;
         this.grpIds = grpIds;

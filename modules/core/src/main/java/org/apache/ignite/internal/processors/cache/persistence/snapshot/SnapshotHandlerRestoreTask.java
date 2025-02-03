@@ -17,7 +17,6 @@
 
 package org.apache.ignite.internal.processors.cache.persistence.snapshot;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -28,6 +27,7 @@ import java.util.UUID;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.compute.ComputeJobResult;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.util.typedef.F;
 import org.jetbrains.annotations.Nullable;
 
@@ -83,7 +83,7 @@ public class SnapshotHandlerRestoreTask extends AbstractSnapshotVerificationTask
     }
 
     /** Invokes all {@link SnapshotHandlerType#RESTORE} handlers locally. */
-    private static class SnapshotHandlerRestoreJob extends AbstractSnapshotVerificationJob {
+    private static class SnapshotHandlerRestoreJob extends AbstractSnapshotVerificationJob<Map<String, SnapshotHandlerResult<Object>>> {
         /** Serial version uid. */
         private static final long serialVersionUID = 0L;
 
@@ -105,14 +105,13 @@ public class SnapshotHandlerRestoreTask extends AbstractSnapshotVerificationTask
         }
 
         /** {@inheritDoc} */
-        @Override public Map<String, SnapshotHandlerResult<Object>> execute() {
+        @Override public Map<String, SnapshotHandlerResult<Object>> execute(SnapshotFileTree sft) {
             try {
                 IgniteSnapshotManager snpMgr = ignite.context().cache().context().snapshotMgr();
-                File snpDir = snpMgr.snapshotLocalDir(snpName, snpPath);
-                SnapshotMetadata meta = snpMgr.readSnapshotMetadata(snpDir, consId);
+                SnapshotMetadata meta = snpMgr.readSnapshotMetadata(sft.root(), consId);
 
                 return snpMgr.handlers().invokeAll(SnapshotHandlerType.RESTORE,
-                    new SnapshotHandlerContext(meta, rqGrps, ignite.localNode(), snpDir, false, check));
+                    new SnapshotHandlerContext(meta, rqGrps, ignite.localNode(), sft.root(), false, check));
             }
             catch (IgniteCheckedException | IOException e) {
                 throw new IgniteException(e);

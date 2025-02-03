@@ -28,7 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
-import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.partstate.GroupPartitionId;
 import org.apache.ignite.internal.util.typedef.F;
 import org.jetbrains.annotations.Nullable;
@@ -43,7 +43,7 @@ public class SnapshotResponseRemoteFutureTask extends AbstractSnapshotFutureTask
      * @param cctx Shared context.
      * @param srcNodeId Node id which cause snapshot task creation.
      * @param reqId Snapshot operation request ID.
-     * @param sdirs Snapshot directories.
+     * @param sft Snapshot file tree.
      * @param snpSndr Factory which produces snapshot receiver instance.
      * @param parts Partition to be processed.
      */
@@ -51,11 +51,11 @@ public class SnapshotResponseRemoteFutureTask extends AbstractSnapshotFutureTask
         GridCacheSharedContext<?, ?> cctx,
         UUID srcNodeId,
         UUID reqId,
-        SnapshotDirectories sdirs,
+        SnapshotFileTree sft,
         SnapshotSender snpSndr,
         Map<Integer, Set<Integer>> parts
     ) {
-        super(cctx, srcNodeId, reqId, sdirs, snpSndr, parts);
+        super(cctx, srcNodeId, reqId, sft, snpSndr, parts);
     }
 
     /** {@inheritDoc} */
@@ -64,7 +64,7 @@ public class SnapshotResponseRemoteFutureTask extends AbstractSnapshotFutureTask
             return false;
 
         try {
-            List<SnapshotMetadata> metas = cctx.snapshotMgr().readSnapshotMetadatas(sdirs.name(), sdirs.path());
+            List<SnapshotMetadata> metas = cctx.snapshotMgr().readSnapshotMetadatas(sft.name(), sft.path());
 
             Function<GroupPartitionId, SnapshotMetadata> findMeta = pair -> {
                 for (SnapshotMetadata meta : metas) {
@@ -92,7 +92,7 @@ public class SnapshotResponseRemoteFutureTask extends AbstractSnapshotFutureTask
                     e -> e.getValue() == null);
 
                 throw new IgniteException("Snapshot partitions missed on local node " +
-                    "[snpName=" + sdirs.name() + ", missed=" + missed + ']');
+                    "[snpName=" + sft.name() + ", missed=" + missed + ']');
             }
 
             snpSndr.init(partsToSend.size());
@@ -101,11 +101,11 @@ public class SnapshotResponseRemoteFutureTask extends AbstractSnapshotFutureTask
                 if (err.get() != null)
                     return;
 
-                File cacheDir = cacheDirectory(new File(sdirs.root(), databaseRelativePath(meta.folderName())),
+                File cacheDir = cacheDirectory(new File(sft.root(), databaseRelativePath(meta.folderName())),
                     gp.getGroupId());
 
                 if (cacheDir == null) {
-                    throw new IgniteException("Cache directory not found [snpName=" + sdirs.name() + ", meta=" + meta +
+                    throw new IgniteException("Cache directory not found [snpName=" + sft.name() + ", meta=" + meta +
                         ", pair=" + gp + ']');
                 }
 
@@ -125,7 +125,7 @@ public class SnapshotResponseRemoteFutureTask extends AbstractSnapshotFutureTask
                     Throwable th = err.get();
 
                     if (th == null && log.isInfoEnabled()) {
-                        log.info("Snapshot partitions have been sent to the remote node [snpName=" + sdirs.name() +
+                        log.info("Snapshot partitions have been sent to the remote node [snpName=" + sft.name() +
                             ", rmtNodeId=" + srcNodeId + ']');
                     }
 

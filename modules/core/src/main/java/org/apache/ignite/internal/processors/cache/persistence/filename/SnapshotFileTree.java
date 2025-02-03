@@ -28,18 +28,12 @@ import static org.apache.ignite.internal.processors.cache.persistence.filename.P
 /**
  *
  */
-public class SnapshotDirectories {
+public class SnapshotFileTree extends SharedFileTree {
     /** Snapshot name. */
     private final String name;
 
     /** Optional snapshot path. */
     private final @Nullable String path;
-
-    /** Root snapshot directory. */
-    private final File root;
-
-    /** db directory inside root. */
-    private final File db;
 
     /** Directory for temp files. */
     private final File snpTmp;
@@ -47,17 +41,21 @@ public class SnapshotDirectories {
     /** Folder name. */
     private final String folderName;
 
+    /** Path to the directory containing binary metadata. */
+    private final File binaryMeta;
+
     /**
      * Creates snapshot directories based on root directory.
      * @param root Root directory.
      */
-    public SnapshotDirectories(File root) {
-        this.root = root;
-        db = new File(root, DB_DEFAULT_FOLDER);
+    public SnapshotFileTree(File root) {
+        super(root);
+
         name = root.getName();
         path = null;
         snpTmp = null;
         folderName = null;
+        binaryMeta = null;
     }
 
     /**
@@ -65,18 +63,29 @@ public class SnapshotDirectories {
      * @param name Snapshot name.
      * @param path Snapshot path.
      */
-    public SnapshotDirectories(NodeFileTree dirs, String name, @Nullable String path) {
-        assert dirs != null;
+    public SnapshotFileTree(NodeFileTree dirs, String name, @Nullable String path) {
+        this(dirs, name, path, null);
+
+    }
+
+    /**
+     * @param dirs Ignite node directories.
+     * @param name Snapshot name.
+     * @param path Snapshot path.
+     * @param folderName Folder name.
+     */
+    public SnapshotFileTree(NodeFileTree dirs, String name, @Nullable String path, @Nullable String folderName) {
+        super(path == null
+            ? new File(dirs.snapshotsRoot(), name)
+            : new File(path, name));
+
         assert U.alphanumericUnderscore(name) : name;
 
-        root = path == null
-            ? new File(dirs.snapshotsRoot(), name)
-            : new File(path, name);
-        db = new File(root, DB_DEFAULT_FOLDER);
         this.name = name;
         this.path = path;
         this.snpTmp = new File(dirs.snapshotTempRoot(), name);
-        this.folderName = dirs.folderName();
+        this.folderName = folderName == null ? dirs.folderName() : folderName;
+        binaryMeta = new File(binaryMetaRoot.getAbsolutePath(), this.folderName);
     }
 
     /**
@@ -93,20 +102,6 @@ public class SnapshotDirectories {
      */
     public String path() {
         return path;
-    }
-
-    /**
-     * @return Snapshot root directory.
-     */
-    public File root() {
-        return root;
-    }
-
-    /**
-     * @return Path to the {@code db} directory.
-     */
-    public File db() {
-        return db;
     }
 
     /**
@@ -127,5 +122,15 @@ public class SnapshotDirectories {
     /** @return {snp_tmp}/db/{folder_name} */
     public File snapshotTempWithConsistentId() {
         return Paths.get(snpTmp.getAbsolutePath(), DB_DEFAULT_FOLDER, folderName).toFile();
+    }
+
+    /** */
+    public String folderName() {
+        return folderName;
+    }
+
+    /** @return Path to binary metadata directory. */
+    public File binaryMeta() {
+        return binaryMeta;
     }
 }

@@ -35,7 +35,7 @@ import org.apache.ignite.internal.pagemem.wal.record.IncrementalSnapshotFinishRe
 import org.apache.ignite.internal.pagemem.wal.record.delta.ClusterSnapshotRecord;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.filename.NodeFileTree;
-import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.partstate.GroupPartitionId;
 import org.apache.ignite.internal.processors.cache.persistence.wal.WALPointer;
 import org.apache.ignite.internal.util.typedef.internal.CU;
@@ -67,7 +67,7 @@ class IncrementalSnapshotFutureTask extends AbstractSnapshotFutureTask<Void> imp
         UUID srcNodeId,
         UUID reqNodeId,
         SnapshotMetadata meta,
-        SnapshotDirectories sdirs,
+        SnapshotFileTree sft,
         int incIdx,
         WALPointer lowPtr,
         IgniteInternalFuture<WALPointer> highPtrFut
@@ -76,7 +76,7 @@ class IncrementalSnapshotFutureTask extends AbstractSnapshotFutureTask<Void> imp
             cctx,
             srcNodeId,
             reqNodeId,
-            sdirs,
+            sft,
             new SnapshotSender(
                 cctx.logger(IncrementalSnapshotFutureTask.class),
                 cctx.kernalContext().pools().getSnapshotExecutorService()
@@ -112,7 +112,7 @@ class IncrementalSnapshotFutureTask extends AbstractSnapshotFutureTask<Void> imp
     /** {@inheritDoc} */
     @Override public boolean start() {
         try {
-            File incSnpDir = cctx.snapshotMgr().incrementalSnapshotLocalDir(sdirs.name(), sdirs.path(), incIdx);
+            File incSnpDir = cctx.snapshotMgr().incrementalSnapshotLocalDir(sft.name(), sft.path(), incIdx);
 
             if (!incSnpDir.mkdirs() && !incSnpDir.exists()) {
                 onDone(new IgniteException("Can't create snapshot directory [dir=" + incSnpDir.getAbsolutePath() + ']'));
