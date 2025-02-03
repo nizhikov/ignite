@@ -119,7 +119,6 @@ import static org.apache.ignite.internal.processors.cache.persistence.file.FileP
 import static org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager.PART_FILE_PREFIX;
 import static org.apache.ignite.internal.processors.cache.persistence.metastorage.MetaStorage.METASTORAGE_DIR_NAME;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.CP_SNAPSHOT_REASON;
-import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.databaseRelativePath;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.incrementalSnapshotWalsDir;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.snapshotMetaFileName;
 import static org.apache.ignite.testframework.GridTestUtils.assertThrowsAnyCause;
@@ -635,10 +634,7 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
 
             IgniteEx node0 = (IgniteEx)node;
 
-            File nodeSnapDir = new File(
-                snp(node0).snapshotLocalDir(snpName, snpPath).getAbsolutePath(),
-                databaseRelativePath(node0.context().pdsFolderResolver().resolveFolders().folderName())
-            );
+            File nodeSnapDir = new SnapshotDirectories(node0.context().pdsFolderResolver().fileTree(), snpName, snpPath).nodeRoot();
 
             if (!nodeSnapDir.exists())
                 continue;

@@ -97,13 +97,11 @@ public class SnapshotResponseRemoteFutureTask extends AbstractSnapshotFutureTask
 
             snpSndr.init(partsToSend.size());
 
-            File snpDir = cctx.snapshotMgr().snapshotLocalDir(sdirs.name(), sdirs.path());
-
             CompletableFuture.runAsync(() -> partsToSend.forEach((gp, meta) -> {
                 if (err.get() != null)
                     return;
 
-                File cacheDir = cacheDirectory(new File(snpDir, databaseRelativePath(meta.folderName())),
+                File cacheDir = cacheDirectory(new File(sdirs.root(), databaseRelativePath(meta.folderName())),
                     gp.getGroupId());
 
                 if (cacheDir == null) {
