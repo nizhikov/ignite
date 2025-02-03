@@ -3189,15 +3189,32 @@ public abstract class GridAbstractTest extends JUnitAssertAware {
     /**
      * @return Ignite directories without specific {@code folerName} parameter.
      */
-    protected SharedFileTree sharedFileTree() throws IgniteCheckedException {
-        return new SharedFileTree(U.defaultWorkDirectory());
+    protected SharedFileTree sharedFileTree() {
+        try {
+            return new SharedFileTree(U.defaultWorkDirectory());
+        }
+        catch (IgniteCheckedException e) {
+            throw new IgniteException(e);
+        }
     }
 
     /**
      * @return Ignite directories for specific {@code folderName}.
      */
-    protected NodeFileTree nodeFileTree(String folderName) throws IgniteCheckedException {
-        return new NodeFileTree(U.defaultWorkDirectory(), folderName);
+    protected NodeFileTree nodeFileTree(IgniteConfiguration cfg) {
+        return new NodeFileTree(cfg, U.maskForFileName(cfg.getIgniteInstanceName()));
+    }
+
+    /**
+     * @return Ignite directories for specific {@code folderName}.
+     */
+    protected NodeFileTree nodeFileTree(String folderName) {
+        try {
+            return new NodeFileTree(U.defaultWorkDirectory(), folderName);
+        }
+        catch (IgniteCheckedException e) {
+            throw new IgniteException(e);
+        }
     }
 
     /** */
