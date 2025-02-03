@@ -29,7 +29,7 @@ import static org.apache.ignite.configuration.DataStorageConfiguration.DFLT_WAL_
 import static org.apache.ignite.configuration.DataStorageConfiguration.DFLT_WAL_PATH;
 
 /**
- * Provides access to Ignite node directories.
+ * Provides access to Ignite node file tree.
  * Note, that base path can be different for each usage:
  * <ul>
  *     <li>Ignite node.</li>
@@ -38,7 +38,7 @@ import static org.apache.ignite.configuration.DataStorageConfiguration.DFLT_WAL_
  *     <li>CDC.</li>
  * </ul>
  *
- * Ignite node directories structure with the point to currenlty supported dirs.
+ * Ignite node file tree structure with the point to currenlty supported dirs.
  * Description:<br>
  * <ul>
  *     <li>{@code .} folder is {@code root} constructor parameter.</li>
