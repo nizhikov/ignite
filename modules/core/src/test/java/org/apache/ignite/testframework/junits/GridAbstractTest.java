@@ -88,8 +88,8 @@ import org.apache.ignite.internal.binary.BinaryMarshaller;
 import org.apache.ignite.internal.managers.systemview.JmxSystemViewExporterSpi;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheGroupContext;
-import org.apache.ignite.internal.processors.cache.persistence.filename.IgniteNodeDirectories;
-import org.apache.ignite.internal.processors.cache.persistence.filename.IgniteSharedDirectories;
+import org.apache.ignite.internal.processors.cache.persistence.filename.NodeFileTree;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SharedFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
 import org.apache.ignite.internal.processors.cache.persistence.tree.BPlusTree;
 import org.apache.ignite.internal.processors.resource.DependencyResolver;
@@ -677,13 +677,13 @@ public abstract class GridAbstractTest extends JUnitAssertAware {
      * Will clean and re-create marshaller directory from scratch.
      */
     private void resolveWorkDirectory() throws Exception {
-        IgniteSharedDirectories dirs = sharedDirs();
+        SharedFileTree sft = sharedDirs();
 
-        U.delete(dirs.marshaller());
-        U.delete(dirs.binaryMetaRoot());
+        U.delete(sft.marshaller());
+        U.delete(sft.binaryMetaRoot());
 
-        dirs.mkdirBinaryMetaRoot();
-        dirs.mkdirMarshaller();
+        sft.mkdirBinaryMetaRoot();
+        sft.mkdirMarshaller();
     }
 
     /** */
@@ -3189,9 +3189,9 @@ public abstract class GridAbstractTest extends JUnitAssertAware {
     /**
      * @return Ignite directories without specific {@code folerName} parameter.
      */
-    protected IgniteSharedDirectories sharedDirs() {
+    protected SharedFileTree sharedDirs() {
         try {
-            return new IgniteSharedDirectories(U.defaultWorkDirectory());
+            return new SharedFileTree(U.defaultWorkDirectory());
         }
         catch (IgniteCheckedException e) {
             throw new IgniteException(e);
@@ -3201,16 +3201,16 @@ public abstract class GridAbstractTest extends JUnitAssertAware {
     /**
      * @return Ignite directories for specific {@code cfg}.
      */
-    protected IgniteNodeDirectories nodeDirs(IgniteConfiguration cfg) {
-        return new IgniteNodeDirectories(cfg, U.maskForFileName(cfg.getIgniteInstanceName()));
+    protected NodeFileTree nodeDirs(IgniteConfiguration cfg) {
+        return new NodeFileTree(cfg, U.maskForFileName(cfg.getIgniteInstanceName()));
     }
 
     /**
      * @return Ignite directories for specific {@code folderName}.
      */
-    protected IgniteNodeDirectories nodeDirs(String folderName) {
+    protected NodeFileTree nodeDirs(String folderName) {
         try {
-            return new IgniteNodeDirectories(U.defaultWorkDirectory(), folderName);
+            return new NodeFileTree(U.defaultWorkDirectory(), folderName);
         }
         catch (IgniteCheckedException e) {
             throw new IgniteException(e);
@@ -3219,6 +3219,6 @@ public abstract class GridAbstractTest extends JUnitAssertAware {
 
     /** */
     public static SnapshotDirectories snapshotDirs(IgniteConfiguration cfg, String name) {
-        return new SnapshotDirectories(new IgniteNodeDirectories(cfg, U.maskForFileName(cfg.getIgniteInstanceName())), name, null);
+        return new SnapshotDirectories(new NodeFileTree(cfg, U.maskForFileName(cfg.getIgniteInstanceName())), name, null);
     }
 }

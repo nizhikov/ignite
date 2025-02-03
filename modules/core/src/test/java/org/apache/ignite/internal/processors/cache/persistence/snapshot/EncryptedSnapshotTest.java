@@ -283,7 +283,7 @@ public class EncryptedSnapshotTest extends AbstractSnapshotSelfTest {
         // Start grid node with data before each test.
         IgniteEx ig = startGridsWithCache(1, CACHE_KEYS_RANGE, valueBuilder(), dfltCacheCfg);
 
-        SnapshotDirectories sdirs = new SnapshotDirectories(ig.context().pdsFolderResolver().resolveDirectories(), SNAPSHOT_NAME, null);
+        SnapshotDirectories snpFt = new SnapshotDirectories(ig.context().pdsFolderResolver().nodeFileTree(), SNAPSHOT_NAME, null);
 
         assertThrowsAnyCause(log,
             () -> snp(ig).registerSnapshotTask(SNAPSHOT_NAME,
@@ -295,7 +295,7 @@ public class EncryptedSnapshotTest extends AbstractSnapshotSelfTest {
                 false,
                 false,
                 false,
-                snp(ig).localSnapshotSenderFactory().apply(sdirs)
+                snp(ig).localSnapshotSenderFactory().apply(snpFt)
             ).get(TIMEOUT),
             IgniteCheckedException.class,
             "Metastore is required because it holds encryption keys");

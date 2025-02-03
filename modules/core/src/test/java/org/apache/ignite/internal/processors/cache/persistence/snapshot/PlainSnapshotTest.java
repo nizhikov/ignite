@@ -27,7 +27,7 @@ import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
-import org.apache.ignite.internal.processors.cache.persistence.filename.IgniteNodeDirectories;
+import org.apache.ignite.internal.processors.cache.persistence.filename.NodeFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.filename.PdsFolderSettings;
 import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotDirectories;
 import org.apache.ignite.internal.util.typedef.F;
@@ -95,13 +95,12 @@ public class PlainSnapshotTest extends AbstractSnapshotSelfTest {
         GridCacheSharedContext<?, ?> cctx = ig.context().cache().context();
         IgniteSnapshotManager mgr = snp(ig);
 
-        SnapshotDirectories sdirs = new SnapshotDirectories(ig.context().pdsFolderResolver().resolveDirectories(), SNAPSHOT_NAME, null);
-
         // Collection of pairs group and appropriate cache partition to be snapshot.
         IgniteInternalFuture<?> snpFut = startLocalSnapshotTask(cctx,
             SNAPSHOT_NAME,
             F.asMap(CU.cacheId(DEFAULT_CACHE_NAME), null),
-            false, mgr.localSnapshotSenderFactory().apply(sdirs));
+            false, mgr.localSnapshotSenderFactory().apply(
+                new SnapshotDirectories(ig.context().pdsFolderResolver().nodeFileTree(), SNAPSHOT_NAME, null)));
 
         snpFut.get();
 
@@ -119,9 +118,9 @@ public class PlainSnapshotTest extends AbstractSnapshotSelfTest {
         // Calculate CRCs.
         PdsFolderSettings<?> settings = ig.context().pdsFolderResolver().resolveFolders();
         String nodePath = databaseRelativePath(settings.folderName());
-        IgniteNodeDirectories nodeDirs = ig.context().pdsFolderResolver().resolveDirectories();
-        IgniteNodeDirectories snpDirs =
-            new IgniteNodeDirectories(mgr.snapshotLocalDir(SNAPSHOT_NAME).getAbsolutePath(), settings.folderName());
+        NodeFileTree ft = ig.context().pdsFolderResolver().nodeFileTree();
+        NodeFileTree snpFt =
+            new NodeFileTree(mgr.snapshotLocalDir(SNAPSHOT_NAME).getAbsolutePath(), settings.folderName());
 
         final Map<String, Integer> origPartCRCs = calculateCRC32Partitions(cacheWorkDir);
         final Map<String, Integer> snpPartCRCs = calculateCRC32Partitions(
@@ -134,11 +133,11 @@ public class PlainSnapshotTest extends AbstractSnapshotSelfTest {
         assertEquals("Partitions must have the same CRC after file copying and merging partition delta files",
             origPartCRCs, snpPartCRCs);
         assertEquals("Binary object mappings must be the same for local node and created snapshot",
-            calculateCRC32Partitions(nodeDirs.binaryMeta()), calculateCRC32Partitions(snpDirs.binaryMeta()));
+            calculateCRC32Partitions(ft.binaryMeta()), calculateCRC32Partitions(snpFt.binaryMeta()));
         assertEquals("Marshaller meta mast be the same for local node and created snapshot",
-            calculateCRC32Partitions(nodeDirs.marshaller()), calculateCRC32Partitions(snpDirs.marshaller()));
+            calculateCRC32Partitions(ft.marshaller()), calculateCRC32Partitions(snpFt.marshaller()));
 
-        File snpWorkDir = ig.context().pdsFolderResolver().resolveDirectories().snapshotTempRoot();
+        File snpWorkDir = ig.context().pdsFolderResolver().nodeFileTree().snapshotTempRoot();
 
         assertEquals("Snapshot working directory must be cleaned after usage", 0, snpWorkDir.listFiles().length);
     }

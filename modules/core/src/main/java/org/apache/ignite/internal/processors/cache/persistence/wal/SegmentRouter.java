@@ -20,7 +20,7 @@ package org.apache.ignite.internal.processors.cache.persistence.wal;
 import java.io.File;
 import java.io.FileNotFoundException;
 import org.apache.ignite.configuration.DataStorageConfiguration;
-import org.apache.ignite.internal.processors.cache.persistence.filename.IgniteNodeDirectories;
+import org.apache.ignite.internal.processors.cache.persistence.filename.NodeFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.wal.aware.SegmentAware;
 
 import static org.apache.ignite.internal.processors.cache.persistence.wal.FileDescriptor.fileName;
@@ -33,7 +33,7 @@ public class SegmentRouter {
     public static final String ZIP_SUFFIX = ".zip";
 
     /** */
-    private final IgniteNodeDirectories dirs;
+    private final NodeFileTree ft;
 
     /** Holder of actual information of latest manipulation on WAL segments. */
     private final SegmentAware segmentAware;
@@ -42,15 +42,15 @@ public class SegmentRouter {
     private final DataStorageConfiguration dsCfg;
 
     /**
-     * @param dirs Ignite node directories.
+     * @param ft Ignite node directories.
      * @param segmentAware Holder of actual information of latest manipulation on WAL segments.
      * @param dsCfg Data storage configuration.
      */
     public SegmentRouter(
-        IgniteNodeDirectories dirs,
+        NodeFileTree ft,
         SegmentAware segmentAware,
         DataStorageConfiguration dsCfg) {
-        this.dirs = dirs;
+        this.ft = ft;
         this.segmentAware = segmentAware;
         this.dsCfg = dsCfg;
     }
@@ -65,13 +65,13 @@ public class SegmentRouter {
     public FileDescriptor findSegment(long segmentId) throws FileNotFoundException {
         FileDescriptor fd;
 
-        if (segmentAware.lastArchivedAbsoluteIndex() >= segmentId || !dirs.isWalArchiveEnabled())
-            fd = new FileDescriptor(new File(dirs.walArchive(), fileName(segmentId)));
+        if (segmentAware.lastArchivedAbsoluteIndex() >= segmentId || !ft.isWalArchiveEnabled())
+            fd = new FileDescriptor(new File(ft.walArchive(), fileName(segmentId)));
         else
-            fd = new FileDescriptor(new File(dirs.wal(), fileName(segmentId % dsCfg.getWalSegments())), segmentId);
+            fd = new FileDescriptor(new File(ft.wal(), fileName(segmentId % dsCfg.getWalSegments())), segmentId);
 
         if (!fd.file().exists()) {
-            FileDescriptor zipFile = new FileDescriptor(new File(dirs.walArchive(), fileName(fd.idx()) + ZIP_SUFFIX));
+            FileDescriptor zipFile = new FileDescriptor(new File(ft.walArchive(), fileName(fd.idx()) + ZIP_SUFFIX));
 
             if (!zipFile.file().exists()) {
                 throw new FileNotFoundException("Both compressed and raw segment files are missing in archive " +

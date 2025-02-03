@@ -65,7 +65,7 @@ public class SnapshotDirectories {
      * @param name Snapshot name.
      * @param path Snapshot path.
      */
-    public SnapshotDirectories(IgniteNodeDirectories dirs, String name, @Nullable String path) {
+    public SnapshotDirectories(NodeFileTree dirs, String name, @Nullable String path) {
         assert dirs != null;
         assert U.alphanumericUnderscore(name) : name;
 
@@ -118,7 +118,7 @@ public class SnapshotDirectories {
 
     /**
      * @return Temp directory for temp files.
-     * @see IgniteNodeDirectories#snapshotTempRoot()
+     * @see NodeFileTree#snapshotTempRoot()
      */
     public File snapshotTemp() {
         return snpTmp;
