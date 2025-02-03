@@ -120,7 +120,7 @@ public class IgniteUidAsConsistentIdMigrationTest extends GridCommonAbstractTest
         if (pstWalStoreCustomPath != null)
             ok &= U.delete(pstWalStoreCustomPath);
 
-        File binaryMetaRoot = sharedDirs().binaryMetaRoot();
+        File binaryMetaRoot = sharedFileTree().binaryMetaRoot();
 
         if (binaryMetaRoot.exists())
             ok &= U.delete(binaryMetaRoot);
@@ -191,7 +191,7 @@ public class IgniteUidAsConsistentIdMigrationTest extends GridCommonAbstractTest
         UUID.fromString(ignite.cluster().localNode().consistentId().toString());
         final String subfolderName = genNewStyleSubfolderName(0, ignite);
 
-        NodeFileTree ft = nodeDirs(subfolderName);
+        NodeFileTree ft = nodeFileTree(subfolderName);
 
         assertTrue(ft.binaryMeta().exists() && ft.binaryMeta().isDirectory());
 
@@ -663,7 +663,7 @@ public class IgniteUidAsConsistentIdMigrationTest extends GridCommonAbstractTest
      * @throws IgniteCheckedException if failed.
      */
     @NotNull private Set<Integer> getAllNodeIndexesInFolder() throws IgniteCheckedException {
-        final File curFolder = sharedDirs().db();
+        final File curFolder = sharedFileTree().db();
         final Set<Integer> indexes = new TreeSet<>();
         final File[] files = curFolder.listFiles(PdsFolderResolver.DB_SUBFOLDERS_NEW_STYLE_FILTER);
 

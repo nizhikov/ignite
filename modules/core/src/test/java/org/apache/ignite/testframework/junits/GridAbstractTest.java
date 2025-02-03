@@ -677,7 +677,7 @@ public abstract class GridAbstractTest extends JUnitAssertAware {
      * Will clean and re-create marshaller directory from scratch.
      */
     private void resolveWorkDirectory() throws Exception {
-        SharedFileTree sft = sharedDirs();
+        SharedFileTree sft = sharedFileTree();
 
         U.delete(sft.marshaller());
         U.delete(sft.binaryMetaRoot());
@@ -3189,7 +3189,7 @@ public abstract class GridAbstractTest extends JUnitAssertAware {
     /**
      * @return Ignite directories without specific {@code folerName} parameter.
      */
-    protected SharedFileTree sharedDirs() {
+    protected SharedFileTree sharedFileTree() {
         try {
             return new SharedFileTree(U.defaultWorkDirectory());
         }
@@ -3201,14 +3201,14 @@ public abstract class GridAbstractTest extends JUnitAssertAware {
     /**
      * @return Ignite directories for specific {@code cfg}.
      */
-    protected NodeFileTree nodeDirs(IgniteConfiguration cfg) {
+    protected NodeFileTree nodeFileTree(IgniteConfiguration cfg) {
         return new NodeFileTree(cfg, U.maskForFileName(cfg.getIgniteInstanceName()));
     }
 
     /**
      * @return Ignite directories for specific {@code folderName}.
      */
-    protected NodeFileTree nodeDirs(String folderName) {
+    protected NodeFileTree nodeFileTree(String folderName) {
         try {
             return new NodeFileTree(U.defaultWorkDirectory(), folderName);
         }

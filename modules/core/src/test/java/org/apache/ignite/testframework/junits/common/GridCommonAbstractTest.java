@@ -1971,15 +1971,15 @@ public abstract class GridCommonAbstractTest extends GridAbstractTest {
         assertTrue("Grids are not stopped", F.isEmpty(G.allGrids()));
 
         U.delete(U.resolveWorkDirectory(U.defaultWorkDirectory(), "cp", false));
-        U.delete(sharedDirs().db());
+        U.delete(sharedFileTree().db());
 
-        SharedFileTree sft = sharedDirs();
+        SharedFileTree sft = sharedFileTree();
 
         U.delete(sft.marshaller());
         U.delete(sft.binaryMetaRoot());
 
         if (!saveSnp)
-            U.delete(sharedDirs().snapshotsRoot());
+            U.delete(sharedFileTree().snapshotsRoot());
     }
 
     /**

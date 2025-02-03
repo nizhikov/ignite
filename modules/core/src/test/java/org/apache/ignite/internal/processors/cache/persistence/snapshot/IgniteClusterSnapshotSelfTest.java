@@ -307,7 +307,7 @@ public class IgniteClusterSnapshotSelfTest extends AbstractSnapshotSelfTest {
 
         stopAllGrids();
 
-        IgniteEx snpIg0 = startGridsFromSnapshot(grids, cfg -> nodeDirs(cfg).snapshotsRoot(), SNAPSHOT_NAME, false);
+        IgniteEx snpIg0 = startGridsFromSnapshot(grids, cfg -> nodeFileTree(cfg).snapshotsRoot(), SNAPSHOT_NAME, false);
 
         if (!onlyPrimary) {
             // Block whole rebalancing.
@@ -440,7 +440,7 @@ public class IgniteClusterSnapshotSelfTest extends AbstractSnapshotSelfTest {
         stopAllGrids();
 
         IgniteEx snp = startGridsFromSnapshot(grids,
-            cfg -> nodeDirs(cfg.setCacheConfiguration()).snapshotsRoot(),
+            cfg -> nodeFileTree(cfg.setCacheConfiguration()).snapshotsRoot(),
             SNAPSHOT_NAME,
             true);
 

@@ -124,7 +124,7 @@ public class IgniteSnapshotWithMetastorageTest extends AbstractSnapshotSelfTest 
 
         stopAllGrids();
 
-        Function<IgniteConfiguration, File> pathProv = cfg -> nodeDirs(cfg).snapshotsRoot();
+        Function<IgniteConfiguration, File> pathProv = cfg -> nodeFileTree(cfg).snapshotsRoot();
         Set<String> keySet0 = new TreeSet<>();
         Set<String> keySet1 = new TreeSet<>();
 

@@ -492,7 +492,7 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
     protected IgniteEx startGridsFromSnapshot(int cnt, String snpName) throws Exception {
         return startGridsFromSnapshot(
             cnt,
-            cfg -> nodeDirs(U.maskForFileName(cfg.getIgniteInstanceName())).snapshotsRoot(),
+            cfg -> nodeFileTree(U.maskForFileName(cfg.getIgniteInstanceName())).snapshotsRoot(),
             snpName,
             true
         );
