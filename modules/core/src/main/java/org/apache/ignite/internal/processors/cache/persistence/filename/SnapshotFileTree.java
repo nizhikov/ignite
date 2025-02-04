@@ -61,32 +61,32 @@ public class SnapshotFileTree extends SharedFileTree {
     }
 
     /**
-     * @param dirs Ignite node directories.
+     * @param ft Ignite node directories.
      * @param name Snapshot name.
      * @param path Snapshot path.
      */
-    public SnapshotFileTree(NodeFileTree dirs, String name, @Nullable String path) {
-        this(dirs, name, path, null);
+    public SnapshotFileTree(NodeFileTree ft, String name, @Nullable String path) {
+        this(ft, name, path, null);
 
     }
 
     /**
-     * @param dirs Ignite node directories.
+     * @param ft Ignite node directories.
      * @param name Snapshot name.
      * @param path Snapshot path.
      * @param folderName Folder name.
      */
-    public SnapshotFileTree(NodeFileTree dirs, String name, @Nullable String path, @Nullable String folderName) {
+    public SnapshotFileTree(NodeFileTree ft, String name, @Nullable String path, @Nullable String folderName) {
         super(path == null
-            ? new File(dirs.snapshotsRoot(), name)
+            ? new File(ft.snapshotsRoot(), name)
             : new File(path, name));
 
         assert U.alphanumericUnderscore(name) : name;
 
         this.name = name;
         this.path = path;
-        this.snpTmp = new File(dirs.snapshotTempRoot(), name);
-        this.folderName = folderName == null ? dirs.folderName() : folderName;
+        this.snpTmp = new File(ft.snapshotTempRoot(), name);
+        this.folderName = folderName == null ? ft.folderName() : folderName;
         binaryMeta = new File(binaryMetaRoot.getAbsolutePath(), this.folderName);
     }
 

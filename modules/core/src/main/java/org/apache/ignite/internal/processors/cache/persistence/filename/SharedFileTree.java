@@ -63,17 +63,22 @@ public class SharedFileTree {
     /** Path to the snapshot root directory. */
     private final File snpsRoot;
 
+    private SharedFileTree(File root, File snpsRoot) {
+        A.notNull(root, "Root directory");
+        A.notNull(snpsRoot, "Snapshot root directory");
+
+        this.root = root;
+        this.snpsRoot = snpsRoot;
+        db = new File(root, DB_DEFAULT_FOLDER);
+        marshaller = new File(db, MARSHALLER_DIR);
+        binaryMetaRoot = new File(db, BINARY_METADATA_DIR);
+    }
+
     /**
      * @param root Root directory.
      */
     public SharedFileTree(File root) {
-        A.notNull(root, "Root directory");
-
-        this.root = root;
-        db = new File(root, DB_DEFAULT_FOLDER);
-        marshaller = new File(db, MARSHALLER_DIR);
-        binaryMetaRoot = new File(db, BINARY_METADATA_DIR);
-        snpsRoot = new File(root, DFLT_SNAPSHOT_DIRECTORY);
+        this(root, new File(root, DFLT_SNAPSHOT_DIRECTORY));
     }
 
     /**
@@ -87,7 +92,7 @@ public class SharedFileTree {
      * @param cfg Config to get {@code root} directory from.
      */
     SharedFileTree(IgniteConfiguration cfg) {
-        this(root(cfg));
+        this(root(cfg), resolveSharedDirectory(root(cfg), cfg.getSnapshotPath()));
     }
 
     /**
@@ -216,7 +221,7 @@ public class SharedFileTree {
      * @param cfg Configured directory path, may be {@code null}.
      * @return Initialized directory.
      */
-    private File resolveSharedDirectory(String cfg) {
+    private static File resolveSharedDirectory(File root, String cfg) {
         File sharedBetweenNodesDir = new File(cfg);
 
         return sharedBetweenNodesDir.isAbsolute()

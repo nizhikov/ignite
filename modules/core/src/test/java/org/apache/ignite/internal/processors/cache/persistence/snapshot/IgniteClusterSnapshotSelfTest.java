@@ -812,7 +812,7 @@ public class IgniteClusterSnapshotSelfTest extends AbstractSnapshotSelfTest {
         finally {
             stopAllGrids();
 
-            U.delete(snpDir);
+            //U.delete(snpDir);
         }
     }
 
