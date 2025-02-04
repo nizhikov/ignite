@@ -119,7 +119,6 @@ import static org.apache.ignite.internal.processors.cache.persistence.file.FileP
 import static org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager.PART_FILE_PREFIX;
 import static org.apache.ignite.internal.processors.cache.persistence.metastorage.MetaStorage.METASTORAGE_DIR_NAME;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.CP_SNAPSHOT_REASON;
-import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.incrementalSnapshotWalsDir;
 import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.snapshotMetaFileName;
 import static org.apache.ignite.testframework.GridTestUtils.assertThrowsAnyCause;
 import static org.apache.ignite.testframework.GridTestUtils.waitForCondition;
@@ -870,10 +869,10 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
 
     /** Checks incremental snapshot exists. */
     protected boolean checkIncremental(IgniteEx node, String snpName, String snpPath, int incIdx) {
-        File incSnpDir = snp(node).incrementalSnapshotLocalDir(snpName, snpPath, incIdx);
+        SnapshotFileTree sft = new SnapshotFileTree(node.context().pdsFolderResolver().fileTree(), snpName, snpPath);
 
-        if (incSnpDir.exists()) {
-            checkIncrementalSnapshotWalRecords(node, incSnpDir);
+        if (sft.incrementalSnapshotRoot(incIdx).exists()) {
+            checkIncrementalSnapshotWalRecords(node, sft, incIdx);
 
             return true;
         }
@@ -882,12 +881,12 @@ public abstract class AbstractSnapshotSelfTest extends GridCommonAbstractTest {
     }
 
     /** */
-    private void checkIncrementalSnapshotWalRecords(IgniteEx node, File incSnpDir) {
+    private void checkIncrementalSnapshotWalRecords(IgniteEx node, SnapshotFileTree sft, int incIdx) {
         try {
             IncrementalSnapshotMetadata incSnpMeta = snp(node).readFromFile(
-                new File(incSnpDir, snapshotMetaFileName(node.localNode().consistentId().toString())));
+                new File(sft.incrementalSnapshotRoot(incIdx), snapshotMetaFileName(node.localNode().consistentId().toString())));
 
-            File incSnpWalDir = incrementalSnapshotWalsDir(incSnpDir, incSnpMeta.folderName());
+            File incSnpWalDir = sft.incrementalSnapshotWal(incIdx);
 
             WALIterator it = new IgniteWalIteratorFactory(log).iterator(
                 new IgniteWalIteratorFactory.IteratorParametersBuilder().filesOrDirs(incSnpWalDir));

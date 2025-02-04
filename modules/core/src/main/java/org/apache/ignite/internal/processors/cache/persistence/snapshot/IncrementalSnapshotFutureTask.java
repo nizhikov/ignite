@@ -41,7 +41,6 @@ import org.apache.ignite.internal.processors.cache.persistence.wal.WALPointer;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 
 import static org.apache.ignite.internal.binary.BinaryUtils.METADATA_FILE_SUFFIX;
-import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.incrementalSnapshotWalsDir;
 
 /** */
 class IncrementalSnapshotFutureTask extends AbstractSnapshotFutureTask<Void> implements BiConsumer<String, File> {
@@ -112,7 +111,7 @@ class IncrementalSnapshotFutureTask extends AbstractSnapshotFutureTask<Void> imp
     /** {@inheritDoc} */
     @Override public boolean start() {
         try {
-            File incSnpDir = cctx.snapshotMgr().incrementalSnapshotLocalDir(sft.name(), sft.path(), incIdx);
+            File incSnpDir = sft.incrementalSnapshotRoot(incIdx);
 
             if (!incSnpDir.mkdirs() && !incSnpDir.exists()) {
                 onDone(new IgniteException("Can't create snapshot directory [dir=" + incSnpDir.getAbsolutePath() + ']'));
@@ -128,12 +127,11 @@ class IncrementalSnapshotFutureTask extends AbstractSnapshotFutureTask<Void> imp
                 }
 
                 try {
-                    String folderName = cctx.kernalContext().pdsFolderResolver().resolveFolders().folderName();
-
-                    copyWal(incrementalSnapshotWalsDir(incSnpDir, folderName), highPtrFut.result());
+                    copyWal(sft.incrementalSnapshotWal(incIdx), highPtrFut.result());
 
                     NodeFileTree ft = cctx.kernalContext().pdsFolderResolver().fileTree();
-                    NodeFileTree snpFt = new NodeFileTree(incSnpDir, folderName);
+                    // TODO: remove me.
+                    NodeFileTree snpFt = new NodeFileTree(incSnpDir, sft.folderName());
 
                     copyFiles(
                         ft.marshaller(),

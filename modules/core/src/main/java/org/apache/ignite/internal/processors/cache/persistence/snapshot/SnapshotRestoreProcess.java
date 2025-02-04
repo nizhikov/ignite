@@ -960,9 +960,8 @@ public class SnapshotRestoreProcess {
                         try {
                             SnapshotMetadata meta = F.first(opCtx0.metasPerNode.get(opCtx0.opNodeId));
 
-                            File dir = opCtx0.incIdx > 0 ?
-                                ctx.cache().context().snapshotMgr()
-                                    .incrementalSnapshotLocalDir(opCtx0.snpName, opCtx0.snpPath, opCtx0.incIdx)
+                            File dir = opCtx0.incIdx > 0
+                                ? sft.incrementalSnapshotRoot(opCtx.incIdx)
                                 : sft.root();
 
                             NodeFileTree ft = new NodeFileTree(dir, meta.folderName());
@@ -1422,7 +1421,10 @@ public class SnapshotRestoreProcess {
         SnapshotRestoreContext opCtx0 = opCtx;
 
         IncrementalSnapshotProcessor incSnpProc = new IncrementalSnapshotProcessor(
-            ctx.cache().context(), opCtx0.snpName, opCtx0.snpPath, opCtx0.incIdx, cacheIds
+            ctx.cache().context(),
+            new SnapshotFileTree(ctx.pdsFolderResolver().fileTree(), opCtx0.snpName, opCtx0.snpPath),
+            opCtx0.incIdx,
+            cacheIds
         ) {
             @Override void totalWalSegments(int segCnt) {
                 opCtx0.totalWalSegments = segCnt;

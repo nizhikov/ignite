@@ -33,6 +33,7 @@ import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.TestRecordingCommunicationSpi;
 import org.apache.ignite.internal.processors.cache.GridLocalConfigManager;
 import org.apache.ignite.internal.processors.cache.StoredCacheData;
+import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.wal.FileWriteAheadLogManager;
 import org.apache.ignite.internal.util.distributed.DistributedProcess;
 import org.apache.ignite.internal.util.distributed.SingleNodeMessage;
@@ -204,8 +205,10 @@ public class IncrementalSnapshotTest extends AbstractSnapshotSelfTest {
         cli.snapshot().createIncrementalSnapshot(SNAPSHOT_NAME).get(TIMEOUT);
         cli.snapshot().createIncrementalSnapshot(SNAPSHOT_NAME).get(TIMEOUT);
 
+        SnapshotFileTree sft = new SnapshotFileTree(ignite(GRID_CNT - 1).context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
+
         File toRmv = new File(
-            snp(ignite(GRID_CNT - 1)).incrementalSnapshotLocalDir(SNAPSHOT_NAME, null, 2),
+            sft.incrementalSnapshotRoot(2),
             snapshotMetaFileName(ignite(GRID_CNT - 1).localNode().consistentId().toString()));
 
         assertTrue(toRmv.exists());
@@ -341,8 +344,10 @@ public class IncrementalSnapshotTest extends AbstractSnapshotSelfTest {
 
         createAndCheckSnapshot(srv, SNAPSHOT_NAME, null, TIMEOUT);
 
-        assertTrue(snp(srv).incrementalSnapshotsLocalRootDir(SNAPSHOT_NAME, null).mkdirs());
-        assertTrue(snp(srv).incrementalSnapshotLocalDir(SNAPSHOT_NAME, null, 1).createNewFile());
+        SnapshotFileTree sft = new SnapshotFileTree(srv.context().pdsFolderResolver().fileTree(), SNAPSHOT_NAME, null);
+
+        assertTrue(sft.incrementalSnapshotRoot().mkdirs());
+        assertTrue(sft.incrementalSnapshotRoot(1).createNewFile());
 
         assertThrows(
             null,
@@ -352,7 +357,7 @@ public class IncrementalSnapshotTest extends AbstractSnapshotSelfTest {
         );
 
         for (int i = 0; i < GRID_CNT; i++)
-            assertFalse(snp(grid(i)).incrementalSnapshotLocalDir(SNAPSHOT_NAME, null, 1).exists());
+            assertFalse(sft.incrementalSnapshotRoot(1).exists());
     }
 
     /** */

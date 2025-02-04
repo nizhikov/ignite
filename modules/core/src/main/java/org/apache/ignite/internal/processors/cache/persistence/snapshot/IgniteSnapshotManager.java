@@ -796,41 +796,6 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
     }
 
     /**
-     * Returns path to specific incremental snapshot.
-     * For example, {@code "work/snapshots/mybackup/increments/0000000000000001"}.
-     *
-     * @param snpName Snapshot name.
-     * @param snpPath Snapshot directory path.
-     * @param incIdx Increment index.
-     * @return Local snapshot directory where snapshot files are located.
-     */
-    public File incrementalSnapshotLocalDir(String snpName, @Nullable String snpPath, int incIdx) {
-        return new File(incrementalSnapshotsLocalRootDir(snpName, snpPath), U.fixedLengthNumberName(incIdx, null));
-    }
-
-    /**
-     * Returns root folder for incremental snapshot.
-     * For example, {@code "work/snapshots/mybackup/increments/"}.
-     *
-     * @param snpName Snapshot name.
-     * @param snpPath Snapshot directory path.
-     * @return Local snapshot directory where snapshot files are located.
-     */
-    public File incrementalSnapshotsLocalRootDir(String snpName, @Nullable String snpPath) {
-        SnapshotFileTree sft = new SnapshotFileTree(ft, snpName, snpPath);
-        return new File(sft.root(), INC_SNP_DIR);
-    }
-
-    /**
-     * @param incSnpDir Incremental snapshot directory.
-     * @param consId Consistent ID.
-     * @return WALs directory for specified incremental snapshot.
-     */
-    public static File incrementalSnapshotWalsDir(File incSnpDir, String consId) {
-        return new NodeFileTree(incSnpDir, U.maskForFileName(consId)).wal();
-    }
-
-    /**
      * @param req Request on snapshot creation.
      * @return Future which will be completed when a snapshot has been started.
      */
@@ -952,7 +917,7 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
         SnapshotFileTree sft,
         SnapshotMetadata meta
     ) {
-        File incSnpDir = incrementalSnapshotLocalDir(req.snapshotName(), req.snapshotPath(), req.incrementIndex());
+        File incSnpDir = sft.incrementalSnapshotRoot(req.incrementIndex());
         WALPointer lowPtr;
 
         if (req.incrementIndex() == 1)
@@ -1046,7 +1011,7 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
         int incIdx
     ) throws IgniteCheckedException, IOException {
         return readFromFile(new File(
-            incrementalSnapshotLocalDir(snpName, snpPath, incIdx),
+            new SnapshotFileTree(ft, snpName, snpPath).incrementalSnapshotRoot(incIdx),
             snapshotMetaFileName(ft.folderName())
         ));
     }
@@ -1345,7 +1310,7 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
                     snpReq.error(req.error());
 
                     if (req.incremental())
-                        U.delete(incrementalSnapshotLocalDir(req.snapshotName(), req.snapshotPath(), req.incrementIndex()));
+                        U.delete(sft.incrementalSnapshotRoot(req.incrementIndex()));
                     else {
                         deleteSnapshot(sft);
                     }
@@ -1597,7 +1562,7 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
             throw new UnsupportedOperationException("Client and daemon nodes can not perform this operation.");
 
         synchronized (snpOpMux) {
-            File[] incDirs = incrementalSnapshotsLocalRootDir(snpName, snpPath).listFiles(File::isDirectory);
+            File[] incDirs = new SnapshotFileTree(ft, snpName, snpPath).incrementalSnapshotRoot().listFiles(File::isDirectory);
 
             if (incDirs == null)
                 return 0;
@@ -2001,7 +1966,7 @@ public class IgniteSnapshotManager extends GridCacheSharedManagerAdapter
      * @return Collection of incremental snapshots metafiles.
      */
     public Collection<IncrementalSnapshotMetadata> readIncrementalSnapshotMetadatas(String snpName) {
-        File[] incDirs = incrementalSnapshotsLocalRootDir(snpName, null)
+        File[] incDirs = new SnapshotFileTree(ft, snpName, null).incrementalSnapshotRoot()
             .listFiles((dir, name) -> INC_SNP_NAME_PATTERN.matcher(name).matches());
 
         if (incDirs == null)

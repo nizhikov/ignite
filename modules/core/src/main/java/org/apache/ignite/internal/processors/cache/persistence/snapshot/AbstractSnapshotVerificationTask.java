@@ -159,6 +159,12 @@ public abstract class AbstractSnapshotVerificationTask extends
             return execute(new SnapshotFileTree(ignite.context().pdsFolderResolver().fileTree(), snpName, snpPath));
         }
 
+        /**
+         * Execute job.
+         *
+         * @param sft Snapshot file tree.
+         * @return Result.
+         */
         protected abstract R execute(SnapshotFileTree sft);
     }
 }

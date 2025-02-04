@@ -61,7 +61,6 @@ import org.apache.ignite.internal.processors.cache.persistence.file.FileIOFactor
 import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.persistence.partstate.GroupPartitionId;
 import org.apache.ignite.internal.processors.cache.persistence.snapshot.AbstractCreateSnapshotFutureTask;
-import org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager;
 import org.apache.ignite.internal.processors.cache.persistence.snapshot.SnapshotFutureTaskResult;
 import org.apache.ignite.internal.processors.cache.persistence.snapshot.SnapshotSender;
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.BPlusIO;
@@ -709,7 +708,7 @@ public class CreateDumpFutureTask extends AbstractCreateSnapshotFutureTask imple
     /** */
     private File groupDirectory(CacheGroupContext grpCtx) throws IgniteCheckedException {
         return new File(
-            IgniteSnapshotManager.nodeDumpDirectory(sft.root(), cctx),
+            sft.nodeRoot(),
             (grpCtx.caches().size() > 1 ? CACHE_GRP_DIR_PREFIX : CACHE_DIR_PREFIX) + grpCtx.cacheOrGroupName()
         );
     }

@@ -185,7 +185,7 @@ public class IncrementalSnapshotVerificationTask extends AbstractSnapshotVerific
                 AtomicLong procSegCnt = new AtomicLong();
 
                 IncrementalSnapshotProcessor proc = new IncrementalSnapshotProcessor(
-                    ignite.context().cache().context(), snpName, snpPath, incIdx, txCaches.keySet()
+                    ignite.context().cache().context(), sft, incIdx, txCaches.keySet()
                 ) {
                     @Override void totalWalSegments(int segCnt) {
                         // No-op.

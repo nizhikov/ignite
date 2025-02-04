@@ -23,7 +23,9 @@ import org.apache.ignite.internal.processors.cache.persistence.snapshot.Snapshot
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.jetbrains.annotations.Nullable;
 
+import static org.apache.ignite.configuration.DataStorageConfiguration.DFLT_WAL_PATH;
 import static org.apache.ignite.internal.processors.cache.persistence.filename.PdsFolderResolver.DB_DEFAULT_FOLDER;
+import static org.apache.ignite.internal.processors.cache.persistence.snapshot.IgniteSnapshotManager.INC_SNP_DIR;
 
 /**
  *
@@ -122,6 +124,31 @@ public class SnapshotFileTree extends SharedFileTree {
     /** @return {snp_tmp}/db/{folder_name} */
     public File snapshotTempWithConsistentId() {
         return Paths.get(snpTmp.getAbsolutePath(), DB_DEFAULT_FOLDER, folderName).toFile();
+    }
+
+    /** */
+    public File incrementalSnapshotRoot() {
+        return new File(root, INC_SNP_DIR);
+    }
+
+    /**
+     * Returns path to specific incremental snapshot.
+     * For example, {@code "work/snapshots/mybackup/increments/0000000000000001"}.
+     *
+     * @param idx Increment index.
+     * @return Local snapshot directory where snapshot files are located.
+     */
+    public File incrementalSnapshotRoot(int idx) {
+        return new File(incrementalSnapshotRoot(), U.fixedLengthNumberName(idx, null));
+    }
+
+    /**
+     *
+     * @param idx
+     * @return
+     */
+    public File incrementalSnapshotWal(int idx) {
+        return new File(new File(incrementalSnapshotRoot(idx), DFLT_WAL_PATH), folderName);
     }
 
     /** */
