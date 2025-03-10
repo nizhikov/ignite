@@ -65,6 +65,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheContextInfo;
 import org.apache.ignite.internal.processors.cache.QueryCursorImpl;
 import org.apache.ignite.internal.processors.cache.distributed.dht.IgniteClusterReadOnlyException;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
+import org.apache.ignite.internal.processors.cache.distributed.dht.topology.PartitionReservationManager;
 import org.apache.ignite.internal.processors.cache.persistence.CacheDataRow;
 import org.apache.ignite.internal.processors.cache.query.GridCacheQueryMarshallable;
 import org.apache.ignite.internal.processors.cache.query.GridCacheQueryType;
@@ -97,7 +98,6 @@ import org.apache.ignite.internal.processors.query.h2.sql.GridSqlConst;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlStatement;
 import org.apache.ignite.internal.processors.query.h2.twostep.GridMapQueryExecutor;
 import org.apache.ignite.internal.processors.query.h2.twostep.GridReduceQueryExecutor;
-import org.apache.ignite.internal.processors.query.h2.twostep.PartitionReservationManager;
 import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryCancelRequest;
 import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryFailResponse;
 import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryNextPageRequest;
@@ -469,13 +469,17 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                         qryInfo
                     );
 
-                    runningQueryManager().planHistoryTracker().addPlan(
-                        qryInfo.plan(),
-                        qry,
-                        qryDesc.schemaName(),
-                        true,
-                        IndexingQueryEngineConfiguration.ENGINE_NAME
-                    );
+                    if (runningQueryManager().planHistoryTracker().enabled()) {
+                        H2QueryInfo qryInfo0 = qryInfo;
+
+                        ctx.pools().getSystemExecutorService().submit(() ->
+                            runningQueryManager().planHistoryTracker().addPlan(
+                                qryInfo0.plan(),
+                                qryInfo0.sql(),
+                                qryInfo0.schema(),
+                                true,
+                                IndexingQueryEngineConfiguration.ENGINE_NAME));
+                    }
 
                     return new H2FieldsIterator(
                         rs,
@@ -1565,7 +1569,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
         this.ctx = ctx;
 
-        partReservationMgr = new PartitionReservationManager(ctx);
+        partReservationMgr = ctx.query().partitionReservationManager();
 
         connMgr = new ConnectionManager(ctx);
 
@@ -1839,10 +1843,6 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
     /** {@inheritDoc} */
     @Override public void unregisterCache(GridCacheContextInfo<?, ?> cacheInfo) {
-        String cacheName = cacheInfo.name();
-
-        partReservationMgr.onCacheStop(cacheName);
-
         // Unregister connection.
         connMgr.onCacheDestroyed();
 
@@ -2304,13 +2304,15 @@ public class IgniteH2Indexing implements GridQueryIndexing {
             }
         }
         finally {
-            runningQueryManager().planHistoryTracker().addPlan(
-                dmlPlanInfo.toString(),
-                qryDesc.sql(),
-                qryDesc.schemaName(),
-                loc,
-                IndexingQueryEngineConfiguration.ENGINE_NAME
-            );
+            if (runningQueryManager().planHistoryTracker().enabled()) {
+                runningQueryManager().planHistoryTracker().addPlan(
+                    dmlPlanInfo.toString(),
+                    qryDesc.sql(),
+                    qryDesc.schemaName(),
+                    loc,
+                    IndexingQueryEngineConfiguration.ENGINE_NAME
+                );
+            }
         }
     }
 
