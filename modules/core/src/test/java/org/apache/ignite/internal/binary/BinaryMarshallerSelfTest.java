@@ -84,6 +84,7 @@ import org.apache.ignite.internal.binary.builder.BinaryObjectBuilderImpl;
 import org.apache.ignite.internal.binary.streams.BinaryHeapInputStream;
 import org.apache.ignite.internal.binary.streams.BinaryHeapOutputStream;
 import org.apache.ignite.internal.binary.streams.BinaryInputStream;
+import org.apache.ignite.internal.binary.streams.BinaryOutputStream;
 import org.apache.ignite.internal.managers.discovery.GridDiscoveryManager;
 import org.apache.ignite.internal.managers.systemview.GridSystemViewManager;
 import org.apache.ignite.internal.managers.systemview.JmxSystemViewExporterSpi;
@@ -3236,7 +3237,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
     private void testReadDetachObjectProperly(Object obj, IgniteThrowableConsumer<Object> action, boolean deserialize) throws Exception {
         BinaryMarshaller marsh = binaryMarshaller();
 
-        BinaryHeapOutputStream os = new BinaryHeapOutputStream(1024);
+        BinaryOutputStream os = new BinaryHeapOutputStream(1024);
 
         BinaryWriterExImpl writer = marsh.binaryMarshaller().writer(os);
 
