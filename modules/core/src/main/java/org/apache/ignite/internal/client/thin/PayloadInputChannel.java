@@ -19,7 +19,7 @@ package org.apache.ignite.internal.client.thin;
 
 import java.nio.ByteBuffer;
 
-import org.apache.ignite.internal.binary.streams.BinaryByteBufferInputStream;
+import org.apache.ignite.internal.binary.BinaryUtils;
 import org.apache.ignite.internal.binary.streams.BinaryInputStream;
 
 /**
@@ -36,7 +36,7 @@ class PayloadInputChannel {
      * Constructor.
      */
     PayloadInputChannel(ClientChannel ch, ByteBuffer payload) {
-        in = BinaryByteBufferInputStream.create(payload);
+        in = BinaryUtils.createBinaryInputStream(payload);
         this.ch = ch;
     }
 

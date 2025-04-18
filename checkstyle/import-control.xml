@@ -1,0 +1,12 @@
+<!DOCTYPE import-control PUBLIC
+        "-//Checkstyle//DTD ImportControl Configuration 1.4//EN"
+        "https://checkstyle.org/dtds/import_control_1_4.dtd">
+
+<import-control pkg="(io)|(org)" regex="true" strategyOnMismatch="allowed">
+    <subpackage name="apache.ignite" strategyOnMismatch="allowed">
+        <disallow pkg="org.apache.ignite.internal.binary.streams" />
+        <disallow pkg="org.apache.ignite.internal.binary.builder" />
+        <allow class="org.apache.ignite.internal.binary.streams.BinaryInputStream"/>
+        <allow class="org.apache.ignite.internal.binary.streams.BinaryOutputStream"/>
+    </subpackage>
+</import-control>

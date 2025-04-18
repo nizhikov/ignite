@@ -33,6 +33,7 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -60,16 +61,22 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.binary.BinaryCollectionFactory;
+import org.apache.ignite.binary.BinaryField;
 import org.apache.ignite.binary.BinaryInvalidTypeException;
 import org.apache.ignite.binary.BinaryMapFactory;
 import org.apache.ignite.binary.BinaryObject;
+import org.apache.ignite.binary.BinaryObjectBuilder;
 import org.apache.ignite.binary.BinaryObjectException;
 import org.apache.ignite.binary.BinaryRawReader;
 import org.apache.ignite.binary.BinaryRawWriter;
 import org.apache.ignite.binary.BinaryType;
 import org.apache.ignite.binary.Binarylizable;
 import org.apache.ignite.internal.binary.builder.BinaryLazyValue;
+import org.apache.ignite.internal.binary.builder.BinaryObjectBuilderImpl;
+import org.apache.ignite.internal.binary.streams.BinaryByteBufferInputStream;
 import org.apache.ignite.internal.binary.streams.BinaryInputStream;
+import org.apache.ignite.internal.binary.streams.BinaryOffheapInputStream;
+import org.apache.ignite.internal.processors.cache.CacheDefaultBinaryAffinityKeyMapper;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.persistence.filename.NodeFileTree;
 import org.apache.ignite.internal.util.GridUnsafe;
@@ -2777,6 +2784,60 @@ public class BinaryUtils {
      */
     public static boolean isBinaryEnumArray(Object val) {
         return val instanceof BinaryEnumArray;
+    }
+
+    /**
+     * @param ptr Pointer.
+     * @param cap Capacity.
+     * @param forceHeap If {@code true} method {@link BinaryInputStream#offheapPointer} returns 0 and unmarshalling will
+     *        create heap-based objects.
+     * @return New stream instance.
+     */
+    public static BinaryInputStream createOffheapInputStream(long ptr, int cap, boolean forceHeap) {
+        return new BinaryOffheapInputStream(ptr, cap, forceHeap);
+    }
+
+    /**
+     * @param buf Buffer to wrap.
+     * @return Stream.
+     */
+    public static BinaryInputStream createBinaryInputStream(ByteBuffer buf) {
+        return BinaryByteBufferInputStream.create(buf);
+    }
+
+    /**
+     * @param bobj Binary object.
+     * @return Binary object builder instance.
+     */
+    public static BinaryObjectBuilder toBinaryBuilder(BinaryObject bobj) {
+        return BinaryObjectBuilderImpl.wrap(bobj);
+    }
+
+    /**
+     * @param ctx Binary context.
+     * @param typeName Type name.
+     * @return Binary object builder instance.
+     */
+    public static BinaryObjectBuilder createBinaryBuilder(BinaryContext ctx, String typeName) {
+        return new BinaryObjectBuilderImpl(ctx, typeName);
+    }
+
+    /**
+     * @param builder Builder to set affinity for.
+     * @param mapper Affinity mapper
+     */
+    public static void prepareAffinityField(BinaryObjectBuilder builder, CacheDefaultBinaryAffinityKeyMapper mapper) {
+        assert builder instanceof BinaryObjectBuilderImpl;
+
+        BinaryObjectBuilderImpl builder0 = (BinaryObjectBuilderImpl)builder;
+
+        BinaryField field = mapper.affinityKeyField(builder0.typeId());
+
+        if (field != null) {
+            String fieldName = field.name();
+
+            builder0.affinityFieldName(fieldName);
+        }
     }
 
     /**

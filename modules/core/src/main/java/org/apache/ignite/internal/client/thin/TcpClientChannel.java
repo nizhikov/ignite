@@ -55,8 +55,8 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.binary.BinaryCachingMetadataHandler;
 import org.apache.ignite.internal.binary.BinaryContext;
 import org.apache.ignite.internal.binary.BinaryReaderExImpl;
+import org.apache.ignite.internal.binary.BinaryUtils;
 import org.apache.ignite.internal.binary.BinaryWriterExImpl;
-import org.apache.ignite.internal.binary.streams.BinaryByteBufferInputStream;
 import org.apache.ignite.internal.binary.streams.BinaryHeapOutputStream;
 import org.apache.ignite.internal.binary.streams.BinaryInputStream;
 import org.apache.ignite.internal.binary.streams.BinaryOutputStream;
@@ -519,7 +519,7 @@ class TcpClientChannel implements ClientChannel, ClientMessageHandler, ClientCon
      * Process next message from the input stream and complete corresponding future.
      */
     private void processNextMessage(ByteBuffer buf) throws ClientProtocolError, ClientConnectionException {
-        BinaryInputStream dataInput = BinaryByteBufferInputStream.create(buf);
+        BinaryInputStream dataInput = BinaryUtils.createBinaryInputStream(buf);
 
         if (protocolCtx == null) {
             // Process handshake.
@@ -741,7 +741,7 @@ class TcpClientChannel implements ClientChannel, ClientMessageHandler, ClientCon
             try {
                 ByteBuffer buf = timeout > 0 ? fut.get(timeout) : fut.get();
 
-                BinaryInputStream res = BinaryByteBufferInputStream.create(buf);
+                BinaryInputStream res = BinaryUtils.createBinaryInputStream(buf);
 
                 try (BinaryReaderExImpl reader = ClientUtils.createBinaryReader(null, res)) {
                     boolean success = res.readBoolean();

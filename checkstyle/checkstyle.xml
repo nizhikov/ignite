@@ -194,6 +194,11 @@
 
         <!-- Usage of Ignite abbrevations check. -->
         <module name="org.apache.ignite.tools.checkstyle.IgniteAbbrevationsRule"/>
+
+        <module name="ImportControl">
+            <property name="severity" value="error"/>
+            <property name="file" value="checkstyle/import-control.xml"/>
+        </module>
     </module>
 
     <!--
