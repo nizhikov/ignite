@@ -607,12 +607,11 @@ public class TcpIgniteClient implements IgniteClient {
         /** {@inheritDoc} */
         @Override public void addMeta(int typeId, BinaryType meta, boolean failIfUnregistered)
             throws BinaryObjectException {
-            BinaryType oldType = cache.metadata(typeId);
-            BinaryMetadata oldMeta = oldType == null ? null : ((BinaryTypeImpl)oldType).metadata();
+            BinaryMetadata oldMeta = cache.metadata0(typeId);
             BinaryMetadata newMeta = ((BinaryTypeImpl)meta).metadata();
 
             // If type wasn't registered before or metadata changed, send registration request.
-            if (oldType == null || BinaryUtils.mergeMetadata(oldMeta, newMeta) != oldMeta) {
+            if (oldMeta == null || BinaryUtils.mergeMetadata(oldMeta, newMeta) != oldMeta) {
                 try {
                     if (ch != null) { // Postpone binary type registration requests to server before channels initiated.
                         ch.request(
@@ -709,7 +708,7 @@ public class TcpIgniteClient implements IgniteClient {
             if (meta0 == null)
                 return null;
 
-            BinaryType meta = new BinaryTypeImpl(marsh.context(), meta0);
+            BinaryType meta = BinaryUtils.binaryType(marsh.context(), meta0);
 
             cache.addMeta(typeId, meta, false);
 

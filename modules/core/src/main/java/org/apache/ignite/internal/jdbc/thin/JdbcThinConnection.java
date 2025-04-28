@@ -2532,7 +2532,7 @@ public class JdbcThinConnection implements Connection {
                 BinaryMetadata meta = res.meta();
 
                 if (meta != null) {
-                    binType = new BinaryTypeImpl(ctx, meta);
+                    binType = BinaryUtils.binaryType(ctx, meta);
 
                     cache.addMeta(typeId, binType, false);
                 }

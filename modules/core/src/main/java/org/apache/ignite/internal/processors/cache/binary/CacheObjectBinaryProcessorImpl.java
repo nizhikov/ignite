@@ -253,7 +253,7 @@ public class CacheObjectBinaryProcessorImpl extends GridProcessorAdapter impleme
 
                 CacheObjectBinaryProcessorImpl.this.addMeta(
                     typeId,
-                    newMeta0.wrap(binaryCtx),
+                    newMeta0.wrap(binaryCtx).metadata(),
                     failIfUnregistered
                 );
             }
@@ -553,21 +553,18 @@ public class CacheObjectBinaryProcessorImpl extends GridProcessorAdapter impleme
     }
 
     /** {@inheritDoc} */
-    @Override public void addMeta(final int typeId, final BinaryType newMeta, boolean failIfUnregistered)
+    @Override public void addMeta(final int typeId, final BinaryMetadata newMeta, boolean failIfUnregistered)
         throws BinaryObjectException {
         assert newMeta != null;
-        assert newMeta instanceof BinaryTypeImpl;
-
-        BinaryMetadata newMeta0 = ((BinaryTypeImpl)newMeta).metadata();
 
         if (failIfUnregistered) {
-            failIfUnregistered(typeId, newMeta0);
+            failIfUnregistered(typeId, newMeta);
 
             return;
         }
 
         try {
-            GridFutureAdapter<MetadataUpdateResult> fut = transport.requestMetadataUpdate(newMeta0);
+            GridFutureAdapter<MetadataUpdateResult> fut = transport.requestMetadataUpdate(newMeta);
 
             if (fut == null) {
                 if (log.isDebugEnabled()) {
@@ -986,7 +983,7 @@ public class CacheObjectBinaryProcessorImpl extends GridProcessorAdapter impleme
                 if (Thread.interrupted())
                     throw new IgniteInterruptedCheckedException("Thread has been interrupted.");
 
-                addMeta(newMeta.typeId(), newMeta.wrap(binaryContext()), false);
+                addMeta(newMeta.typeId(), newMeta.wrap(binaryContext()).metadata(), false);
             }
         }
         catch (BinaryObjectException e) {

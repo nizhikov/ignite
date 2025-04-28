@@ -37,8 +37,8 @@ import org.apache.ignite.binary.BinaryObjectBuilder;
 import org.apache.ignite.binary.BinaryObjectException;
 import org.apache.ignite.binary.BinaryType;
 import org.apache.ignite.configuration.ClientConfiguration;
+import org.apache.ignite.internal.binary.BinaryMetadata;
 import org.apache.ignite.internal.binary.BinarySchema;
-import org.apache.ignite.internal.binary.BinaryTypeImpl;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.jetbrains.annotations.Nullable;
 import org.junit.After;
@@ -232,15 +232,15 @@ public class GridCommandHandlerMetadataTest extends GridCommandHandlerClusterByC
         BinaryObject bo1 = bob1.build();
 
         assertEquals(EXIT_CODE_OK, execute("--meta", "details", "--typeName", "TypeName0"));
-        checkTypeDetails(log, testOut.toString(), crd.context().cacheObjects().metadata(bo0.type().typeId()));
+        checkTypeDetails(log, testOut.toString(), crd.context().marshaller().binaryMarshaller().context().metadata0(bo0.type().typeId()));
 
         assertEquals(EXIT_CODE_OK, execute("--meta", "details", "--typeId",
             "0x" + Integer.toHexString(crd.context().cacheObjects().typeId("TypeName1"))));
-        checkTypeDetails(log, testOut.toString(), crd.context().cacheObjects().metadata(bo1.type().typeId()));
+        checkTypeDetails(log, testOut.toString(), crd.context().marshaller().binaryMarshaller().context().metadata0(bo1.type().typeId()));
 
         assertEquals(EXIT_CODE_OK, execute("--meta", "details", "--typeId",
             Integer.toString(crd.context().cacheObjects().typeId("TypeName1"))));
-        checkTypeDetails(log, testOut.toString(), crd.context().cacheObjects().metadata(bo1.type().typeId()));
+        checkTypeDetails(log, testOut.toString(), crd.context().marshaller().binaryMarshaller().context().metadata0(bo1.type().typeId()));
     }
 
     /**
@@ -397,7 +397,7 @@ public class GridCommandHandlerMetadataTest extends GridCommandHandlerClusterByC
 
             repeat(cnt, i -> {
                 assertEquals(EXIT_CODE_OK, execute("--meta", "details", "--typeName", typeNames[i]));
-                checkTypeDetails(log, testOut.toString(), crd.context().cacheObjects().metadata(typeIds[i]));
+                checkTypeDetails(log, testOut.toString(), crd.context().marshaller().binaryMarshaller().context().metadata0(typeIds[i]));
             });
         }
         finally {
@@ -556,7 +556,7 @@ public class GridCommandHandlerMetadataTest extends GridCommandHandlerClusterByC
             assertContains(log, testOut.toString(), "typeName=Type0");
 
             assertEquals(EXIT_CODE_OK, execute("--meta", "details", "--typeName", "Type0"));
-            checkTypeDetails(log, testOut.toString(), crd.binary().type(typeId));
+            checkTypeDetails(log, testOut.toString(), crd.context().marshaller().binaryMarshaller().context().metadata0(typeId));
 
             assertEquals(EXIT_CODE_OK, execute("--meta", "remove",
                 "--typeName", "Type0",
@@ -585,17 +585,17 @@ public class GridCommandHandlerMetadataTest extends GridCommandHandlerClusterByC
     }
 
     /**
-     * @param t Binary type.
+     * @param m Binary metadata.
      */
-    private void checkTypeDetails(@Nullable IgniteLogger log, String cmdOut, BinaryType t) {
-        assertContains(log, cmdOut, "typeId=" + "0x" + Integer.toHexString(t.typeId()).toUpperCase());
-        assertContains(log, cmdOut, "typeName=" + t.typeName());
+    private void checkTypeDetails(@Nullable IgniteLogger log, String cmdOut, BinaryMetadata m) {
+        assertContains(log, cmdOut, "typeId=" + "0x" + Integer.toHexString(m.typeId()).toUpperCase());
+        assertContains(log, cmdOut, "typeName=" + m.typeName());
         assertContains(log, cmdOut, "Fields:");
 
-        for (String fldName : t.fieldNames())
-            assertContains(log, cmdOut, "name=" + fldName + ", type=" + t.fieldTypeName(fldName));
+        for (String fldName : m.fields())
+            assertContains(log, cmdOut, "name=" + fldName + ", type=" + m.fieldTypeName(fldName));
 
-        for (BinarySchema s : ((BinaryTypeImpl)t).metadata().schemas())
+        for (BinarySchema s : m.schemas())
             assertContains(log, cmdOut, "schemaId=0x" + Integer.toHexString(s.schemaId()).toUpperCase());
     }
 

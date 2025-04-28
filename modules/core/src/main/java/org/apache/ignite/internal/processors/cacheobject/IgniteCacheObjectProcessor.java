@@ -31,6 +31,7 @@ import org.apache.ignite.binary.BinaryType;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.binary.BinaryFieldMetadata;
+import org.apache.ignite.internal.binary.BinaryMetadata;
 import org.apache.ignite.internal.processors.GridProcessor;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.CacheObjectContext;
@@ -240,7 +241,7 @@ public interface IgniteCacheObjectProcessor extends GridProcessor {
      * @param failIfUnregistered Fail if unregistered.
      * @throws IgniteException In case of error.
      */
-    public void addMeta(int typeId, final BinaryType newMeta, boolean failIfUnregistered) throws IgniteException;
+    public void addMeta(int typeId, final BinaryMetadata newMeta, boolean failIfUnregistered) throws IgniteException;
 
     /**
      * Adds metadata locally without triggering discovery exchange.

@@ -31,7 +31,6 @@ import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.binary.BinaryMetadata;
-import org.apache.ignite.internal.binary.BinaryTypeImpl;
 import org.apache.ignite.internal.processors.cache.persistence.filename.SharedFileTree;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
@@ -108,7 +107,7 @@ public class BinaryMetadataMoveLegacyFolderTest extends GridCommonAbstractTest {
 
         builder.build();
 
-        BinaryMetadata metadata = ((BinaryTypeImpl)binary.type(typeName)).metadata();
+        BinaryMetadata metadata = grid.context().marshaller().binaryMarshaller().context().metadata0(binary.type(typeName).typeId());
 
         byte[] marshalled = U.marshal(grid.context(), metadata);
 

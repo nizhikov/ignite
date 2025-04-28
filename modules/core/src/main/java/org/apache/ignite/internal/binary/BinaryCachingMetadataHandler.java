@@ -46,7 +46,7 @@ class BinaryCachingMetadataHandler implements BinaryMetadataHandler {
     }
 
     /** {@inheritDoc} */
-    @Override public synchronized void addMeta(int typeId, BinaryType type, boolean failIfUnregistered)
+    @Override public synchronized void addMeta(int typeId, BinaryMetadata type, boolean failIfUnregistered)
         throws BinaryObjectException {
         BinaryType oldType = metas.put(typeId, type);
 
