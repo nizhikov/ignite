@@ -30,7 +30,7 @@
         <relativePath>../../../parent-internal/pom.xml</relativePath>
     </parent>
 
-    <artifactId>ignite-binary-api</artifactId>
+    <artifactId>ignite-binary-impl</artifactId>
 
     <url>http://ignite.apache.org</url>
 
@@ -43,7 +43,7 @@
 
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>ignite-binary-impl</artifactId>
+            <artifactId>ignite-binary-api</artifactId>
             <scope>provided</scope>
         </dependency>
 
