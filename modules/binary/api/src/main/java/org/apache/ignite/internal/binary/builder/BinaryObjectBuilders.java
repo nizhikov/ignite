@@ -17,30 +17,17 @@
 
 package org.apache.ignite.internal.binary.builder;
 
-import java.util.Iterator;
 import org.apache.ignite.binary.BinaryObject;
 import org.apache.ignite.binary.BinaryObjectBuilder;
 import org.apache.ignite.internal.binary.BinaryContext;
-import org.apache.ignite.internal.util.CommonUtils;
-import org.apache.ignite.internal.util.typedef.internal.A;
+import org.apache.ignite.internal.binary.BinaryUtils;
 
 /**
  * Utility class to provide static methods to create {@link BinaryObjectBuilder}.
  */
 public class BinaryObjectBuilders {
     /** Streams factory implementation. */
-    private static final BinaryObjectBuildersFactory factory;
-
-    static {
-        Iterator<BinaryObjectBuildersFactory> factories = CommonUtils.loadService(BinaryObjectBuildersFactory.class).iterator();
-
-        A.ensure(
-            factories.hasNext(),
-            "Implementation for BinaryObjectBuildersFactory service not found. Please add ignite-binary-impl to classpath"
-        );
-
-        factory = factories.next();
-    }
+    private static final BinaryObjectBuildersFactory factory = BinaryUtils.loadBinaryImplService(BinaryObjectBuildersFactory.class);
 
     /**
      * @param obj Object to convert to builder.

@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.binary;
 
 import java.io.ObjectInput;
+import java.lang.reflect.Field;
 import org.apache.ignite.binary.BinaryObjectException;
 import org.apache.ignite.binary.BinaryRawReader;
 import org.apache.ignite.binary.BinaryReader;
@@ -85,4 +86,83 @@ public interface BinaryReaderEx extends BinaryReader, BinaryRawReader, BinaryRea
      * @return Offset.
      */
     public boolean findFieldByName(String name);
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException If failed.
+     */
+    byte readByte(int fieldId) throws BinaryObjectException;
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException If failed.
+     */
+    boolean readBoolean(int fieldId) throws BinaryObjectException;
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException If failed.
+     */
+    short readShort(int fieldId) throws BinaryObjectException;
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException If failed.
+     */
+    char readChar(int fieldId) throws BinaryObjectException;
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException If failed.
+     */
+    int readInt(int fieldId) throws BinaryObjectException;
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException If failed.
+     */
+    long readLong(int fieldId) throws BinaryObjectException;
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException If failed.
+     */
+    float readFloat(int fieldId) throws BinaryObjectException;
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException If failed.
+     */
+    double readDouble(int fieldId) throws BinaryObjectException;
+
+    /**
+     * @param fieldId Field ID.
+     * @return Deserialized object.
+     * @throws BinaryObjectException If failed.
+     */
+    @Nullable Object readField(int fieldId) throws BinaryObjectException;
+
+    /**
+     * Reads fixed type from the given reader with flags validation.
+     *
+     * @param mode Binary write mode.
+     * @return Read value.
+     * @throws BinaryObjectException If failed to read value from the stream.
+     */
+    Object readFixedType(int id, BinaryWriteMode mode, Field field) throws BinaryObjectException;
+
+    /**
+     * Get or create object schema.
+     *
+     * @return Schema.
+     */
+    BinarySchema getOrCreateSchema();
 }

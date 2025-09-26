@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -78,6 +79,7 @@ import org.apache.ignite.internal.util.GridUnsafe;
 import org.apache.ignite.internal.util.MutableSingletonList;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.T2;
+import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.lang.IgniteBiTuple;
 import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.marshaller.Marshallers;
@@ -178,6 +180,9 @@ public class BinaryUtils {
 
     /** FNV1 hash prime. */
     private static final int FNV1_PRIME = 0x01000193;
+
+    /** */
+    private static BinaryIOFactory ioFactory = loadBinaryImplService(BinaryIOFactory.class);
 
     /*
      * Static class initializer.
@@ -2846,7 +2851,7 @@ public class BinaryUtils {
      * @param forUnmarshal {@code True} if reader is needed to unmarshal object.
      */
     public static BinaryReaderEx reader(BinaryContext ctx, BinaryInputStream in, ClassLoader ldr, boolean forUnmarshal) {
-        return new BinaryReaderExImpl(ctx, in, ldr, forUnmarshal);
+        return ioFactory.reader(ctx, in, ldr, forUnmarshal);
     }
 
     /**
@@ -2880,7 +2885,7 @@ public class BinaryUtils {
                                         ClassLoader ldr,
                                         @Nullable BinaryReaderHandles hnds,
                                         boolean forUnmarshal) {
-        return new BinaryReaderExImpl(ctx, in, ldr, hnds, forUnmarshal);
+        return ioFactory.reader(ctx, in, ldr, hnds, forUnmarshal);
     }
 
     /**
@@ -2897,7 +2902,7 @@ public class BinaryUtils {
         ClassLoader ldr,
         boolean skipHdrCheck,
         boolean forUnmarshal) {
-        return reader(ctx, in, ldr, null, skipHdrCheck, forUnmarshal);
+        return ioFactory.reader(ctx, in, ldr, null, skipHdrCheck, forUnmarshal);
     }
 
     /**
@@ -2916,7 +2921,7 @@ public class BinaryUtils {
                                         @Nullable BinaryReaderHandles hnds,
                                         boolean skipHdrCheck,
                                         boolean forUnmarshal) {
-        return new BinaryReaderExImpl(ctx, in, ldr, hnds, skipHdrCheck, forUnmarshal);
+        return ioFactory.reader(ctx, in, ldr, hnds, skipHdrCheck, forUnmarshal);
     }
 
     /**
@@ -3089,7 +3094,7 @@ public class BinaryUtils {
      * @param order Order.
      */
     public static int fieldId(BinaryReaderEx reader, int order) {
-        return ((BinaryReaderExImpl)reader).getOrCreateSchema().fieldId(order);
+        return reader.getOrCreateSchema().fieldId(order);
     }
 
     /**
@@ -3100,6 +3105,21 @@ public class BinaryUtils {
         assert obj != null;
 
         return IMMUTABLE_CLS.contains(obj.getClass());
+    }
+
+    /**
+     * @param cls Service to load.
+     * @param <T> Service type.
+     */
+    public static <T> T loadBinaryImplService(Class<T> cls) {
+        Iterator<T> factories = CommonUtils.loadService(cls).iterator();
+
+        A.ensure(
+            factories.hasNext(),
+            "Implementation for " + cls.getName() + " service not found. Please add ignite-binary-impl to classpath"
+        );
+
+        return factories.next();
     }
 
     /**

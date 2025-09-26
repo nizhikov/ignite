@@ -19,12 +19,10 @@ package org.apache.ignite.marshaller;
 
 import java.io.OutputStream;
 import java.io.Serializable;
-import java.util.Iterator;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteCommonsSystemProperties;
+import org.apache.ignite.internal.binary.BinaryUtils;
 import org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller;
-import org.apache.ignite.internal.util.CommonUtils;
-import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.marshaller.jdk.JdkMarshaller;
 import org.jetbrains.annotations.Nullable;
@@ -43,18 +41,7 @@ public class Marshallers {
         IgniteCommonsSystemProperties.getBoolean(IGNITE_OPTIMIZED_MARSHALLER_USE_DEFAULT_SUID, false);
 
     /** Streams factory implementation. */
-    private static final MarshallersFactory factory;
-
-    static {
-        Iterator<MarshallersFactory> factories = CommonUtils.loadService(MarshallersFactory.class).iterator();
-
-        A.ensure(
-            factories.hasNext(),
-            "Implementation for MarshallersFactory service not found. Please add ignite-binary-impl to classpath"
-        );
-
-        factory = factories.next();
-    }
+    private static final MarshallersFactory factory = BinaryUtils.loadBinaryImplService(MarshallersFactory.class);
 
     /** @return Default instance of {@link JdkMarshaller}. */
     public static JdkMarshaller jdk() {

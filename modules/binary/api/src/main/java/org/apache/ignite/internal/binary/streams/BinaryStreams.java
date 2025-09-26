@@ -18,27 +18,14 @@
 package org.apache.ignite.internal.binary.streams;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
-import org.apache.ignite.internal.util.CommonUtils;
-import org.apache.ignite.internal.util.typedef.internal.A;
+import org.apache.ignite.internal.binary.BinaryUtils;
 
 /**
  * Utility class to provide static methods to create {@link BinaryInputStream} or {@link BinaryOutputStream} in different modes.
  */
 public class BinaryStreams {
     /** Streams factory implementation. */
-    private static final BinaryStreamsFactory factory;
-
-    static {
-        Iterator<BinaryStreamsFactory> factories = CommonUtils.loadService(BinaryStreamsFactory.class).iterator();
-
-        A.ensure(
-            factories.hasNext(),
-            "Implementation for BinaryStreamsFactory service not found. Please add ignite-binary-impl to classpath"
-        );
-
-        factory = factories.next();
-    }
+    private static final BinaryStreamsFactory factory = BinaryUtils.loadBinaryImplService(BinaryStreamsFactory.class);
 
     /**
      * Create stream with pointer set at the given position.
